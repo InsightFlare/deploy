@@ -10,7 +10,7 @@
     "build:web": "vite build",
     "build": "pnpm build:web && wrangler deploy --dry-run --outdir dist/worker",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node --test tests/pack-build.nodecheck.mjs",
+    "test": "vitest run && node --test tests/pack-build.nodecheck.mjs tests/smoke-beta-version.nodecheck.mjs",
     "test:watch": "vitest",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "deploy": "pnpm build:web && wrangler deploy"
