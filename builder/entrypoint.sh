@@ -32,7 +32,9 @@ test "$(git rev-parse HEAD)" = "${SHA}"
 # Build has no Cloudflare credentials and must not run remote DB migrations.
 # pnpm install is pinned by the source lockfile and packageManager declaration.
 corepack pnpm install --frozen-lockfile --ignore-scripts
-corepack pnpm exec tsx scripts/build.ts --target cf --skip-prebuild
+# Upstream explicitly recognizes WORKERS_CI as the CI build environment.
+# Scope this marker to compilation only; --skip-prebuild avoids remote D1 IO.
+WORKERS_CI=1 corepack pnpm exec tsx scripts/build.ts --target cf --skip-prebuild
 
 test -f dist/server/wrangler.json
 test -f dist/server/index.js

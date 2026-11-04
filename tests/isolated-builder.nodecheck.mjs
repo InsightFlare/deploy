@@ -109,6 +109,7 @@ describe("dedicated builder Docker invocation contract", () => {
     const shell = await readFile(new URL("../builder/entrypoint.sh", import.meta.url), "utf8");
     assert.match(shell, /github\.com\/RavelloH\/InsightFlare\.git/);
     assert.match(shell, /fetch --no-tags --depth=1 origin/);
+    assert.match(shell, /WORKERS_CI=1 corepack pnpm exec tsx scripts\/build\.ts --target cf --skip-prebuild/);
     assert.match(shell, /--target cf --skip-prebuild/);
     assert.match(shell, /pnpm install --frozen-lockfile --ignore-scripts/);
     assert.doesNotMatch(shell, /wrangler deploy|migrations apply|--remote/);
