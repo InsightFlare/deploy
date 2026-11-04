@@ -41,6 +41,18 @@ The build readiness check rejects triggers with a mismatched GitHub repository I
 
 After reviewing a read-only plan, an authenticated user may submit its exact source SHA to `POST /api/v1/providers/cloudflare/accounts/:accountId/prepare`. The control plane re-checks upstream `main`, refuses stale plans (HTTP 409), then stores a **blocked**, session-scoped, 15-minute operation in an account-scoped Durable Object. `GET /api/v1/providers/cloudflare/accounts/:accountId/prepared-run` restores that record after reconnecting. Neither endpoint triggers a Cloudflare build, migration, or deployment.
 
-Cloudflare Builds permissions, upstream-repository access without a fork, and the isolation of source compilation from D1 migrations have not yet passed real-account validation. The upstream build script already accepts `--skip-prebuild`, but using that mode as a complete production build pipeline requires separate verification. **No mutation endpoint is available** until those conditions are satisfied.
+Cloudflare's GitHub App currently cannot connect an ordinary user account to the official upstream public repository without an approved integration; the existing test account remains linked to an older fork. A pinned, independent compilation of the upstream source using `--skip-prebuild` **has** been validated in a credential-free, isolated worktree, with no remote D1 operations. That does not establish a complete user-owned Cloudflare Builds pipeline. **No mutation endpoint is available** until the complete per-user build, migration, staged upload and approval workflow is verified.
+
+### Independent build artifact verification
+
+From this repository, inspect an already-built, isolated checkout of the official upstream main commit:
+
+```bash
+node scripts/pack-build.mjs <path-to-isolated-source-checkout> <full-40-character-commit-sha>
+```
+
+The command checks Git provenance, the generated Cloudflare worker configuration, Worker ESM module dependencies, D1/KV/DO binding declarations, Durable Object migration history and static asset types/hashes. It prints a deterministic artifact summary without persisting build binaries or uploading anything. It excludes server source maps and non-deployable files. Both the Node artifact tests and Vitest tests run under `pnpm check`.
+
+**Critical:** `wrangler versions upload` is **not** a staging-only command: Wrangler may also create a live Worker deployment. A safe, non-promoting upload requires the Beta Worker Versions API with `deploy=false`, followed later by explicit promotion. The client implementation and isolation/safety checks exist but are not currently exposed as executable API routes. Existing Worker secrets, bindings, routes and production data must not be altered as part of artifact inspection.
 
 MIT license. Project maintained by [InsightFlare](https://github.com/InsightFlare).

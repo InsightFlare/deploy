@@ -53,17 +53,18 @@ describe("Workers Builds readiness (read-only)", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("recognizes upstream connection only as a candidate, not an executable build", async () => {
+  it("blocks Wrangler versions upload because it deploys instead of staging", async () => {
     const {client,calls} = fakeClient(true, tag, [official]);
     const state = await inspectBuildReadiness(client, accountId);
-    expect(state.state).toBe("candidate");
+    expect(state.state).toBe("unsafe-trigger");
     expect(state.repoConnectedToUpstream).toBe(true);
     expect(state.hasUserBuildToken).toBe(true);
     expect(state.verifiedUserBuild).toBe(false);
     expect(state.executionAvailable).toBe(false);
     expect(state.verifiedRepoIdentity).toBe(true);
-    expect(state.canStageWithoutPromotion).toBe(true);
+    expect(state.canStageWithoutPromotion).toBe(false);
     expect(state.automaticPushBuildPossible).toBe(true);
+    expect(state.safetyBlockers.join(" ")).toContain("not a staging-only operation");
     expect(calls.some(c => c.url.includes("/builds/workers/" + tag + "/triggers"))).toBe(true);
     expect(calls.every(c => c.method === "GET")).toBe(true);
   });
@@ -79,7 +80,7 @@ describe("Workers Builds readiness (read-only)", () => {
     const state = await inspectBuildReadiness(client, accountId);
     expect(state.state).toBe("unsafe-trigger");
     expect(state.canStageWithoutPromotion).toBe(false);
-    expect(state.safetyBlockers.join(" ")).toContain("activate a Worker");
+    expect(state.safetyBlockers.join(" ")).toContain("user approval");
   });
 
   it("rejects a lookalike GitHub repository whose numeric ID is wrong", async () => {

@@ -4,9 +4,8 @@
  * A linked Git repository is NOT proof that an arbitrary public repository
  * can be built by another user's Cloudflare GitHub App installation.
  *
- * Cloudflare production builds normally run on each upstream push. Any
- * trigger that might actively deploy on push must be rejected until a
- * non-promoting / manual-only workflow is actually validated.
+ * Wrangler's "versions upload" creates a Worker version and then creates a
+ * deployment. It must never be classified as a non-promoting stage operation.
  */
 export const OFFICIAL_GITHUB = {
   owner: "RavelloH",
@@ -59,17 +58,20 @@ export function inspectTriggerSafety(trigger: BuildTriggerDescriptor): TriggerSa
 
   const buildTokenConfigured = Boolean(trigger.build_token_uuid);
   const deployCommand = (trigger.deploy_command ?? "").trim();
-  // Require *only* the literal staging command. Complex shell expressions are
-  // not guaranteed safe even if they contain the word "versions upload".
-  const stagesWithoutPromotion = /^(?:npx\s+wrangler|pnpm\s+exec\s+wrangler)\s+versions\s+upload(?:\s+--config\s+[\w.\/-]+)?$/i
-    .test(deployCommand);
-  const deploysWithoutConfirmation = !stagesWithoutPromotion;
+  const usesWranglerVersionUpload = /\bwrangler\s+versions\s+upload\b/i.test(deployCommand);
+
+  // No currently configured Workers Builds command is trusted as stage-only.
+  // The real staged path is the Beta Worker Versions API with deploy=false.
+  // It must be implemented and verified before a trigger can pass this gate.
+  const stagesWithoutPromotion = false;
+  const deploysWithoutConfirmation = true;
   const blockers: string[] = [];
   if (!matchesOfficialName) blockers.push("Build trigger is not connected to the official GitHub repository.");
   else if (!verifiesOfficialRepositoryId) blockers.push("Repository numeric identity is not confirmed; names alone cannot verify the upstream source.");
   if (!buildTokenConfigured) blockers.push("Build trigger does not declare a build token UUID.");
+  if (usesWranglerVersionUpload) blockers.push("Wrangler versions upload creates a deployment; it is not a staging-only operation.");
   if (!stagesWithoutPromotion) blockers.push(
-    "Production push may run the deploy command automatically. The build must not activate a Worker without user confirmation."
+    "The current trigger has no verified non-promoting upload command. Do not run it before user approval."
   );
   // Neither a GitHub App connection nor a staged build proves independent
   // no-fork access or safe migrations.
@@ -109,7 +111,7 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   branch: "main",
   immutableCommitRequired: true,
   compilationCommand: "pnpm exec tsx scripts/build.ts --target cf --skip-prebuild",
-  stagedUploadCommand: "pnpm exec wrangler versions upload --config wrangler.toml",
+  stagedUploadCommand: "Cloudflare Beta Worker Versions API (deploy=false), after per-user build and isolated migration checks",
   noSharedBuildArtifact: true,
   stagingOnly: true,
   remotelyMigrateDatabaseDuringCompilation: false,
@@ -120,6 +122,9 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
     "Cloudflare Builds requires a user-scoped API token; ordinary account-scoped tokens are insufficient.",
     "Connecting main to Workers Builds normally causes builds on upstream pushes.",
     "The upstream build with --skip-prebuild must be verified to produce all required files without remote D1 side effects.",
+    "Wrangler versions upload creates a deployment; it must not be treated as stage-only.",
+    "Use the Beta Worker Versions API with deploy=false for a true staged version, or an isolated Worker Preview for pre-deployment testing.",
+    "Worker Previews need explicit D1/KV test bindings and Preview secrets; Durable Objects are automatically isolated per Preview.",
     "Upload a version before migrations and activate it only after approval and compatibility checks."
   ]
 };
