@@ -23,6 +23,11 @@ type BuildReadiness = {
 };
 type Intent = "install" | "update" | "repair";
 type Plan = { intent: Intent; sourceSha: string; blockers: string[]; proposedSteps: string[]; allowed: boolean };
+type ResourcePlan = {
+  readyForExecution: false;
+  blockers: string[];
+  actions: Array<{ binding: string; resourceType: string; disposition: "create" | "preserve" | "block" | "optional"; description: string }>;
+};
 const labels: Record<Kind, string> = {
   "not-installed": "No installation", managed: "Managed",
   "legacy-candidate": "Existing instance — adoption required", conflict: "Worker name conflict"
@@ -65,6 +70,7 @@ export function App() {
   const [readinessMessage,setReadinessMessage]=useState("");
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
+  const [resourcePlan,setResourcePlan]=useState<ResourcePlan|null>(null);
   const [working,setWorking]=useState(false);
   const [sourceWorking,setSourceWorking]=useState(false);
   const [message,setMessage]=useState("");
@@ -96,6 +102,7 @@ export function App() {
 
   useEffect(()=>{
     setPlan(null);
+    setResourcePlan(null);
     if(!accountId){setDeployment(null);return;}
     let cancelled=false;
     setDeployment(null);
@@ -119,10 +126,11 @@ export function App() {
 
   async function preview(){
     if(!accountId)return;
-    setWorking(true);setPlan(null);
+    setWorking(true);setPlan(null);setResourcePlan(null);
     try{
-      const r=await api<{plan:Plan}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/plan?intent="+intent);
+      const r=await api<{plan:Plan;resourcePlan:ResourcePlan}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/plan?intent="+intent);
       setPlan(r.plan);
+      setResourcePlan(r.resourcePlan);
     }catch(e){setMessage(errorText(e));}
     finally{setWorking(false);}
   }
@@ -269,7 +277,7 @@ export function App() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="w-full space-y-2 sm:w-52">
                 <label htmlFor="intent-select" className="text-xs font-medium">Operation</label>
-                <Select value={intent} onValueChange={v=>{setIntent(v as Intent);setPlan(null);}}>
+                <Select value={intent} onValueChange={v=>{setIntent(v as Intent);setPlan(null);setResourcePlan(null);}}>
                   <SelectTrigger className="w-full" id="intent-select"><SelectValue/></SelectTrigger>
                   <SelectContent><SelectItem value="install">Install from main</SelectItem><SelectItem value="update">Update to main</SelectItem><SelectItem value="repair">Repair current commit</SelectItem></SelectContent>
                 </Select>
@@ -278,6 +286,19 @@ export function App() {
               <Button disabled><RiLockLine/>Execute unavailable</Button>
             </div>
 
+            {resourcePlan && <div className="space-y-3 border border-border bg-muted/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Eyebrow>Resource reconciliation · Preview only</Eyebrow>
+                <Badge variant="outline">{resourcePlan.actions.filter(x=>x.disposition==="block").length} resource blockers</Badge>
+              </div>
+              {resourcePlan.blockers.map(x=><p className="flex items-start gap-2 text-xs text-destructive" key={x}><RiAlertLine className="size-3.5 shrink-0"/>{x}</p>)}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {resourcePlan.actions.map(action=><div key={action.binding} className="flex items-start gap-3 border border-border/70 p-2.5 text-xs">
+                  <Badge variant={action.disposition==="block"?"destructive":"outline"}>{action.disposition}</Badge>
+                  <div className="min-w-0 space-y-1"><code className="deploy-mono text-foreground">{action.binding}</code><p className="leading-relaxed text-muted-foreground">{action.description}</p></div>
+                </div>)}
+              </div>
+            </div>}
             {plan ? <div className="grid grid-cols-1 gap-5 border border-border p-4 md:grid-cols-2">
               <div className="space-y-3">
                 <Eyebrow>Target commit</Eyebrow>

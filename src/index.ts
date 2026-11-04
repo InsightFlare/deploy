@@ -3,6 +3,7 @@ import type { Env } from "./types";
 import { DeployError } from "./types";
 import { resolveLatestMain } from "./core/source";
 import { deploymentPlan, type Intent } from "./core/plan";
+import { planResourceReconciliation } from "./core/reconcile";
 import { CloudflareClient } from "./providers/cloudflare/client";
 import { discoverDeployment } from "./providers/cloudflare/discovery";
 import { inspectBuildReadiness } from "./providers/cloudflare/build-readiness";
@@ -64,7 +65,9 @@ app.get("/api/v1/providers/cloudflare/accounts/:accountId/plan", async c => {
   }
   const client = new CloudflareClient(await userToken(c));
   const [observed, latest] = await Promise.all([discoverDeployment(client, accountId), resolveLatestMain()]);
-  return c.json({ plan: deploymentPlan(observed, latest, intent as Intent), observed, source: latest }, 200, { "Cache-Control": "no-store" });
+  const bindings = observed.kind === "not-installed" ? [] : await client.settings(accountId, observed.workerName);
+  const resourcePlan = planResourceReconciliation(observed.kind, bindings);
+  return c.json({ plan: deploymentPlan(observed, latest, intent as Intent), resourcePlan, observed, source: latest }, 200, { "Cache-Control": "no-store" });
 });
 
 app.notFound(c => c.json({ error: { code: "UNAVAILABLE", message: "Endpoint not found." } }, 404));

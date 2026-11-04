@@ -33,6 +33,8 @@ The control plane installs the published `@insightflare/ui` npm package at a pin
 
 The latest upstream `main` commit is used as the source of truth. Each operation pins one full commit SHA. The long-term goal is user-side independent compilation and safe installation/update without requiring users to fork the source repository.
 
+The deployment plan also previews a conservative resource reconciliation: it identifies D1, KV, Durable Objects, MAIN_SECRET, optional Analytics Engine datasets and R2 archives, and marks each as create, preserve, optional or blocked. Existing database, KV, Durable Object and secret bindings are never silently replaced, and raw resource identifiers or secret values are not exposed to browsers.
+
 The control plane can inspect existing Workers Builds triggers **read-only** using the system-generated Worker tag, verify whether a trigger appears to reference the official `RavelloH/InsightFlare` repository, and report missing permissions or mismatched connections. This is exposed through `GET /api/v1/providers/cloudflare/accounts/:accountId/build-readiness` after OAuth authorization. It never creates or triggers a build.
 
 Cloudflare Builds permissions, upstream-repository access without a fork, and the isolation of source compilation from D1 migrations have not yet passed real-account validation. The upstream build script already accepts `--skip-prebuild`, but using that mode as a complete production build pipeline requires separate verification. **No mutation endpoint is available** until those conditions are satisfied.
