@@ -1,6 +1,7 @@
 export interface Env {
   ASSETS: Fetcher;
   SESSIONS: DurableObjectNamespace;
+  RUNS: DurableObjectNamespace;
   APP_ORIGIN: string;
   SOURCE_REPOSITORY: string;
   ENVIRONMENT?: string;
@@ -16,6 +17,7 @@ export type ApiErrorCode =
   | "UPSTREAM_UNAVAILABLE"
   | "MISCONFIGURED"
   | "INVALID_SOURCE"
+  | "SOURCE_MOVED"
   | "UNAVAILABLE";
 
 export class DeployError extends Error {

@@ -18,10 +18,12 @@
   },
   "durable_objects": {
     "bindings": [
-      { "name": "SESSIONS", "class_name": "DeploySession" }
+      { "name": "SESSIONS", "class_name": "DeploySession" },
+      { "name": "RUNS", "class_name": "DeploymentRun" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["DeploySession"] }
+    { "tag": "v1", "new_sqlite_classes": ["DeploySession"] },
+    { "tag": "v2", "new_sqlite_classes": ["DeploymentRun"] }
   ]
 }

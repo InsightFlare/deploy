@@ -11,7 +11,14 @@ export interface WorkerBuildTrigger {
   deploy_command?: string;
   branch_includes?: string[];
   build_token_uuid?: string;
-  repo_connection?: { provider_type?: string; provider_account_name?: string; repo_name?: string; repo_id?: string };
+  branch_excludes?: string[];
+  repo_connection?: {
+    provider_type?: string;
+    provider_account_id?: string;
+    provider_account_name?: string;
+    repo_name?: string;
+    repo_id?: string;
+  };
 }
 export interface WorkerBinding {
   type: string;

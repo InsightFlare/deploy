@@ -38,6 +38,18 @@ function callbackUri(c: AppContext): string {
   return origin(c) + "/oauth/cloudflare/callback";
 }
 
+export function sessionIdentity(c: AppContext): string {
+  const id = cookie(c);
+  if (!id) throw new DeployError("NOT_CONNECTED", "Connect your Cloudflare account first.", 401);
+  return id;
+}
+
+export function assertSameOrigin(c: AppContext): void {
+  if (c.req.header("Origin") !== origin(c)) {
+    throw new DeployError("NOT_CONNECTED", "Origin validation failed.", 403);
+  }
+}
+
 export function oauthConfigured(env: Env): boolean {
   return Boolean(env.CF_OAUTH_CLIENT_ID && env.CF_OAUTH_CLIENT_SECRET && env.SESSION_ENCRYPTION_KEY);
 }
@@ -116,8 +128,7 @@ export async function connectionStatus(c: AppContext): Promise<Response> {
 }
 
 export async function signOut(c: AppContext): Promise<Response> {
-  const originHeader = c.req.header("Origin");
-  if (originHeader !== origin(c)) throw new DeployError("NOT_CONNECTED", "Origin validation failed.", 403);
+  assertSameOrigin(c);
   const id = cookie(c);
   if (id) await clearSession(c.env, id);
   deleteCookie(c, cookieName(c), { path: "/" });

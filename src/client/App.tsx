@@ -20,6 +20,13 @@ type BuildReadiness = {
   state: string; triggerCount: number; candidateTriggerCount: number;
   hasUserBuildToken: boolean; repoConnectedToUpstream: boolean;
   verifiedUserBuild: false; executionAvailable: false; message: string;
+  verifiedRepoIdentity?: boolean; canStageWithoutPromotion?: boolean;
+  automaticPushBuildPossible?: boolean; safetyBlockers?: string[];
+};
+type PreparedRun = {
+  id: string; intent: "install" | "update" | "repair";
+  pinnedSha: string; createdAt: number; expiresAt: number;
+  phase: "blocked"; blockers: string[]; executionEnabled: false;
 };
 type Intent = "install" | "update" | "repair";
 type Plan = { intent: Intent; sourceSha: string; blockers: string[]; proposedSteps: string[]; allowed: boolean };
@@ -71,6 +78,8 @@ export function App() {
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
   const [resourcePlan,setResourcePlan]=useState<ResourcePlan|null>(null);
+  const [preparedRun,setPreparedRun]=useState<PreparedRun|null>(null);
+  const [preparing,setPreparing]=useState(false);
   const [working,setWorking]=useState(false);
   const [sourceWorking,setSourceWorking]=useState(false);
   const [message,setMessage]=useState("");
@@ -103,6 +112,7 @@ export function App() {
   useEffect(()=>{
     setPlan(null);
     setResourcePlan(null);
+    setPreparedRun(null);
     if(!accountId){setDeployment(null);return;}
     let cancelled=false;
     setDeployment(null);
@@ -124,15 +134,39 @@ export function App() {
     return ()=>{cancelled=true;};
   },[accountId]);
 
+  useEffect(()=>{
+    if(!accountId || !session.connected) return;
+    let cancelled=false;
+    void api<{run:PreparedRun|null}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/prepared-run")
+      .then(v=>{if(!cancelled) setPreparedRun(v.run);})
+      .catch(()=>{ /* A missing prior run is not an operational error. */ });
+    return ()=>{cancelled=true;};
+  },[accountId,session.connected]);
+
   async function preview(){
     if(!accountId)return;
-    setWorking(true);setPlan(null);setResourcePlan(null);
+    setWorking(true);setPlan(null);setResourcePlan(null);setPreparedRun(null);
     try{
       const r=await api<{plan:Plan;resourcePlan:ResourcePlan}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/plan?intent="+intent);
       setPlan(r.plan);
       setResourcePlan(r.resourcePlan);
     }catch(e){setMessage(errorText(e));}
     finally{setWorking(false);}
+  }
+  async function freezeReviewedSha(){
+    if (!accountId || !plan || preparing) return;
+    setPreparing(true);
+    try {
+      const response=await api<{run:PreparedRun}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+"/prepare",
+        { method:"POST", headers:{ "Content-Type":"application/json", Origin:window.location.origin },
+          body:JSON.stringify({intent:plan.intent,expectedSourceSha:plan.sourceSha}) }
+      );
+      setPreparedRun(response.run);
+    } catch(e) {
+      setPreparedRun(null);
+      setMessage(errorText(e));
+    } finally { setPreparing(false); }
   }
   async function disconnect(){
     try{
@@ -263,6 +297,12 @@ export function App() {
                 <span className="text-xs text-muted-foreground">{readiness.candidateTriggerCount} upstream candidate(s) / {readiness.triggerCount} trigger(s)</span>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">{readiness.message}</p>
+              {readiness.repoConnectedToUpstream && <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">Repo ID: {readiness.verifiedRepoIdentity?"Verified":"Unverified"}</Badge>
+                <Badge variant="outline">Stage only: {readiness.canStageWithoutPromotion?"Yes":"No"}</Badge>
+                {readiness.automaticPushBuildPossible && <Badge variant="outline">Upstream pushes may trigger builds</Badge>}
+              </div>}
+              {readiness.safetyBlockers?.map((blocker,i)=><p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><RiAlertLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}</p>)}
               <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLockLine className="size-4"/>Build execution remains disabled until permissions, provenance and migration safety are validated.</p>
             </> : <p className="text-xs leading-relaxed text-muted-foreground">{readinessMessage || "Connect Cloudflare and select an account to inspect its build integration."}</p>}
           </CardContent>
@@ -277,15 +317,22 @@ export function App() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="w-full space-y-2 sm:w-52">
                 <label htmlFor="intent-select" className="text-xs font-medium">Operation</label>
-                <Select value={intent} onValueChange={v=>{setIntent(v as Intent);setPlan(null);setResourcePlan(null);}}>
+                <Select value={intent} onValueChange={v=>{setIntent(v as Intent);setPlan(null);setResourcePlan(null);setPreparedRun(null);}}>
                   <SelectTrigger className="w-full" id="intent-select"><SelectValue/></SelectTrigger>
                   <SelectContent><SelectItem value="install">Install from main</SelectItem><SelectItem value="update">Update to main</SelectItem><SelectItem value="repair">Repair current commit</SelectItem></SelectContent>
                 </Select>
               </div>
               <Button variant="outline" disabled={!deployment||working} onClick={()=>void preview()}><RiInformationLine/>{working?"Preparing…":"Preview plan"}</Button>
+              <Button variant="outline" disabled={!plan||preparing} onClick={()=>void freezeReviewedSha()}><RiGitBranchLine/>{preparing?"Freezing…":"Freeze reviewed SHA"}</Button>
               <Button disabled><RiLockLine/>Execute unavailable</Button>
             </div>
 
+            {preparedRun && <div className="space-y-2 border border-border bg-muted/20 p-4" role="status">
+              <div className="flex items-center justify-between gap-2"><Eyebrow>Prepared operation · No deployment</Eyebrow><Badge variant="outline">Blocked</Badge></div>
+              <p className="text-xs text-muted-foreground">This SHA is frozen for the current session until {new Date(preparedRun.expiresAt).toLocaleTimeString()}.</p>
+              <code data-testid="prepared-sha" className="deploy-mono block text-xs text-foreground">{preparedRun.pinnedSha}</code>
+              <p className="text-xs text-muted-foreground">Preparation does not start a build, migrate a database or modify your Cloudflare resources.</p>
+            </div>}
             {resourcePlan && <div className="space-y-3 border border-border bg-muted/10 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Eyebrow>Resource reconciliation · Preview only</Eyebrow>

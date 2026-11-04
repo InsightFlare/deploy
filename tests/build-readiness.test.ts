@@ -7,10 +7,14 @@ const tag = "b".repeat(32);
 const official: WorkerBuildTrigger = {
   trigger_uuid: "7b5e7985-7e6a-433b-9451-b7a9fd967e4f",
   trigger_name: "Main",
+  build_command: "pnpm exec tsx scripts/build.ts --target cf --skip-prebuild",
+  deploy_command: "pnpm exec wrangler versions upload --config wrangler.toml",
   build_token_uuid: "8aa4ee08-20ef-41ee-89be-61ef1155d2a2",
   repo_connection: {
     provider_type: "github",
+    provider_account_id: "68409330",
     provider_account_name: "RavelloH",
+    repo_id: "1169432997",
     repo_name: "InsightFlare"
   }
 };
@@ -57,6 +61,9 @@ describe("Workers Builds readiness (read-only)", () => {
     expect(state.hasUserBuildToken).toBe(true);
     expect(state.verifiedUserBuild).toBe(false);
     expect(state.executionAvailable).toBe(false);
+    expect(state.verifiedRepoIdentity).toBe(true);
+    expect(state.canStageWithoutPromotion).toBe(true);
+    expect(state.automaticPushBuildPossible).toBe(true);
     expect(calls.some(c => c.url.includes("/builds/workers/" + tag + "/triggers"))).toBe(true);
     expect(calls.every(c => c.method === "GET")).toBe(true);
   });
@@ -65,6 +72,21 @@ describe("Workers Builds readiness (read-only)", () => {
     const state = assessTriggers([{...official, repo_connection: {...official.repo_connection, provider_account_name: "attacker"}}]);
     expect(state.state).toBe("repository-mismatch");
     expect(state.candidateTriggerCount).toBe(0);
+  });
+
+  it("blocks triggers configured to deploy directly on main pushes", async () => {
+    const { client } = fakeClient(true, tag, [{...official, deploy_command: "pnpm exec wrangler deploy"}]);
+    const state = await inspectBuildReadiness(client, accountId);
+    expect(state.state).toBe("unsafe-trigger");
+    expect(state.canStageWithoutPromotion).toBe(false);
+    expect(state.safetyBlockers.join(" ")).toContain("activate a Worker");
+  });
+
+  it("rejects a lookalike GitHub repository whose numeric ID is wrong", async () => {
+    const { client } = fakeClient(true, tag, [{...official, repo_connection: {...official.repo_connection, repo_id: "123"}}]);
+    const state = await inspectBuildReadiness(client, accountId);
+    expect(state.state).toBe("unsafe-trigger");
+    expect(state.verifiedRepoIdentity).toBe(false);
   });
 
   it("distinguishes permission failure from missing configuration", async () => {

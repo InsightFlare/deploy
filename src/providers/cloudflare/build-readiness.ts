@@ -1,6 +1,7 @@
 import { DeployError } from "../../types";
 import type { CloudflareClient, WorkerBuildTrigger } from "./client";
 import { DEFAULT_WORKER } from "./discovery";
+import { inspectTriggerSafety } from "../../core/build-policy";
 
 export type BuildReadinessState =
   | "not-installed"
@@ -8,6 +9,7 @@ export type BuildReadinessState =
   | "permission-required"
   | "not-configured"
   | "repository-mismatch"
+  | "unsafe-trigger"
   | "candidate";
 
 export interface BuildReadiness {
@@ -17,6 +19,10 @@ export interface BuildReadiness {
   candidateTriggerCount: number;
   hasUserBuildToken: boolean;
   repoConnectedToUpstream: boolean;
+  verifiedRepoIdentity: boolean;
+  canStageWithoutPromotion: boolean;
+  automaticPushBuildPossible: boolean;
+  safetyBlockers: string[];
   verifiedUserBuild: false;
   executionAvailable: false;
   message: string;
@@ -27,11 +33,17 @@ function assessment(
   message: string,
   triggerCount = 0,
   candidateTriggerCount = 0,
-  hasUserBuildToken = false
+  hasUserBuildToken = false,
+  verifiedRepoIdentity = false,
+  canStageWithoutPromotion = false,
+  safetyBlockers: string[] = []
 ): BuildReadiness {
   return {
     state, workerName: DEFAULT_WORKER, triggerCount, candidateTriggerCount,
     hasUserBuildToken, repoConnectedToUpstream: candidateTriggerCount > 0,
+    verifiedRepoIdentity, canStageWithoutPromotion,
+    automaticPushBuildPossible: triggerCount > 0,
+    safetyBlockers,
     verifiedUserBuild: false, executionAvailable: false, message
   };
 }
@@ -56,13 +68,22 @@ export function assessTriggers(triggers: WorkerBuildTrigger[]): BuildReadiness {
     "Existing Workers Builds triggers do not point to the official RavelloH/InsightFlare repository.",
     triggers.length
   );
-  const hasBuildToken = matching.some(trigger => Boolean(trigger.build_token_uuid));
+  const safety = matching.map(inspectTriggerSafety);
+  const verified = safety.some(item => item.verifiesOfficialRepositoryId);
+  const hasBuildToken = safety.some(item => item.buildTokenConfigured);
+  const safeStaging = safety.some(item => item.verifiesOfficialRepositoryId && item.stagesWithoutPromotion && item.buildTokenConfigured);
+  const blockers = [...new Set(safety.flatMap(item => item.blockers))];
   return assessment(
-    "candidate",
-    "An upstream GitHub build trigger was found, but independent builds, permissions and safe updates have not been validated.",
+    safeStaging ? "candidate" : "unsafe-trigger",
+    safeStaging
+      ? "An upstream build trigger can stage a Worker version without automatic promotion, but independent builds and safe migrations are not yet validated."
+      : "The detected build trigger may deploy automatically on upstream pushes or lacks trustworthy repository/build-token metadata.",
     triggers.length,
     matching.length,
-    hasBuildToken
+    hasBuildToken,
+    verified,
+    safeStaging,
+    blockers
   );
 }
 

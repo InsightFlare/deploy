@@ -37,6 +37,10 @@ The deployment plan also previews a conservative resource reconciliation: it ide
 
 The control plane can inspect existing Workers Builds triggers **read-only** using the system-generated Worker tag, verify whether a trigger appears to reference the official `RavelloH/InsightFlare` repository, and report missing permissions or mismatched connections. This is exposed through `GET /api/v1/providers/cloudflare/accounts/:accountId/build-readiness` after OAuth authorization. It never creates or triggers a build.
 
+The build readiness check rejects triggers with a mismatched GitHub repository ID or a production deploy command that could directly activate new code after an upstream push. The proposed safe flow stages a Worker version without promoting it. Build configuration caveats are available at `GET /api/v1/source/build-contract`.
+
+After reviewing a read-only plan, an authenticated user may submit its exact source SHA to `POST /api/v1/providers/cloudflare/accounts/:accountId/prepare`. The control plane re-checks upstream `main`, refuses stale plans (HTTP 409), then stores a **blocked**, session-scoped, 15-minute operation in an account-scoped Durable Object. `GET /api/v1/providers/cloudflare/accounts/:accountId/prepared-run` restores that record after reconnecting. Neither endpoint triggers a Cloudflare build, migration, or deployment.
+
 Cloudflare Builds permissions, upstream-repository access without a fork, and the isolation of source compilation from D1 migrations have not yet passed real-account validation. The upstream build script already accepts `--skip-prebuild`, but using that mode as a complete production build pipeline requires separate verification. **No mutation endpoint is available** until those conditions are satisfied.
 
 MIT license. Project maintained by [InsightFlare](https://github.com/InsightFlare).
