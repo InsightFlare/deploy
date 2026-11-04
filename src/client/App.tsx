@@ -16,6 +16,11 @@ type Source = { sha: string; shortSha: string; message: string; committedAt: str
 type Session = { connected: boolean; oauthConfigured: boolean; expiresAt: number | null };
 type Kind = "not-installed" | "managed" | "legacy-candidate" | "conflict";
 type Deployment = { kind: Kind; workerName: string; deployedSha: string | null; issues: string[] };
+type BuildReadiness = {
+  state: string; triggerCount: number; candidateTriggerCount: number;
+  hasUserBuildToken: boolean; repoConnectedToUpstream: boolean;
+  verifiedUserBuild: false; executionAvailable: false; message: string;
+};
 type Intent = "install" | "update" | "repair";
 type Plan = { intent: Intent; sourceSha: string; blockers: string[]; proposedSteps: string[]; allowed: boolean };
 const labels: Record<Kind, string> = {
@@ -26,6 +31,7 @@ const nav = [
   { title: "Overview", href: "#overview", Icon: RiLayoutGridLine },
   { title: "Source", href: "#source", Icon: RiGitBranchLine },
   { title: "Cloudflare account", href: "#account", Icon: RiCloudLine },
+  { title: "Build integration", href: "#build-readiness", Icon: RiCodeSSlashLine },
   { title: "Deployment plan", href: "#plan", Icon: RiTerminalBoxLine }
 ];
 
@@ -55,6 +61,8 @@ export function App() {
   const [accounts,setAccounts]=useState<Account[]>([]);
   const [accountId,setAccountId]=useState("");
   const [deployment,setDeployment]=useState<Deployment|null>(null);
+  const [readiness,setReadiness]=useState<BuildReadiness|null>(null);
+  const [readinessMessage,setReadinessMessage]=useState("");
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
   const [working,setWorking]=useState(false);
@@ -95,6 +103,17 @@ export function App() {
     void api<{deployment:Deployment}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/deployment")
       .then(v=>{if(!cancelled){setDeployment(v.deployment);setIntent(v.deployment.kind==="not-installed"?"install":"update");setAccountMessage("");}})
       .catch(e=>{if(!cancelled)setAccountMessage(errorText(e));});
+    return ()=>{cancelled=true;};
+  },[accountId]);
+
+  useEffect(()=>{
+    setReadiness(null);
+    if(!accountId){setReadinessMessage("");return;}
+    let cancelled=false;
+    setReadinessMessage("Inspecting user-side build configuration…");
+    void api<{readiness:BuildReadiness}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/build-readiness")
+      .then(v=>{if(!cancelled){setReadiness(v.readiness);setReadinessMessage("");}})
+      .catch(e=>{if(!cancelled)setReadinessMessage(errorText(e));});
     return ()=>{cancelled=true;};
   },[accountId]);
 
@@ -223,6 +242,23 @@ export function App() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="deploy-card" id="build-readiness">
+          <CardHeader><div className="flex items-start justify-between gap-3">
+            <div className="space-y-1"><Eyebrow>Source builds</Eyebrow><CardTitle>Build integration</CardTitle><CardDescription>Read-only inspection of Cloudflare Workers Builds settings</CardDescription></div>
+            <RiCodeSSlashLine className="size-5 text-primary"/>
+          </div></CardHeader>
+          <CardContent className="space-y-3">
+            {readiness ? <>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="outline">{readiness.state.replaceAll("-", " ")}</Badge>
+                <span className="text-xs text-muted-foreground">{readiness.candidateTriggerCount} upstream candidate(s) / {readiness.triggerCount} trigger(s)</span>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">{readiness.message}</p>
+              <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLockLine className="size-4"/>Build execution remains disabled until permissions, provenance and migration safety are validated.</p>
+            </> : <p className="text-xs leading-relaxed text-muted-foreground">{readinessMessage || "Connect Cloudflare and select an account to inspect its build integration."}</p>}
+          </CardContent>
+        </Card>
 
         <Card className="deploy-card" id="plan">
           <CardHeader><div className="flex justify-between gap-3">

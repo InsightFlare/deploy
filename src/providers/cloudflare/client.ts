@@ -3,7 +3,16 @@ import { DeployError } from "../../types";
 const API_ROOT = "https://api.cloudflare.com/client/v4";
 
 export interface CloudflareAccount { id: string; name: string }
-export interface WorkerScript { id: string; created_on?: string; modified_on?: string }
+export interface WorkerScript { id: string; tag?: string; created_on?: string; modified_on?: string }
+export interface WorkerBuildTrigger {
+  trigger_uuid?: string;
+  trigger_name?: string;
+  build_command?: string;
+  deploy_command?: string;
+  branch_includes?: string[];
+  build_token_uuid?: string;
+  repo_connection?: { provider_type?: string; provider_account_name?: string; repo_name?: string; repo_id?: string };
+}
 export interface WorkerBinding {
   type: string;
   name: string;
@@ -51,10 +60,23 @@ export class CloudflareClient {
     return found;
   }
 
-  async workerNames(accountId: string): Promise<string[]> {
+  async workerScripts(accountId: string): Promise<WorkerScript[]> {
     const scripts = await this.get<WorkerScript[]>(`/accounts/${accountId}/workers/scripts`);
     if (!Array.isArray(scripts)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an invalid workers list.", 502);
-    return scripts.map(s => s.id).filter((id): id is string => typeof id === "string");
+    return scripts.filter((s): s is WorkerScript => Boolean(s && typeof s.id === "string"));
+  }
+
+  async workerNames(accountId: string): Promise<string[]> {
+    return (await this.workerScripts(accountId)).map(s => s.id);
+  }
+
+  async buildTriggers(accountId: string, workerTag: string): Promise<WorkerBuildTrigger[]> {
+    if (!/^[a-f0-9]{32}$/i.test(accountId) || !/^[a-f0-9]{32}$/i.test(workerTag)) {
+      throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Worker identifier.");
+    }
+    const triggers = await this.get<WorkerBuildTrigger[]>(`/accounts/${accountId}/builds/workers/${workerTag}/triggers`);
+    if (!Array.isArray(triggers)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned invalid build triggers.", 502);
+    return triggers;
   }
 
   async settings(accountId: string, name: string): Promise<WorkerBinding[]> {

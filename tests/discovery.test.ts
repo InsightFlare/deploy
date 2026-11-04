@@ -23,6 +23,17 @@ describe("Cloudflare Worker discovery", () => {
   });
   it("does not trust a malformed deployment marker", () => {
     const result = interpretBindings(id, [...required, { type: "plain_text", name: "INSIGHTFLARE_DEPLOYMENT_SHA", text: "main" }]);
-    expect(result.kind).toBe("legacy-candidate");
+    expect(result.kind).toBe("conflict");
+  });
+  it("rejects duplicate deployment markers", () => {
+    const result = interpretBindings(id, [...required,
+      { type: "plain_text", name: "INSIGHTFLARE_DEPLOYMENT_SHA", text: "b".repeat(40) },
+      { type: "secret_text", name: "INSIGHTFLARE_DEPLOYMENT_SHA" }
+    ]);
+    expect(result.kind).toBe("conflict");
+  });
+  it("rejects a deployment marker with the wrong binding type", () => {
+    const result = interpretBindings(id, [...required, { type: "secret_text", name: "INSIGHTFLARE_DEPLOYMENT_SHA" }]);
+    expect(result.kind).toBe("conflict");
   });
 });

@@ -5,6 +5,7 @@ import { resolveLatestMain } from "./core/source";
 import { deploymentPlan, type Intent } from "./core/plan";
 import { CloudflareClient } from "./providers/cloudflare/client";
 import { discoverDeployment } from "./providers/cloudflare/discovery";
+import { inspectBuildReadiness } from "./providers/cloudflare/build-readiness";
 import { BUILD_ADAPTER_STATUS } from "./providers/cloudflare/builds";
 import { oauthConfigured, startOAuth, finishOAuth, connectionStatus, signOut, userToken } from "./security/oauth";
 
@@ -45,6 +46,13 @@ app.get("/api/v1/providers/cloudflare/accounts/:accountId/deployment", async c =
   if (!ACCOUNT.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
   const client = new CloudflareClient(await userToken(c));
   return c.json({ deployment: await discoverDeployment(client, accountId) }, 200, { "Cache-Control": "no-store" });
+});
+
+app.get("/api/v1/providers/cloudflare/accounts/:accountId/build-readiness", async c => {
+  const accountId = c.req.param("accountId");
+  if (!ACCOUNT.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  const client = new CloudflareClient(await userToken(c));
+  return c.json({ readiness: await inspectBuildReadiness(client, accountId) }, 200, { "Cache-Control": "no-store" });
 });
 
 app.get("/api/v1/providers/cloudflare/accounts/:accountId/plan", async c => {
