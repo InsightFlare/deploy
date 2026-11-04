@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": [
       "ES2022",
-      "DOM"
+      "DOM",
+      "DOM.Iterable"
     ],
     "types": [
       "@cloudflare/workers-types"
@@ -20,6 +22,8 @@
   },
   "include": [
     "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
     "tests/**/*.ts"
   ]
 }

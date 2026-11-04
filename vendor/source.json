@@ -1,0 +1,9 @@
+{
+  "package": "@insightflare/ui",
+  "version": "0.7.1",
+  "sourceRepository": "https://github.com/RavelloH/InsightFlare",
+  "sourcePath": "packages/ui",
+  "sourceCommit": "5952be317ef8836146d88c88b787123c8b1bab0e",
+  "dirty": false,
+  "integration": "vendored-pnpm-tarball"
+}
