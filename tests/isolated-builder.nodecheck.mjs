@@ -68,6 +68,7 @@ describe("dedicated builder Docker invocation contract", () => {
     assert.equal(args.at(-1), IMAGE);
     assert.ok(args.includes("IFD_SOURCE_SHA=" + SHA));
     assert.ok(!args.includes("--privileged"));
+    assert.ok(!args.includes("--pid"), "Docker uses a private PID namespace by default; --pid private is invalid");
     assert.ok(!args.includes("--env-file"));
     assert.ok(!args.some(item => /CLOUDFLARE_API_TOKEN|CF_API_TOKEN|GITHUB_TOKEN|NPM_TOKEN|docker\.sock|DOCKER_HOST/.test(item)));
   });

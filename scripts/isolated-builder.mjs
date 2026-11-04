@@ -60,7 +60,7 @@ export function dockerBuildSpec({ workspace, image, sourceSha, runId, uid, gid, 
     "--memory", "6g", "--memory-swap", "6g",
     "--cpus", "2",
     "--network", "bridge",
-    "--ipc", "private", "--pid", "private",
+    "--ipc", "private", // PID namespace is private by default; --pid=private is invalid Docker syntax.
     "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m,mode=1777",
     "--mount", "type=bind,source=" + workspace + ",target=/work",
     "--workdir", "/work",
