@@ -97,7 +97,7 @@ async function dockerCommand(args, timeoutMs) {
       // Diagnostics are available ONLY to an explicitly enabled operator
       // (for example, the manual CI smoke). Never return raw logs to a user.
       if (process.env.IFD_BUILDER_DEBUG === "1") {
-        const scrubbed = output.slice(-2500)
+        const scrubbed = output.slice(-12500)
           .replace(/(Bearer\s+)\S+/gi, "$1[REDACTED]")
           .replace(/((?:TOKEN|SECRET|PASSWORD|API[_-]?KEY)\s*[=:]\s*)\S+/gi, "$1[REDACTED]");
         process.stderr.write("Isolated builder debug (local operator only):\n" + scrubbed + "\n");
