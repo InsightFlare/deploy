@@ -37,9 +37,13 @@ jobs:
           [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]
           echo "IFD_IMAGE_ID=$image_id" >> "$GITHUB_ENV"
 
+      - name: Validate that the locally pinned image ID can start
+        run: docker run --rm --entrypoint /usr/local/bin/node "$IFD_IMAGE_ID" --version
+
       - name: Compile official pinned SHA in a disposable, unprivileged container
         env:
           IFD_INPUT_SHA: ${{ inputs.source_sha }}
+          IFD_BUILDER_DEBUG: "1"
         run: |
           node --input-type=module <<'NODE'
           import { randomUUID } from 'node:crypto';

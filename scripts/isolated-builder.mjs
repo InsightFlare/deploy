@@ -92,8 +92,18 @@ async function dockerCommand(args, timeoutMs) {
   docker.stderr?.on("data", collect);
   const complete = new Promise((resolve, reject) => {
     docker.once("error", reject);
-    docker.once("close", code => code === 0 ? resolve(output) :
-      reject(Error("Isolated Docker command failed (exit " + code + ")")));
+    docker.once("close", code => {
+      if (code === 0) return resolve(output);
+      // Diagnostics are available ONLY to an explicitly enabled operator
+      // (for example, the manual CI smoke). Never return raw logs to a user.
+      if (process.env.IFD_BUILDER_DEBUG === "1") {
+        const scrubbed = output.slice(-2500)
+          .replace(/(Bearer\s+)\S+/gi, "$1[REDACTED]")
+          .replace(/((?:TOKEN|SECRET|PASSWORD|API[_-]?KEY)\s*[=:]\s*)\S+/gi, "$1[REDACTED]");
+        process.stderr.write("Isolated builder debug (local operator only):\n" + scrubbed + "\n");
+      }
+      reject(Error("Isolated Docker command failed (exit " + code + ")"));
+    });
   });
   let timeout;
   const deadline = new Promise((_resolve, reject) => {
