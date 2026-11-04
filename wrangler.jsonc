@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "insightflare-deploy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": {
+    "APP_ORIGIN": "https://deploy.insightflare.net",
+    "SOURCE_REPOSITORY": "RavelloH/InsightFlare",
+    "CF_OAUTH_SCOPES": "workers-scripts.read account-settings.read zone.read",
+    "ENVIRONMENT": "production"
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/oauth/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSIONS", "class_name": "DeploySession" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DeploySession"] }
+  ]
+}
