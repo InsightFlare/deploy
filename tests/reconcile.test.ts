@@ -44,6 +44,39 @@ describe("safe resource reconciliation preview", () => {
     }
   });
 
+  it("supports older instances using DAILY_SALT_SECRET without rotating derived credentials", () => {
+    const legacy: WorkerBinding[] = [
+      ...required.filter(b => b.name !== "MAIN_SECRET"),
+      { name: "DAILY_SALT_SECRET", type: "secret_text" },
+      { name: "BOOTSTRAP_ADMIN_PASSWORD", type: "secret_text" },
+      { name: "DASHBOARD_SESSION_SECRET", type: "secret_text" }
+    ];
+    const plan = planResourceReconciliation("managed", legacy);
+    expect(plan.blockers).toHaveLength(0);
+    for (const name of ["DAILY_SALT_SECRET", "BOOTSTRAP_ADMIN_PASSWORD", "DASHBOARD_SESSION_SECRET"]) {
+      expect(plan.actions.find(a => a.binding === name)?.disposition).toBe("preserve");
+    }
+    expect(plan.actions.find(a => a.binding === "MAIN_SECRET")).toBeUndefined();
+    expect(plan.actions.some(a => a.disposition === "create")).toBe(false);
+  });
+  it("still requires explicit adoption of legacy instances with a valid legacy root", () => {
+    const legacy = [...required.filter(b => b.name !== "MAIN_SECRET"), { name: "DAILY_SALT_SECRET", type: "secret_text" }];
+    const plan = planResourceReconciliation("legacy-candidate", legacy);
+    expect(plan.blockers.join(" ")).toContain("Legacy instance");
+    expect(plan.actions.find(a => a.binding === "DAILY_SALT_SECRET")?.disposition).toBe("preserve");
+  });
+  it("blocks malformed or missing legacy root secret", () => {
+    for (const root of [[{ name: "DAILY_SALT_SECRET", type: "plain_text" }],
+      [{ name: "DAILY_SALT_SECRET", type: "secret_text" }, { name: "DAILY_SALT_SECRET", type: "secret_text" }]]) {
+      const plan = planResourceReconciliation("managed", [...required.filter(b => b.name !== "MAIN_SECRET"), ...root]);
+      expect(plan.blockers.length).toBeGreaterThan(0);
+    }
+  });
+  it("preserves additional secret bindings without exposing values", () => {
+    const plan = planResourceReconciliation("managed", [...required, { name: "EXTRA_SERVICE_SECRET", type: "secret_text", text: "confidential-value" }]);
+    expect(plan.actions.find(a => a.binding === "EXTRA_SERVICE_SECRET")?.disposition).toBe("preserve");
+    expect(JSON.stringify(plan)).not.toContain("confidential-value");
+  });
   it("requires explicit adoption of legacy instances", () => {
     const result = planResourceReconciliation("legacy-candidate", required);
     expect(result.blockers.join(" ")).toContain("Legacy instance");

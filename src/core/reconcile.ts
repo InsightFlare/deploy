@@ -103,6 +103,22 @@ export function planResourceReconciliation(
       });
       continue;
     }
+    if (spec.name === "MAIN_SECRET" && !newInstallation) {
+      const legacyRoots = bindings.filter(binding => binding.name === "DAILY_SALT_SECRET");
+      if (legacyRoots.length === 1 && legacyRoots[0]!.type === "secret_text") {
+        // The upstream application intentionally falls back to DAILY_SALT_SECRET.
+        // Creating MAIN_SECRET here would change the derived session/API-key
+        // secrets and invalidate existing credentials after an upgrade.
+        actions.push({
+          binding: "DAILY_SALT_SECRET", resourceType: "secret_text",
+          disposition: unsafeIdentity ? "block" : "preserve",
+          description: unsafeIdentity
+            ? "Worker ownership must be confirmed before retaining a legacy root secret."
+            : "Keep the existing legacy root secret. Do not create MAIN_SECRET or rotate derived credentials."
+        });
+        continue;
+      }
+    }
     if (spec.optional) {
       actions.push({ binding: spec.name, resourceType: spec.type, disposition: "optional", description: spec.create });
       continue;
@@ -116,6 +132,27 @@ export function planResourceReconciliation(
       });
       blockers.push("Required binding " + spec.name + " is missing; cannot safely update.");
     }
+  }
+  // Preserve *all* additional existing secret_text bindings, not merely the
+  // specific root secret known to the current version. This includes legacy
+  // bootstrap credentials, session secrets and future secrets introduced by
+  // another InsightFlare version. Never retrieve secret values.
+  const handled = new Set(actions.map(action => action.binding));
+  for (const binding of bindings) {
+    if (binding.type !== "secret_text" || handled.has(binding.name)) continue;
+    const duplicates = bindings.filter(other => other.name === binding.name);
+    const invalid = duplicates.length !== 1;
+    actions.push({
+      binding: binding.name, resourceType: "secret_text",
+      disposition: invalid || unsafeIdentity ? "block" : "preserve",
+      description: invalid
+        ? "Duplicate secret binding name; manual review required."
+        : unsafeIdentity
+          ? "Worker ownership must be established before retaining this secret."
+          : "Preserve existing secret metadata without reading, replacing or rotating its value."
+    });
+    if (invalid) blockers.push("Secret binding " + binding.name + " is duplicated.");
+    handled.add(binding.name);
   }
   return { readyForExecution: false, actions, blockers };
 }
