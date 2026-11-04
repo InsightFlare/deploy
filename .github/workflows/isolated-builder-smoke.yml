@@ -1,0 +1,79 @@
+name: Manual isolated builder integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Pinned 40-character official InsightFlare commit SHA"
+        required: true
+        default: "d76d22473e6ba185c69d00ef92223a6cd95e58c7"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout deployment controller
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install controller verifier dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build isolated builder image
+        run: |
+          docker build --pull --tag ifd-builder-smoke -f builder/Dockerfile builder
+          image_id="$(docker image inspect --format '{{.Id}}' ifd-builder-smoke)"
+          [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "IFD_IMAGE_ID=$image_id" >> "$GITHUB_ENV"
+
+      - name: Compile official pinned SHA in a disposable, unprivileged container
+        env:
+          IFD_INPUT_SHA: ${{ inputs.source_sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { randomUUID } from 'node:crypto';
+          import { withIsolatedBuild } from './scripts/isolated-builder.mjs';
+
+          const sha = process.env.IFD_INPUT_SHA;
+          const receipt = await withIsolatedBuild({
+            runId: randomUUID(),
+            accountId: 'f'.repeat(32),
+            ownerId: 'manual-ci-isolation-test-0123456789',
+            sourceSha: sha,
+            expiresAt: Date.now() + 25 * 60_000
+          }, async ({ artifact, receipt }) => {
+            if (artifact.summary.moduleCount < 100 || artifact.summary.assetCount < 100)
+              throw Error('The built source lacks expected Worker modules or static assets');
+            if (receipt.deployed !== false || receipt.sourceSha !== sha)
+              throw Error('Invalid staging-only receipt');
+            return receipt;
+          }, {
+            image: process.env.IFD_IMAGE_ID,
+            timeoutMs: 24 * 60_000
+          });
+          // Never upload or publish the artifacts: the private scratch folder
+          // was deleted in withIsolatedBuild's finally block.
+          console.log(JSON.stringify(receipt, null, 2));
+          NODE
+
+      - name: Verify no InsightFlare build containers remain
+        if: always()
+        run: |
+          remaining="$(docker ps -aq --filter label=insightflare.deploy.build=true)"
+          if [ -n "$remaining" ]; then
+            echo "Orphaned isolated builder container detected" >&2
+            docker rm -f $remaining
+            exit 1
+          fi
+          echo "No isolated build containers remain."

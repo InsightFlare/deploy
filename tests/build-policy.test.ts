@@ -67,6 +67,9 @@ describe("user-owned build safety policy", () => {
     expect(BUILD_PROCESS_CONTRACT.immutableCommitRequired).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.stagingOnly).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.noSharedBuildArtifact).toBe(true);
+    expect(BUILD_PROCESS_CONTRACT.sourceFetchWithoutFork).toBe(true);
+    expect(BUILD_PROCESS_CONTRACT.isolatedLinuxBuilderPrototype).toBe(true);
+    expect(BUILD_PROCESS_CONTRACT.isolatedBuilderProductionReady).toBe(false);
     expect(BUILD_PROCESS_CONTRACT.automaticActivationAllowed).toBe(false);
     expect(BUILD_PROCESS_CONTRACT.compilationCommand).toContain("--skip-prebuild");
     expect(BUILD_PROCESS_CONTRACT.compilationCommand).not.toContain("migrations apply");

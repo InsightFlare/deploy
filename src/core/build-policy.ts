@@ -94,6 +94,9 @@ export interface BuildProcessContract {
   compilationCommand: string;
   stagedUploadCommand: string;
   noSharedBuildArtifact: true;
+  sourceFetchWithoutFork: true;
+  isolatedLinuxBuilderPrototype: true;
+  isolatedBuilderProductionReady: false;
   stagingOnly: true;
   remotelyMigrateDatabaseDuringCompilation: false;
   automaticActivationAllowed: false;
@@ -108,12 +111,17 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   compilationCommand: "pnpm exec tsx scripts/build.ts --target cf --skip-prebuild",
   stagedUploadCommand: "pnpm exec wrangler versions upload --config wrangler.toml",
   noSharedBuildArtifact: true,
+  sourceFetchWithoutFork: true,
+  isolatedLinuxBuilderPrototype: true,
+  isolatedBuilderProductionReady: false,
   stagingOnly: true,
   remotelyMigrateDatabaseDuringCompilation: false,
   automaticActivationAllowed: false,
   productionReady: false,
   caveats: [
-    "Cloudflare GitHub App access to an upstream public repository outside the user's ownership is not verified.",
+    "Cloudflare GitHub App access to an upstream public repository outside the user's ownership is not verified; direct public Git fetch by immutable SHA avoids this dependency for the isolated builder.",
+    "A private, unprivileged Linux Docker builder prototype exists; the live Docker daemon, CPU/memory/disk quotas, base image pin and Cloudflare Containers transport remain unverified.",
+    "Do not run a user build inside production application containers or share the build checkout between users.",
     "Cloudflare Builds requires an independently authorized user-scoped build token.",
     "Connecting main to Workers Builds normally triggers builds after upstream pushes.",
     "Compile only the pinned Git SHA; keep source compilation separate from remote D1 migrations.",
