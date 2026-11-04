@@ -34,7 +34,7 @@ export const BUILD_ADAPTER_STATUS = {
   blockers: [
     "Verify Cloudflare Workers Builds accepts upstream public GitHub without a fork.",
     "Verify OAuth supports user-scoped Workers CI Write and build-token administration.",
-    "Wrangler versions upload automatically creates a deployment; it is not a stage-only command.",
+    "Wrangler versions upload stages a version without deploying; never substitute wrangler deploy or versions deploy in an automated trigger.",
     "Implement and verify Beta Worker Versions API upload with deploy=false, or isolated Worker Previews.",
     "Separate InsightFlare source build from remote D1 migrations.",
     "Verify build result provenance and preserve existing Worker secrets."

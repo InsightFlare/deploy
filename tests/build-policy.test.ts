@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILD_PROCESS_CONTRACT, inspectTriggerSafety } from "../src/core/build-policy";
+import { BUILD_PROCESS_CONTRACT, inspectTriggerSafety, isNonPromotingVersionUpload } from "../src/core/build-policy";
 
 const repo = {
   provider_type: "github", provider_account_id: "68409330",
@@ -8,30 +8,40 @@ const repo = {
 const stage = "pnpm exec wrangler versions upload --config wrangler.toml";
 
 describe("user-owned build safety policy", () => {
-  it("requires numeric upstream repository provenance and never trusts Wrangler versions upload as stage-only", () => {
+  it("recognizes the officially documented non-deploying Wrangler version-upload command", () => {
     const state = inspectTriggerSafety({ repo_connection: repo, build_token_uuid: "build-token-id", deploy_command: stage });
     expect(state.matchesOfficialName).toBe(true);
     expect(state.verifiesOfficialRepositoryId).toBe(true);
-    expect(state.stagesWithoutPromotion).toBe(false);
-    expect(state.deploysWithoutConfirmation).toBe(true);
-    expect(state.blockers.join(" ")).toContain("not a staging-only operation");
+    expect(state.stagesWithoutPromotion).toBe(true);
+    expect(state.deploysWithoutConfirmation).toBe(false);
+    expect(state.requiresReview).toBe(true);
+    expect(state.blockers.join(" ")).toContain("no-fork source access");
   });
 
-  it("detects every current Wrangler or shell deployment command as promoting", () => {
-    for (const command of [
-      "npx wrangler deploy",
-      "pnpm exec wrangler deploy",
-      "npm run deploy",
-      "pnpm exec wrangler versions upload --config wrangler.toml",
-      "npx wrangler versions upload",
-      "pnpm exec wrangler versions upload --config wrangler.toml && npx wrangler deploy",
-      "pnpm exec wrangler versions upload; npx wrangler deploy",
-      ""
-    ]) {
-      const state = inspectTriggerSafety({ repo_connection: repo, build_token_uuid: "id", deploy_command: command });
-      expect(state.deploysWithoutConfirmation, command).toBe(true);
-      expect(state.stagesWithoutPromotion, command).toBe(false);
-    }
+  it.each([
+    "pnpm exec wrangler versions upload --config wrangler.toml",
+    "npx wrangler versions upload",
+    "wrangler versions upload",
+    "pnpm exec wrangler versions upload --name insightflare"
+  ])("recognizes a single stage-only CLI command: %s", command => {
+    expect(isNonPromotingVersionUpload(command)).toBe(true);
+  });
+
+  it.each([
+    "npx wrangler deploy",
+    "pnpm exec wrangler deploy",
+    "npm run deploy",
+    "pnpm exec wrangler versions deploy",
+    "pnpm exec wrangler versions upload && npx wrangler deploy",
+    "pnpm exec wrangler versions upload; npx wrangler deploy",
+    "pnpm exec wrangler versions upload | npx wrangler deploy",
+    "pnpm exec wrangler versions upload $(echo hello)",
+    "pnpm exec wrangler versions upload --config wrangler.toml --unsafe-value=1",
+    ""
+  ])("rejects potential traffic-promotion or unreviewed shell command: %s", command => {
+    const state = inspectTriggerSafety({ repo_connection: repo, build_token_uuid: "id", deploy_command: command });
+    expect(state.deploysWithoutConfirmation).toBe(true);
+    expect(state.stagesWithoutPromotion).toBe(false);
   });
 
   it("does not trust matching display names with a different GitHub ID", () => {
@@ -42,9 +52,7 @@ describe("user-owned build safety policy", () => {
   });
 
   it("rejects repository ownership confusion even when repository ID matches", () => {
-    const state = inspectTriggerSafety({
-      repo_connection: { ...repo, provider_account_name: "OtherOrg" }, deploy_command: stage
-    });
+    const state = inspectTriggerSafety({ repo_connection: { ...repo, provider_account_name: "OtherOrg" }, deploy_command: stage });
     expect(state.matchesOfficialName).toBe(false);
     expect(state.verifiesOfficialRepositoryId).toBe(false);
   });
@@ -55,15 +63,14 @@ describe("user-owned build safety policy", () => {
     expect(state.requiresReview).toBe(true);
   });
 
-  it("ensures proposed build contract uses a non-promoting Beta API and never migrates during compilation", () => {
+  it("keeps the proposed build contract separate from D1 migrations and 100% deployment", () => {
     expect(BUILD_PROCESS_CONTRACT.immutableCommitRequired).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.stagingOnly).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.noSharedBuildArtifact).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.automaticActivationAllowed).toBe(false);
     expect(BUILD_PROCESS_CONTRACT.compilationCommand).toContain("--skip-prebuild");
     expect(BUILD_PROCESS_CONTRACT.compilationCommand).not.toContain("migrations apply");
-    expect(BUILD_PROCESS_CONTRACT.stagedUploadCommand).toContain("deploy=false");
-    expect(BUILD_PROCESS_CONTRACT.stagedUploadCommand).not.toContain("wrangler versions upload");
+    expect(BUILD_PROCESS_CONTRACT.stagedUploadCommand).toContain("wrangler versions upload");
     expect(BUILD_PROCESS_CONTRACT.productionReady).toBe(false);
   });
 });
