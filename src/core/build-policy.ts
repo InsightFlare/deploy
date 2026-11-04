@@ -93,7 +93,10 @@ export interface BuildProcessContract {
   immutableCommitRequired: true;
   compilationCommand: string;
   stagedUploadCommand: string;
-  noSharedBuildArtifact: true;
+  noSharedBuildArtifact: false;
+  officialPublicNightlyPreferred: true;
+  nightlyChannel: "nightly";
+  nightlyPublishActive: false;
   sourceFetchWithoutFork: true;
   isolatedLinuxBuilderPrototype: true;
   isolatedBuilderProductionReady: false;
@@ -110,7 +113,10 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   immutableCommitRequired: true,
   compilationCommand: "pnpm exec tsx scripts/build.ts --target cf --skip-prebuild",
   stagedUploadCommand: "pnpm exec wrangler versions upload --config wrangler.toml",
-  noSharedBuildArtifact: true,
+  noSharedBuildArtifact: false,
+  officialPublicNightlyPreferred: true,
+  nightlyChannel: "nightly",
+  nightlyPublishActive: false,
   sourceFetchWithoutFork: true,
   isolatedLinuxBuilderPrototype: true,
   isolatedBuilderProductionReady: false,
@@ -119,8 +125,11 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   automaticActivationAllowed: false,
   productionReady: false,
   caveats: [
-    "Cloudflare GitHub App access to an upstream public repository outside the user's ownership is not verified; direct public Git fetch by immutable SHA avoids this dependency for the isolated builder.",
-    "A private, unprivileged Linux Docker builder prototype exists; the live Docker daemon, CPU/memory/disk quotas, base image pin and Cloudflare Containers transport remain unverified.",
+    "Official GitHub CI can publish a verified build for each upstream main commit to the rolling nightly prerelease; no user fork or external object storage is required.",
+    "The nightly publisher is not yet enabled on upstream main. Never substitute a formal Release or an older nightly build when the latest commit is pending.",
+    "Each downloaded asset must match the official GitHub SHA256 digest and complete internal manifest.",
+    "Public build artifacts are shared official CI outputs; the old isolated per-user compiler is an optional experiment.",
+    "A private Linux Docker builder prototype remains optional and is not needed by Deploy users; production readiness is unverified.",
     "Do not run a user build inside production application containers or share the build checkout between users.",
     "Cloudflare Builds requires an independently authorized user-scoped build token.",
     "Connecting main to Workers Builds normally triggers builds after upstream pushes.",

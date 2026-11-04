@@ -66,7 +66,10 @@ describe("user-owned build safety policy", () => {
   it("keeps the proposed build contract separate from D1 migrations and 100% deployment", () => {
     expect(BUILD_PROCESS_CONTRACT.immutableCommitRequired).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.stagingOnly).toBe(true);
-    expect(BUILD_PROCESS_CONTRACT.noSharedBuildArtifact).toBe(true);
+    expect(BUILD_PROCESS_CONTRACT.noSharedBuildArtifact).toBe(false);
+    expect(BUILD_PROCESS_CONTRACT.officialPublicNightlyPreferred).toBe(true);
+    expect(BUILD_PROCESS_CONTRACT.nightlyChannel).toBe("nightly");
+    expect(BUILD_PROCESS_CONTRACT.nightlyPublishActive).toBe(false);
     expect(BUILD_PROCESS_CONTRACT.sourceFetchWithoutFork).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.isolatedLinuxBuilderPrototype).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.isolatedBuilderProductionReady).toBe(false);

@@ -64,7 +64,9 @@ Existing Worker secrets, bindings, routes and production data must not be altere
 MIT license. Project maintained by [InsightFlare](https://github.com/InsightFlare).
 
 
-### Experimental per-run isolated build runner (no Cloudflare credentials)
+### Optional experimental per-run isolated build runner (not the default)
+
+**The public GitHub Nightly artifact path above is the preferred distribution model; users will not need Docker.** This section preserves an alternative reference builder, not an installer requirement.
 
 The former GitHub-App/no-fork connection blocker is now separated from compilation itself: a dedicated Linux runner can fetch the public official `RavelloH/InsightFlare` repository at one **exact** 40-character Git commit, build it with `--skip-prebuild`, and return a private, short-lived artifact receipt. This does **not** require a GitHub installation or a fork in the user's Cloudflare account.
 
@@ -79,3 +81,22 @@ node scripts/isolated-builder.mjs --inspect sha256:<64-hex-local-image-id> <full
 A deliberately **manual-only** GitHub Actions workflow, `Manual isolated builder integration` (`.github/workflows/isolated-builder-smoke.yml`), performs the expensive real Linux Docker build of the official pinned commit, verifies the complete Worker/Assets build, reports only a digest/count receipt and deletes everything. It uses no Cloudflare token or deployment permissions; it does not stage or activate a Worker. It is not part of push CI to avoid needless resource usage.
 
 **Not production-ready:** The Windows workstation has no running Docker daemon. The earlier VPS environment inspected by DeskBeacon exposed a small container without Docker, not an approved dedicated builder host. The Docker adapter requires a dedicated Linux runner with Docker access, an immutable builder image and sufficient memory/disk; do **not** run it inside an existing production app container or expose the Docker socket to tenants. Git/npm dependency installation uses outbound network access and should receive network egress controls and disk quotas before hosting untrusted user builds. The Dockerfile's Node base should also be pinned to a base image digest before production. If using Cloudflare Containers, deploy the builder image **directly** as an ephemeral Cloudflare Container; do not assume a Docker daemon is present inside the Container. Its container lifecycle and per-user artifact transport still need a separate adapter and real-account validation. No web API route starts isolated builds today.
+
+
+### Default distribution: one rolling official `nightly` prerelease (proposed, not enabled)
+
+The installer is changing from per-user isolated compilation to **official GitHub CI build artifacts**. Every upstream `main` commit is the deployable version identifier. Formal `vX.Y.Z` Releases remain milestone announcements, never installation or update targets.
+
+The source repository has an experimental `publish-nightly-artifact.yml` workflow, kept on a separate feature branch pending explicit approval. Once enabled on upstream main it will:
+
+1. Compile the exact `GITHUB_SHA` with frozen dependencies and `--skip-prebuild` (no customer credentials, no remote D1 mutations).
+2. Create a small content-addressed archive of Worker modules, client Assets and D1 migration SQL with a manifest. It strips account-specific Wrangler resource IDs and includes per-file SHA256 hashes.
+3. Upload uniquely SHA-named files to a **single** GitHub prerelease tagged `nightly`; it does not create any new versioned Release per commit and does not use external object storage.
+4. After the two new files have uploaded and their GitHub asset digests match, update a machine-readable current SHA and aggregate content digest in that prerelease's description. Never use `gh release upload --clobber` to replace live assets.
+5. Never advance the current pointer when the upstream main HEAD changed after a slow build. Keep older SHA assets temporarily for in-flight reads; implement conservative retention before enabling prolonged automatic publication.
+
+`src/core/public-release.ts` implements a **read-only** verifier: it first resolves official `main` HEAD, requires `nightly` to advertise precisely that SHA, validates the release's public asset names and GitHub SHA256 digests, downloads the files, parses a strict TAR/GZIP archive, checks each source file and migration SQL digest, and recomputes the original complete build digest. An old formal release or an older nightly build is never substituted when the latest main commit is not ready.
+
+The `nightly` Git tag is a stable *channel identifier*, not an authoritative source-commit pointer. Only the validated prerelease notes marker represents the current compiled commit. The proposed distribution requires **mutable prerelease assets**: GitHub repository-wide Immutable Releases, if enabled, must be revisited because it prevents updating a single rolling prerelease. No Release has been created or modified by this work. No public deployment routes perform installation yet.
+
+The old Docker experiment remains available for internal research but is not required to install or update InsightFlare. Deploy users only need their Cloudflare account; they need neither Fork, Docker, GitHub authentication, VPS, nor any custom OSS/R2 endpoint.
