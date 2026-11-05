@@ -50,14 +50,15 @@ export function assertSameOrigin(c: AppContext): void {
   }
 }
 
-/** Explicit OAuth consent; D1 writes are never requested by default. */
+/** Explicit Cloudflare OAuth capability selection, never elevated by default. */
 export function requestedOAuthScopes(base: string, capability?: string): string {
-  if (capability && capability !== "d1-read" && capability !== "d1-write") {
+  if (capability && !["d1-read", "d1-write", "workers-write", "deploy"].includes(capability)) {
     throw new DeployError("INVALID_SOURCE", "Unsupported Cloudflare OAuth capability request.");
   }
   const scopes = new Set(base.split(/\s+/).filter(Boolean));
-  if (capability === "d1-read" || capability === "d1-write") scopes.add("d1.read");
-  if (capability === "d1-write") scopes.add("d1.write");
+  if (["d1-read", "d1-write", "deploy"].includes(capability ?? "")) scopes.add("d1.read");
+  if (["d1-write", "deploy"].includes(capability ?? "")) scopes.add("d1.write");
+  if (["workers-write", "deploy"].includes(capability ?? "")) scopes.add("workers-scripts.write");
   return [...scopes].join(" ");
 }
 

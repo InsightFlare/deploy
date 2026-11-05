@@ -23,7 +23,7 @@ export interface Plan {
 }
 
 export function deploymentPlan(current: Deployment, source: MainCommit, intent: Intent): Plan {
-  const blockers: string[] = ["Official Nightly D1 migrations can be applied separately, but Worker version upload and production activation are not enabled."];
+  const blockers: string[] = ["Existing Worker upgrades are available through the D1 migration and Worker Versions panels; new-install resource provisioning and one-click full deployment plans are not enabled."];
   if (current.kind === "conflict") blockers.push("Worker name is occupied by an unknown application. Automatic takeover is forbidden.");
   if (current.kind === "legacy-candidate") blockers.push("Existing legacy instance must complete an explicit adoption flow.");
   if (intent === "install" && current.kind !== "not-installed") blockers.push("An existing Worker must be reviewed before installation.");

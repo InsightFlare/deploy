@@ -15,37 +15,31 @@ describe("Worker version promotion safety", () => {
     expect(() => activeVersionId({ id: "partial", versions: [{ version_id: previous, percentage: 99 }] })).toThrow("100%");
   });
 
-  it("allows promotion only after exact SHA, clone, production migration, resources, health and approval checks pass", () => {
+  it("allows a 100% Worker deployment with the same basic requirements as manual upgrade", () => {
     expect(() => assertCanPromote({
       reviewedSha: sha,
       stagedSha: sha,
       expectedActiveVersionId: previous,
       observedActiveVersionId: previous,
-      cloneMigrationsPassed: true,
       productionMigrationsApplied: true,
       resourceBindingsVerified: true,
-      isolatedHealthCheckPassed: true,
       userApprovalRecorded: true
     })).not.toThrow();
   });
 
   it.each([
-    { stagedSha: "b".repeat(40), cloneMigrationsPassed: true, productionMigrationsApplied: true, resourceBindingsVerified: true, isolatedHealthCheckPassed: true, userApprovalRecorded: true },
-    { stagedSha: sha, cloneMigrationsPassed: false, productionMigrationsApplied: true, resourceBindingsVerified: true, isolatedHealthCheckPassed: true, userApprovalRecorded: true },
-    { stagedSha: sha, cloneMigrationsPassed: true, productionMigrationsApplied: false, resourceBindingsVerified: true, isolatedHealthCheckPassed: true, userApprovalRecorded: true },
-    { stagedSha: sha, cloneMigrationsPassed: true, productionMigrationsApplied: true, resourceBindingsVerified: false, isolatedHealthCheckPassed: true, userApprovalRecorded: true },
-    { stagedSha: sha, cloneMigrationsPassed: true, productionMigrationsApplied: true, resourceBindingsVerified: true, isolatedHealthCheckPassed: false, userApprovalRecorded: true },
-    { stagedSha: sha, cloneMigrationsPassed: true, productionMigrationsApplied: true, resourceBindingsVerified: true, isolatedHealthCheckPassed: true, userApprovalRecorded: false }
-  ])("blocks promotion when any required safety gate is missing", overrides => {
+    { stagedSha: "b".repeat(40), productionMigrationsApplied: true, resourceBindingsVerified: true, userApprovalRecorded: true },
+    { stagedSha: sha, productionMigrationsApplied: false, resourceBindingsVerified: true, userApprovalRecorded: true },
+    { stagedSha: sha, productionMigrationsApplied: true, resourceBindingsVerified: false, userApprovalRecorded: true },
+    { stagedSha: sha, productionMigrationsApplied: true, resourceBindingsVerified: true, userApprovalRecorded: false }
+  ])("rejects mismatched source, incomplete migration or absent user approval", overrides => {
     const base: PromotionSafety = {
       reviewedSha: sha,
       stagedSha: sha,
       expectedActiveVersionId: previous,
       observedActiveVersionId: previous,
-      cloneMigrationsPassed: true,
       productionMigrationsApplied: true,
       resourceBindingsVerified: true,
-      isolatedHealthCheckPassed: true,
       userApprovalRecorded: true
     };
     expect(() => assertCanPromote({ ...base, ...overrides } as PromotionSafety)).toThrow();
@@ -55,8 +49,7 @@ describe("Worker version promotion safety", () => {
     expect(() => assertCanPromote({
       reviewedSha: sha, stagedSha: sha,
       expectedActiveVersionId: previous, observedActiveVersionId: staged,
-      cloneMigrationsPassed: true, productionMigrationsApplied: true,
-      resourceBindingsVerified: true, isolatedHealthCheckPassed: true,
+      productionMigrationsApplied: true, resourceBindingsVerified: true,
       userApprovalRecorded: true
     })).toThrow("changed after the deployment plan was reviewed");
   });

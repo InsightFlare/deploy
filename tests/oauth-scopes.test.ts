@@ -16,6 +16,17 @@ describe("least-privilege Cloudflare OAuth escalation", () => {
       defaultScopes + " d1.read d1.write"
     );
   });
+  it("requests Worker upload permission only when explicitly selected", () => {
+    expect(requestedOAuthScopes(defaultScopes,"workers-write")).toBe(
+      defaultScopes+" workers-scripts.write"
+    );
+    expect(requestedOAuthScopes(defaultScopes)).toBe(defaultScopes);
+  });
+  it("requests the three deployment capabilities in a single explicit consent", () => {
+    expect(requestedOAuthScopes(defaultScopes,"deploy")).toBe(
+      defaultScopes+" d1.read d1.write workers-scripts.write"
+    );
+  });
   it("never duplicates a previously allowed scope", () => {
     expect(requestedOAuthScopes(defaultScopes+" d1.read", "d1-read").split("d1.read")).toHaveLength(2);
   });

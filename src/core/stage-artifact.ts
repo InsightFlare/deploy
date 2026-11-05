@@ -201,7 +201,7 @@ export interface StagingResult {
   canPromote: false;
 }
 
-function verifyUploadedCandidate(candidate: WorkerVersion, proposal: StagingProposal): void {
+export function verifyUploadedCandidate(candidate: WorkerVersion, proposal: StagingProposal): void {
   if (!candidate || candidate.annotations?.["workers/tag"] !== proposal.reviewedSha ||
       candidate.migration_tag !== proposal.expectedMigrationTag ||
       !Array.isArray(candidate.bindings)) {

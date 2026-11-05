@@ -34,6 +34,26 @@ type D1Preview = {
   executionAvailable: false; blockers: string[];
   pending: Array<{ name: string; sha256: string; sqlBytes: number; destructive: boolean; warnings: string[] }>;
 };
+type VersionPreview = {
+  sourceSha:string;artifactDigest:string;expectedActiveVersionId:string;
+  workerName:"insightflare";deploymentKind:"managed"|"legacy-candidate";
+  legacyAdoptionRequired:boolean;activeMigrationTag:string;targetMigrationTag:string;
+  requiresDoMigration:boolean;databaseId:string;existingBindingsPreserved:number;
+  stageAvailable:true;activationRequiresD1Current:true;
+};
+type StagedVersion = {
+  stagedVersionId:string;sourceSha:string;artifactDigest:string;
+  activeVersionUnchanged:true;bindingsVerified:true;migrationTagVerified:true;
+  canPromote:false;
+};
+type VerifiedCandidate = {
+  stagedVersionId:string;sourceSha:string;artifactDigest:string;
+  expectedActiveVersionId:string;createdOn:string|null;
+};
+type ActivatedVersion = {
+  deploymentId:string;previousActiveVersionId:string;activatedVersionId:string;
+  sourceSha:string;workerName:"insightflare";databaseMigrationsCurrent:true;
+};
 type PreparedRun = {
   id: string; intent: "install" | "update" | "repair";
   pinnedSha: string; createdAt: number; expiresAt: number;
@@ -56,6 +76,7 @@ const nav = [
   { title: "Cloudflare account", href: "#account", Icon: RiCloudLine },
   { title: "Build integration", href: "#build-readiness", Icon: RiCodeSSlashLine },
   { title: "D1 migration preview", href: "#database", Icon: RiServerLine },
+  { title: "Worker versions", href: "#versions", Icon: RiCodeSSlashLine },
   { title: "Deployment plan", href: "#plan", Icon: RiTerminalBoxLine }
 ];
 
@@ -93,6 +114,13 @@ export function App() {
   const [d1Message,setD1Message]=useState("");
   const [d1Working,setD1Working]=useState(false);
   const [d1Applying,setD1Applying]=useState(false);
+  const [versionPreview,setVersionPreview]=useState<VersionPreview|null>(null);
+  const [stagedVersion,setStagedVersion]=useState<StagedVersion|null>(null);
+  const [versionCandidates,setVersionCandidates]=useState<VerifiedCandidate[]>([]);
+  const [activatedVersion,setActivatedVersion]=useState<ActivatedVersion|null>(null);
+  const [versionMessage,setVersionMessage]=useState("");
+  const [versionWorking,setVersionWorking]=useState(false);
+  const [legacyReviewed,setLegacyReviewed]=useState(false);
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
   const [resourcePlan,setResourcePlan]=useState<ResourcePlan|null>(null);
@@ -162,6 +190,11 @@ export function App() {
   },[accountId,session.connected]);
 
   useEffect(()=>{
+    setVersionPreview(null);setStagedVersion(null);setVersionCandidates([]);setActivatedVersion(null);
+    setLegacyReviewed(false);setVersionMessage("");
+  },[accountId]);
+
+  useEffect(()=>{
     setD1Databases([]);setDatabaseId("");setD1Preview(null);setD1Message("");
     if(!session.connected||!accountId) return;
     let cancelled=false;
@@ -213,6 +246,84 @@ export function App() {
     }catch(e){
       setD1Message(errorText(e)+" Check the latest D1 migration history before continuing.");
     }finally{setD1Applying(false);}
+  }
+  async function inspectWorkerVersions(){
+    if(!accountId || versionWorking)return;
+    setVersionWorking(true);setVersionPreview(null);setStagedVersion(null);
+    setVersionCandidates([]);setActivatedVersion(null);setVersionMessage("");
+    try{
+      const {preview}=await api<{preview:VersionPreview}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+"/versions/preview");
+      setVersionPreview(preview);
+      setVersionMessage("The active Worker will continue serving while a new version is staged.");
+    }catch(e){setVersionMessage(errorText(e));}
+    finally{setVersionWorking(false);}
+  }
+  async function findStagedVersions(){
+    if(!accountId || !versionPreview || versionWorking)return;
+    setVersionWorking(true);setVersionCandidates([]);setVersionMessage("");
+    try{
+      const {candidates}=await api<{candidates:VerifiedCandidate[]}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+"/versions/candidates");
+      setVersionCandidates(candidates.filter(item=>
+        item.sourceSha===versionPreview.sourceSha &&
+        item.artifactDigest===versionPreview.artifactDigest &&
+        item.expectedActiveVersionId===versionPreview.expectedActiveVersionId));
+      setVersionMessage(candidates.length?
+        "Verified previously uploaded candidates from Cloudflare Worker version history.":
+        "No compatible staged versions found. Upload the Nightly candidate first.");
+    }catch(e){setVersionMessage(errorText(e));}
+    finally{setVersionWorking(false);}
+  }
+  async function stageWorkerVersion(){
+    if(!accountId || !versionPreview || versionWorking ||
+      (versionPreview.legacyAdoptionRequired && !legacyReviewed))return;
+    if(!window.confirm("Upload official source "+versionPreview.sourceSha.slice(0,12)+
+      " as an INACTIVE Worker version? No production traffic will be switched."))return;
+    setVersionWorking(true);setVersionMessage("");setStagedVersion(null);
+    try{
+      const {staged}=await api<{staged:StagedVersion}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+"/versions/stage",{
+          method:"POST",headers:{"Content-Type":"application/json",Origin:window.location.origin},
+          body:JSON.stringify({
+            sourceSha:versionPreview.sourceSha,
+            artifactDigest:versionPreview.artifactDigest,
+            expectedActiveVersionId:versionPreview.expectedActiveVersionId,
+            legacyAdoptionReviewed:legacyReviewed
+          })
+        });
+      setStagedVersion(staged);
+      setVersionMessage("Candidate uploaded and verified; existing Worker traffic is unchanged.");
+    }catch(e){setVersionMessage(errorText(e)+" Inspect the current active Worker before retrying.");}
+    finally{setVersionWorking(false);}
+  }
+  async function activateWorkerVersion(){
+    if(!accountId || !versionPreview || !stagedVersion || versionWorking ||
+      !d1Preview || d1Preview.databaseId!==versionPreview.databaseId ||
+      d1Preview.sourceSha!==versionPreview.sourceSha || d1Preview.pendingMigrations!==0)return;
+    if(!window.confirm("Deploy version "+stagedVersion.stagedVersionId+
+      " to 100% of InsightFlare traffic now? This changes the live Worker version."))return;
+    setVersionWorking(true);setVersionMessage("");
+    try{
+      const {activation}=await api<{activation:ActivatedVersion}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+"/versions/activate",{
+          method:"POST",headers:{"Content-Type":"application/json",Origin:window.location.origin},
+          body:JSON.stringify({
+            sourceSha:versionPreview.sourceSha,
+            artifactDigest:versionPreview.artifactDigest,
+            expectedActiveVersionId:versionPreview.expectedActiveVersionId,
+            stagedVersionId:stagedVersion.stagedVersionId,
+            approved:true,legacyAdoptionReviewed:legacyReviewed
+          })
+        });
+      setActivatedVersion(activation);setStagedVersion(null);setVersionPreview(null);
+      setVersionMessage("The new version is active. Cloudflare deployment ID: "+activation.deploymentId);
+      const latest=await api<{deployment:Deployment}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+"/deployment");
+      setDeployment(latest.deployment);
+    }catch(e){setVersionMessage(errorText(e)+
+      " Verify the active Worker deployment before attempting activation again.");}
+    finally{setVersionWorking(false);}
   }
   async function previewD1(){
     if(!accountId || !databaseId || d1Working) return;
@@ -315,7 +426,7 @@ export function App() {
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Status overview">
           <Metric caption="Source branch" value="main" note="Official upstream repository" Icon={RiGitBranchLine}/>
           <Metric caption="Build strategy" value="Official Nightly" note="Verified archive pinned to a main commit" Icon={RiCodeSSlashLine}/>
-          <Metric caption="Control plane" value="Read-only" note="Infrastructure changes disabled" Icon={RiShieldCheckLine}/>
+          <Metric caption="Control plane" value="Upgrade-ready" note="D1 and Worker versions are separately controlled" Icon={RiShieldCheckLine}/>
         </section>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -386,7 +497,7 @@ export function App() {
                 {readiness.automaticPushBuildPossible && <Badge variant="outline">Upstream pushes may trigger builds</Badge>}
               </div>}
               {readiness.safetyBlockers?.map((blocker,i)=><p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><RiAlertLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}</p>)}
-              <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLockLine className="size-4"/>Build execution remains disabled until permissions, provenance and migration safety are validated.</p>
+              <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLockLine className="size-4"/>Nightly is built by official GitHub CI. No user-specific build runner or Docker installation is needed.</p>
             </> : <p className="text-xs leading-relaxed text-muted-foreground">{readinessMessage || "Connect Cloudflare and select an account to inspect its build integration."}</p>}
           </CardContent>
         </Card>
@@ -468,6 +579,128 @@ export function App() {
           </CardContent>
         </Card>
 
+        <Card className="deploy-card" id="versions">
+          <CardHeader>
+            <div className="flex justify-between gap-3">
+              <div className="space-y-1">
+                <Eyebrow>Worker versions</Eyebrow>
+                <CardTitle>Stage and activate</CardTitle>
+                <CardDescription>
+                  Upload the verified official Nightly as an inactive Worker version, then deploy it
+                  in a separate operation. No maintenance mode or extra runtime Durable Object.
+                </CardDescription>
+              </div>
+              <RiCodeSSlashLine className="size-5 text-primary"/>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" disabled={!accountId || versionWorking ||
+                !deployment || !["managed","legacy-candidate"].includes(deployment.kind)}
+                onClick={()=>void inspectWorkerVersions()}>
+                <RiInformationLine/>{versionWorking?"Working…":"Inspect Worker version"}
+              </Button>
+              {session.oauthConfigured&&
+                <a className="text-xs text-primary underline underline-offset-4"
+                  href="/api/v1/auth/cloudflare/start?capability=deploy">
+                  Authorize Workers Write + D1 access
+                </a>}
+            </div>
+            {versionMessage&&<p role="status" className="text-xs leading-relaxed text-muted-foreground">
+              {versionMessage}
+            </p>}
+            {versionPreview&&<div data-testid="worker-version-preview"
+              className="space-y-3 border border-border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Eyebrow>Latest Nightly candidate</Eyebrow>
+                <Badge variant="outline">Not deployed</Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <p>Source SHA <code className="break-all">{versionPreview.sourceSha}</code></p>
+                <p>Current version <code>{versionPreview.expectedActiveVersionId}</code></p>
+                <p>DO migration tag <code>{versionPreview.activeMigrationTag} → {versionPreview.targetMigrationTag}</code></p>
+                <p>Bindings to preserve: {versionPreview.existingBindingsPreserved}</p>
+              </div>
+              {versionPreview.legacyAdoptionRequired&&
+                <label className="flex cursor-pointer items-start gap-2 border border-border p-3 text-xs">
+                  <input type="checkbox" checked={legacyReviewed}
+                    onChange={event=>setLegacyReviewed(event.target.checked)}
+                    className="mt-0.5" />
+                  I have reviewed this existing, unmanaged InsightFlare Worker and approve adopting
+                  it without changing its current D1, KV or secrets.
+                </label>}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button disabled={versionWorking || !versionPreview.stageAvailable ||
+                  (versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
+                  onClick={()=>void stageWorkerVersion()}>
+                  <RiShieldCheckLine/>{versionWorking?"Uploading…":"Upload inactive version"}
+                </Button>
+                <Button variant="outline" disabled={versionWorking}
+                  onClick={()=>void findStagedVersions()}>
+                  <RiRefreshLine/>Find previous upload
+                </Button>
+                <p className="text-xs text-muted-foreground">Static assets and a Worker version are
+                  uploaded; the old version remains live.</p>
+              </div>
+            </div>}
+            {versionCandidates.length>0&&versionPreview&&
+              <div className="space-y-2 border border-border p-3">
+                <Eyebrow>Previously staged versions</Eyebrow>
+                {versionCandidates.map(item=>
+                  <div key={item.stagedVersionId} className="flex flex-wrap items-center gap-3 text-xs">
+                    <code className="break-all">{item.stagedVersionId}</code>
+                    <Button variant="outline" size="sm"
+                      disabled={versionWorking || (versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
+                      onClick={()=>setStagedVersion({
+                        stagedVersionId:item.stagedVersionId,
+                        sourceSha:item.sourceSha,artifactDigest:item.artifactDigest,
+                        activeVersionUnchanged:true,bindingsVerified:true,
+                        migrationTagVerified:true,canPromote:false
+                      })}>Use this version</Button>
+                  </div>)}
+              </div>}
+            {stagedVersion&&versionPreview&&<div data-testid="worker-staged-version"
+              className="space-y-3 border border-border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Eyebrow>Verified staged version</Eyebrow>
+                <Badge variant="secondary">Ready for activation</Badge>
+              </div>
+              <p className="break-all text-xs"><code>{stagedVersion.stagedVersionId}</code></p>
+              <p className="text-xs text-muted-foreground">
+                Existing D1/KV/DO and secrets are preserved. New Worker traffic
+                has not been enabled.
+              </p>
+              {(!d1Preview || d1Preview.pendingMigrations!==0 ||
+                d1Preview.sourceSha!==versionPreview.sourceSha ||
+                d1Preview.databaseId!==versionPreview.databaseId)&&
+                <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <RiAlertLine className="size-4 shrink-0"/>
+                  First inspect the matching D1 database and apply any pending Nightly SQL.
+                  This is the same order as the manual Wrangler deployment.
+                </p>}
+              <Button variant="destructive" disabled={versionWorking||
+                (versionPreview.legacyAdoptionRequired&&!legacyReviewed) ||
+                !d1Preview || d1Preview.pendingMigrations!==0 ||
+                d1Preview.sourceSha!==versionPreview.sourceSha ||
+                d1Preview.databaseId!==versionPreview.databaseId}
+                onClick={()=>void activateWorkerVersion()}>
+                <RiShieldCheckLine/>Activate version at 100% traffic
+              </Button>
+            </div>}
+            {activatedVersion&&<div role="status"
+              className="space-y-1 border border-border p-3 text-xs">
+              <p className="font-medium">Worker version activated</p>
+              <p className="break-all">Deployment ID: <code>{activatedVersion.deploymentId}</code></p>
+              <p className="break-all">Version ID: <code>{activatedVersion.activatedVersionId}</code></p>
+            </div>}
+            <p className="text-xs text-muted-foreground">
+              Initial installation and new D1/KV/DO provisioning are separate from this
+              existing-Worker upgrade flow. Cloudflare route and cron configuration
+              remain unchanged by a version activation.
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="deploy-card" id="plan">
           <CardHeader><div className="flex justify-between gap-3">
             <div className="space-y-1"><Eyebrow>Deployment</Eyebrow><CardTitle>Deployment plan</CardTitle><CardDescription>Preview the exact steps without changing your infrastructure.</CardDescription></div>
@@ -484,7 +717,7 @@ export function App() {
               </div>
               <Button variant="outline" disabled={!deployment||working} onClick={()=>void preview()}><RiInformationLine/>{working?"Preparing…":"Preview plan"}</Button>
               <Button variant="outline" disabled={!plan||preparing} onClick={()=>void freezeReviewedSha()}><RiGitBranchLine/>{preparing?"Freezing…":"Freeze reviewed SHA"}</Button>
-              <Button disabled><RiLockLine/>Execute unavailable</Button>
+              <Button disabled><RiLockLine/>New install workflow pending</Button>
             </div>
 
             {preparedRun && <div className="space-y-2 border border-border bg-muted/20 p-4" role="status">

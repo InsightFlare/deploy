@@ -5,6 +5,8 @@ import { resolveLatestMain } from "./core/source";
 import { resolveLatestPublicNightly, downloadVerifiedPublicRelease } from "./core/public-release";
 import { inspectD1MigrationPreview } from "./core/d1-preview";
 import { applyManualD1Migrations } from "./core/d1-manual";
+import { previewVersionUpgrade, activateStagedUpgrade, findVerifiedStagedCandidates } from "./core/upgrade-versions";
+import { stageReviewedUpgrade } from "./core/stage-artifact";
 import { deploymentPlan, type Intent } from "./core/plan";
 import { planResourceReconciliation } from "./core/reconcile";
 import { CloudflareClient } from "./providers/cloudflare/client";
@@ -30,11 +32,12 @@ app.onError((error, c) => {
   return c.json({ error: { code: "UPSTREAM_UNAVAILABLE", message: "The request could not be completed. Please retry." } }, 503, { "Cache-Control": "no-store" });
 });
 
-app.get("/api/v1/health", c => c.json({ ok: true, service: "insightflare-deploy", d1MigrationsAvailable: true, deploymentMutationsEnabled: false }));
+app.get("/api/v1/health", c => c.json({ ok: true, service: "insightflare-deploy", d1MigrationsAvailable: true, existingWorkerUpgradesAvailable: true, newInstallationAvailable: false }));
 app.get("/api/v1/config", c => c.json({
   source: c.env.SOURCE_REPOSITORY || "RavelloH/InsightFlare",
   oauthConfigured: oauthConfigured(c.env),
-  deploymentMutationsEnabled: false,
+  existingWorkerUpgradesAvailable: true,
+  newInstallationAvailable: false,
   d1MigrationsAvailable: true,
   builds: BUILD_ADAPTER_STATUS
 }, 200, { "Cache-Control": "no-store" }));
@@ -152,6 +155,135 @@ app.post("/api/v1/providers/cloudflare/accounts/:accountId/d1/migrations/apply",
   }
 });
 
+/**
+ * Read-only staging preview for an existing InsightFlare Worker.
+ * Always pinned to the one verified official main/nightly archive.
+ */
+app.get("/api/v1/providers/cloudflare/accounts/:accountId/versions/preview", async c => {
+  const accountId = c.req.param("accountId");
+  if (!ACCOUNT.test(accountId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  }
+  const client = new CloudflareClient(await userToken(c));
+  const [observed, pointer] = await Promise.all([
+    discoverDeployment(client, accountId), resolveLatestPublicNightly()
+  ]);
+  const release = await downloadVerifiedPublicRelease(pointer);
+  const preview = await previewVersionUpgrade(client, accountId, observed, release);
+  return c.json({ preview }, 200, { "Cache-Control": "no-store" });
+});
+
+/**
+ * Resume a verified inactive version after the user reloads the page. The
+ * Cloudflare version history is the only source of truth; no additional DO.
+ */
+app.get("/api/v1/providers/cloudflare/accounts/:accountId/versions/candidates", async c => {
+  const accountId = c.req.param("accountId");
+  if (!ACCOUNT.test(accountId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  }
+  const client = new CloudflareClient(await userToken(c));
+  const [observed, pointer] = await Promise.all([
+    discoverDeployment(client, accountId), resolveLatestPublicNightly()
+  ]);
+  const verified = await downloadVerifiedPublicRelease(pointer);
+  const candidates = await findVerifiedStagedCandidates(client, accountId, observed, verified);
+  return c.json({ candidates }, 200, { "Cache-Control": "no-store" });
+});
+
+/**
+ * Upload an INACTIVE Worker Version only. No deployment, domain, route, cron
+ * or D1 mutation takes place. The currently serving version remains active.
+ * This endpoint is for identified existing installations; initial resource
+ * provisioning is a separate workflow.
+ */
+app.post("/api/v1/providers/cloudflare/accounts/:accountId/versions/stage", async c => {
+  assertSameOrigin(c);
+  const accountId = c.req.param("accountId");
+  if (!ACCOUNT.test(accountId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  }
+  const body = await c.req.json().catch(() => null) as {
+    sourceSha?: string;
+    artifactDigest?: string;
+    expectedActiveVersionId?: string;
+    legacyAdoptionReviewed?: boolean;
+  } | null;
+  if (!body || !/^[a-f0-9]{40}$/.test(body.sourceSha ?? "") ||
+      !/^[a-f0-9]{64}$/.test(body.artifactDigest ?? "") ||
+      !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.expectedActiveVersionId ?? "")) {
+    throw new DeployError("INVALID_SOURCE", "An exact reviewed Worker version and official source digest are required.");
+  }
+  const client = new CloudflareClient(await userToken(c));
+  const [observed, pointer] = await Promise.all([
+    discoverDeployment(client, accountId), resolveLatestPublicNightly()
+  ]);
+  if (body.sourceSha !== pointer.sha || body.artifactDigest !== pointer.artifactDigest) {
+    throw new DeployError("SOURCE_MOVED", "The official Nightly source changed. Refresh staging preview.", 409);
+  }
+  if (observed.kind === "legacy-candidate" && body.legacyAdoptionReviewed !== true) {
+    throw new DeployError("UNAVAILABLE", "Review and explicitly confirm adoption of the existing legacy Worker.", 409);
+  }
+  const verified = await downloadVerifiedPublicRelease(pointer);
+  const latest = await previewVersionUpgrade(client, accountId, observed, verified);
+  if (latest.expectedActiveVersionId !== body.expectedActiveVersionId ||
+      latest.artifactDigest !== body.artifactDigest) {
+    throw new DeployError("SOURCE_MOVED", "The active Worker changed since review. Refresh staging preview.", 409);
+  }
+  const staged = await stageReviewedUpgrade(client, accountId, verified.artifact, {
+    sourceSha: latest.sourceSha,
+    artifactDigest: latest.artifactDigest,
+    expectedActiveVersionId: latest.expectedActiveVersionId,
+    legacyAdoptionReviewed: observed.kind !== "legacy-candidate" || body.legacyAdoptionReviewed === true
+  });
+  return c.json({ staged }, 200, { "Cache-Control": "no-store" });
+});
+
+/**
+ * Explicit 100% version activation, equivalent to the final manual Worker
+ * deploy step. Rechecks live D1 migration ledger, exact candidate/source,
+ * preserved bindings and current active Worker before committing traffic.
+ */
+app.post("/api/v1/providers/cloudflare/accounts/:accountId/versions/activate", async c => {
+  assertSameOrigin(c);
+  const accountId = c.req.param("accountId");
+  if (!ACCOUNT.test(accountId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  }
+  const body = await c.req.json().catch(() => null) as {
+    sourceSha?: string;
+    artifactDigest?: string;
+    expectedActiveVersionId?: string;
+    stagedVersionId?: string;
+    approved?: boolean;
+    legacyAdoptionReviewed?: boolean;
+  } | null;
+  if (!body || body.approved !== true ||
+      !/^[a-f0-9]{40}$/.test(body.sourceSha ?? "") ||
+      !/^[a-f0-9]{64}$/.test(body.artifactDigest ?? "") ||
+      !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.expectedActiveVersionId ?? "") ||
+      !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.stagedVersionId ?? "")) {
+    throw new DeployError("INVALID_SOURCE", "Explicit activation approval and exact reviewed Worker version are required.");
+  }
+  const client = new CloudflareClient(await userToken(c));
+  const [observed, pointer] = await Promise.all([
+    discoverDeployment(client, accountId), resolveLatestPublicNightly()
+  ]);
+  if (pointer.sha !== body.sourceSha || pointer.artifactDigest !== body.artifactDigest) {
+    throw new DeployError("SOURCE_MOVED", "The official Nightly source changed. Review before activation.", 409);
+  }
+  const verified = await downloadVerifiedPublicRelease(pointer);
+  const result = await activateStagedUpgrade(client, accountId, observed, verified, {
+    sourceSha: body.sourceSha!,
+    artifactDigest: body.artifactDigest!,
+    expectedActiveVersionId: body.expectedActiveVersionId!,
+    stagedVersionId: body.stagedVersionId!,
+    approved: true,
+    legacyAdoptionReviewed: body.legacyAdoptionReviewed === true
+  });
+  return c.json({ activation: result }, 200, { "Cache-Control": "no-store" });
+});
+
 app.get("/api/v1/providers/cloudflare/accounts/:accountId/deployment", async c => {
   const accountId = c.req.param("accountId");
   if (!ACCOUNT.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
@@ -212,7 +344,7 @@ app.post("/api/v1/providers/cloudflare/accounts/:accountId/prepare", async c => 
   // Never prepare executable work unless the entire workflow has passed
   // user-owned build, migration and deployment safety validation.
   const blockers = [...new Set([...plan.blockers, ...resources.blockers,
-    "Official Nightly is verified; D1 migration execution follows manual Wrangler behavior, while Worker upload and activation remain disabled."])];
+    "The existing-Worker D1 migration and staged-version activation workflow is available separately; new-install resource provisioning is not implemented."])];
   const run = await prepareAccountRun(c.env, {
     accountId, ownerId: sessionIdentity(c), intent: body.intent as Intent,
     pinnedSha: plan.sourceSha, currentSha: observed.deployedSha, blockers

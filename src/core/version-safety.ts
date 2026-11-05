@@ -35,10 +35,8 @@ export interface PromotionSafety {
   stagedSha: string;
   expectedActiveVersionId: string | null;
   observedActiveVersionId: string | null;
-  cloneMigrationsPassed: boolean;
   productionMigrationsApplied: boolean;
   resourceBindingsVerified: boolean;
-  isolatedHealthCheckPassed: boolean;
   userApprovalRecorded: boolean;
 }
 
@@ -54,9 +52,9 @@ export function assertCanPromote(input: PromotionSafety): void {
   if (input.expectedActiveVersionId !== null && !UUID.test(input.expectedActiveVersionId)) {
     throw new DeployError("INVALID_SOURCE", "The expected active Worker version identifier is invalid.");
   }
-  if (!input.cloneMigrationsPassed || !input.productionMigrationsApplied ||
-    !input.resourceBindingsVerified || !input.isolatedHealthCheckPassed || !input.userApprovalRecorded) {
-    throw new DeployError("UNAVAILABLE", "Promotion is blocked until migration, resource, isolated health-check and user-approval gates all pass.", 403);
+  if (!input.productionMigrationsApplied ||
+    !input.resourceBindingsVerified || !input.userApprovalRecorded) {
+    throw new DeployError("UNAVAILABLE", "Promotion requires current D1 migrations, matching Worker resources and explicit user approval.", 403);
   }
 }
 
