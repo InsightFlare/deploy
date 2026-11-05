@@ -1,148 +1,200 @@
-# InsightFlare Deploy · zh-tw
-# 与 InsightFlare 的 src/i18n/{locale}.yaml 使用相同语言代码和 Cookie 规范。
-brand: "InsightFlare 部署"
-tagline: "你的分析系統，部署在自己的 Cloudflare 帳戶。"
-wizard: "部署精靈"
-wizardHelp: "逐步完成部署。確認啟用之前，現有 Worker 會繼續運作。"
-language: "語言"
-connected: "已連線"
-disconnected: "未連線"
-next: "繼續"
-back: "上一步"
-close: "關閉"
-refresh: "重新整理"
-viewCommit: "查看提交"
-sourceGitHub: "在 GitHub 查看專案"
-previous: "上一步"
-stepCount: "第 {current} 步，共 {total} 步"
-progress: "部署進度"
-completed: "已完成"
-current: "目前"
-upcoming: "尚未開始"
-needsAttention: "需要處理"
-working: "處理中…"
-loading: "載入中…"
-unavailable: "無法使用"
-unknown: "未知"
-yes: "是"
-no: "否"
-available: "可用"
-missing: "缺少"
-ready: "就緒"
-pending: "待處理"
-dismiss: "關閉提示"
-stepConnect: "連線"
-stepAccount: "帳戶"
-stepSource: "檢查"
-stepD1: "資料庫"
-stepStage: "暫存"
-stepActivate: "啟用"
-connectTitle: "連接 Cloudflare 帳戶"
-connectDesc: "使用 Cloudflare 授權來探索既有的 InsightFlare 執行個體。額外權限只會在需要時請求。"
-connectButton: "使用 Cloudflare 連線"
-oauthMissing: "此服務尚未設定 OAuth。"
-connectedDesc: "Cloudflare 工作階段已連線。請繼續選擇要管理的帳戶。"
-disconnect: "中斷連線"
-dataPromise: "分析資料始終保存在你自己的 Cloudflare 帳戶中。"
-accountTitle: "選擇要管理的帳戶"
-accountDesc: "直接從所選 Cloudflare 帳戶探索 InsightFlare Worker。"
-accountLabel: "Cloudflare 帳戶"
-accountPlaceholder: "選擇帳戶"
-discovering: "正在檢查既有執行個體…"
-noInstallation: "尚未安裝"
-managed: "已受管理的執行個體"
-legacy: "既有執行個體 · 須確認接管"
-conflict: "Worker 名稱衝突"
-worker: "Worker"
-deployedSha: "目前部署的版本"
-sourceTitle: "檢查官方 Nightly"
-sourceDesc: "所有操作皆固定至官方 main 的最新提交。變更基礎設施前可先檢查計畫。"
-sourceBranch: "原始碼分支"
-sourceCommit: "官方提交"
-sourceLoading: "正在取得最新提交…"
-sourceMissing: "無法取得原始碼版本"
-commitDate: "提交於 {date}"
-buildTitle: "建置整合"
-buildDesc: "Nightly 由 GitHub 官方工作流程建置，無須安裝 Docker 或自行編譯。"
-repoVerified: "儲存庫識別"
-planTitle: "檢查部署計畫"
-planDesc: "這是唯讀預覽。準備執行記錄不會安裝或更新任何資源。"
-operation: "操作類型"
-install: "從 main 安裝"
-update: "更新至 main"
-repair: "修復目前版本"
-previewPlan: "預覽計畫"
-freezeSha: "固定已檢查的 SHA"
-planSteps: "計畫步驟"
-planBlockers: "計畫限制"
-noPlan: "選擇帳戶後即可預覽部署計畫。"
-resourceActions: "資源核對"
-resourceBlockers: "{count} 項資源限制"
-prepared: "已準備操作 · 尚未部署"
-preparedUntil: "固定的 SHA 將於 {time} 到期"
-preparedHint: "準備操作不會修改 Cloudflare 資源。"
-d1Title: "檢查 D1 資料庫遷移"
-d1Desc: "先檢查官方 SQL 檔案，再單獨執行待處理遷移。既有 Worker 持續運作。"
-d1Label: "D1 資料庫"
-d1Placeholder: "選擇資料庫"
-inspectMigrations: "檢查遷移"
-verifyD1: "正在驗證 Nightly 與 D1…"
-schemaCurrent: "資料庫結構已是最新"
-migrationApplied: "已套用"
-migrationPending: "待執行"
-migrationTotal: "官方 SQL 檔案"
-recoveryPoint: "復原書籤"
-migrationRisk: "部分遷移會更動既有結構或資料。請先確認相容性；舊 Worker 不會停止服務。"
-migrationReview: "檢查"
-migrationAdd: "新增"
-applyMigrations: "執行待處理 D1 遷移"
-applyingMigrations: "正在執行遷移…"
-authD1Read: "授權 D1 讀取"
-authD1Write: "授權 D1 寫入"
-d1ScopeHint: "須取得額外的 Cloudflare 明確授權。唯讀檢查不會要求 D1 寫入權限。"
-d1Progress: "已完成 {applied} 項，剩餘 {remaining} 項"
-d1Complete: "D1 遷移已完成。Worker 啟用須另外執行。"
-d1ContinueHint: "遷移中斷後，請重新檢查 D1 遷移記錄再繼續。"
-stageTitle: "暫存新版 Worker"
-stageDesc: "上傳並驗證 Nightly Worker，但暫不將任何流量切換過去。"
-inspectVersion: "檢查 Worker 版本"
-authDeploy: "授權 Worker 寫入與 D1"
-nightlyCandidate: "官方 Nightly 候選版本"
-inactive: "尚未啟用"
-activeVersion: "目前使用中的版本"
-migrationTag: "DO 遷移標記"
-bindingsPreserved: "保留既有綁定：{count} 個"
-legacyApprove: "我已檢查既有未受管理的 Worker，並同意接管且不取代其 D1、KV、DO 或密鑰。"
-uploadInactive: "上傳未啟用版本"
-uploading: "上傳中…"
-findPrevious: "找回先前暫存的版本"
-previousCandidates: "已暫存版本"
-useCandidate: "選擇此版本"
-stagedReady: "版本暫存完成 · 可繼續檢查"
-stageSafety: "D1、KV、DO 和密鑰維持不變。尚未導入新版流量。"
-stageRestoreEmpty: "找不到相容的暫存版本。請先上傳 Nightly 候選版本。"
-stageRestored: "已從 Cloudflare 版本歷史找回相容候選版本。"
-stageContinueHint: "確認啟用之前，目前 Worker 將繼續正常服務。"
-activateTitle: "確認並啟用版本"
-activateDesc: "最後一步：確認版本及資料庫狀態，再將 100% Worker 流量切換至新版。"
-activationTarget: "待啟用版本"
-activationNeedD1: "啟用前須檢查對應 D1 資料庫，並完成所有待處理 Nightly SQL。"
-activate100: "將 100% 流量切換至新版"
-activationSuccess: "新版 Worker 已啟用"
-deploymentId: "部署 ID"
-versionId: "版本 ID"
-activationNote: "啟用操作不會更新 Cloudflare 排程觸發器或自訂路由。"
-installUnavailable: "首次安裝尚未開放"
-installUnavailableHint: "新安裝所需的 D1、KV 等資源建立仍在開發中。既有執行個體可使用更新流程。"
-actionConfirmD1: "確定要對 {target} 執行 {count} 項遷移嗎？既有 Worker 將繼續服務。"
-actionConfirmStage: "要將官方提交 {sha} 上傳為未啟用版本嗎？既有綁定將保留。"
-actionConfirmActivate: "確定要將版本 {version} 啟用並切換 100% 流量嗎？此操作將切換線上 Worker。"
-activationNoCandidate: "啟用前須先暫存並選擇候選版本。"
-authFailed: "Cloudflare 授權失敗：{error}"
-unexpectedError: "發生未知錯誤"
-httpError: "請求失敗（HTTP {status}）"
-invalidResponse: "API 回應無效"
-requestFailed: "操作失敗，請檢查詳情後重試。"
-showTechnical: "技術詳情"
-stageFinish: "已完成更新"
-stepBlocked: "請先完成目前步驟再繼續。"
+# InsightFlare AppMessages-compatible nested catalog
+deploy:
+  brand: InsightFlare 部署
+  tagline: 你的分析系統，部署在自己的 Cloudflare 帳戶。
+  wizard: 部署精靈
+  wizardHelp: 逐步完成部署。確認啟用之前，現有 Worker 會繼續運作。
+  language: 語言
+  connected: 已連線
+  disconnected: 未連線
+  next: 繼續
+  back: 上一步
+  close: 關閉
+  refresh: 重新整理
+  viewCommit: 查看提交
+  sourceGitHub: 在 GitHub 查看專案
+  previous: 上一步
+  stepCount: 第 {current} 步，共 {total} 步
+  progress: 部署進度
+  completed: 已完成
+  current: 目前
+  upcoming: 尚未開始
+  needsAttention: 需要處理
+  working: 處理中…
+  loading: 載入中…
+  unavailable: 無法使用
+  unknown: 未知
+  yes: 是
+  no: 否
+  available: 可用
+  missing: 缺少
+  ready: 就緒
+  pending: 待處理
+  dismiss: 關閉提示
+  stepConnect: 連線
+  stepAccount: 帳戶
+  stepSource: 檢查
+  stepD1: 資料庫
+  stepStage: 暫存
+  stepActivate: 啟用
+  connectTitle: 連接 Cloudflare 帳戶
+  connectDesc: 使用 Cloudflare 授權來探索既有的 InsightFlare 執行個體。額外權限只會在需要時請求。
+  connectButton: 使用 Cloudflare 連線
+  oauthMissing: 此服務尚未設定 OAuth。
+  connectedDesc: Cloudflare 工作階段已連線。請繼續選擇要管理的帳戶。
+  disconnect: 中斷連線
+  dataPromise: 分析資料始終保存在你自己的 Cloudflare 帳戶中。
+  accountTitle: 選擇要管理的帳戶
+  accountDesc: 直接從所選 Cloudflare 帳戶探索 InsightFlare Worker。
+  accountLabel: Cloudflare 帳戶
+  accountPlaceholder: 選擇帳戶
+  discovering: 正在檢查既有執行個體…
+  noInstallation: 尚未安裝
+  managed: 已受管理的執行個體
+  legacy: 既有執行個體 · 須確認接管
+  conflict: Worker 名稱衝突
+  worker: Worker
+  deployedSha: 目前部署的版本
+  sourceTitle: 檢查官方 Nightly
+  sourceDesc: 所有操作皆固定至官方 main 的最新提交。變更基礎設施前可先檢查計畫。
+  sourceBranch: 原始碼分支
+  sourceCommit: 官方提交
+  sourceLoading: 正在取得最新提交…
+  sourceMissing: 無法取得原始碼版本
+  commitDate: 提交於 {date}
+  buildTitle: 建置整合
+  buildDesc: Nightly 由 GitHub 官方工作流程建置，無須安裝 Docker 或自行編譯。
+  repoVerified: 儲存庫識別
+  planTitle: 檢查部署計畫
+  planDesc: 這是唯讀預覽。準備執行記錄不會安裝或更新任何資源。
+  operation: 操作類型
+  install: 從 main 安裝
+  update: 更新至 main
+  repair: 修復目前版本
+  previewPlan: 預覽計畫
+  freezeSha: 固定已檢查的 SHA
+  planSteps: 計畫步驟
+  planBlockers: 計畫限制
+  noPlan: 選擇帳戶後即可預覽部署計畫。
+  resourceActions: 資源核對
+  resourceBlockers: "{count} 項資源限制"
+  prepared: 已準備操作 · 尚未部署
+  preparedUntil: 固定的 SHA 將於 {time} 到期
+  preparedHint: 準備操作不會修改 Cloudflare 資源。
+  d1Title: 檢查 D1 資料庫遷移
+  d1Desc: 先檢查官方 SQL 檔案，再單獨執行待處理遷移。既有 Worker 持續運作。
+  d1Label: D1 資料庫
+  d1Placeholder: 選擇資料庫
+  inspectMigrations: 檢查遷移
+  verifyD1: 正在驗證 Nightly 與 D1…
+  schemaCurrent: 資料庫結構已是最新
+  migrationApplied: 已套用
+  migrationPending: 待執行
+  migrationTotal: 官方 SQL 檔案
+  recoveryPoint: 復原書籤
+  migrationRisk: 部分遷移會更動既有結構或資料。請先確認相容性；舊 Worker 不會停止服務。
+  migrationReview: 檢查
+  migrationAdd: 新增
+  applyMigrations: 執行待處理 D1 遷移
+  applyingMigrations: 正在執行遷移…
+  authD1Read: 授權 D1 讀取
+  authD1Write: 授權 D1 寫入
+  d1ScopeHint: 須取得額外的 Cloudflare 明確授權。唯讀檢查不會要求 D1 寫入權限。
+  d1Progress: 已完成 {applied} 項，剩餘 {remaining} 項
+  d1Complete: D1 遷移已完成。Worker 啟用須另外執行。
+  d1ContinueHint: 遷移中斷後，請重新檢查 D1 遷移記錄再繼續。
+  stageTitle: 暫存新版 Worker
+  stageDesc: 上傳並驗證 Nightly Worker，但暫不將任何流量切換過去。
+  inspectVersion: 檢查 Worker 版本
+  authDeploy: 授權 Worker 寫入與 D1
+  nightlyCandidate: 官方 Nightly 候選版本
+  inactive: 尚未啟用
+  activeVersion: 目前使用中的版本
+  migrationTag: DO 遷移標記
+  bindingsPreserved: 保留既有綁定：{count} 個
+  legacyApprove: 我已檢查既有未受管理的 Worker，並同意接管且不取代其 D1、KV、DO 或密鑰。
+  uploadInactive: 上傳未啟用版本
+  uploading: 上傳中…
+  findPrevious: 找回先前暫存的版本
+  previousCandidates: 已暫存版本
+  useCandidate: 選擇此版本
+  stagedReady: 版本暫存完成 · 可繼續檢查
+  stageSafety: D1、KV、DO 和密鑰維持不變。尚未導入新版流量。
+  stageRestoreEmpty: 找不到相容的暫存版本。請先上傳 Nightly 候選版本。
+  stageRestored: 已從 Cloudflare 版本歷史找回相容候選版本。
+  stageContinueHint: 確認啟用之前，目前 Worker 將繼續正常服務。
+  activateTitle: 確認並啟用版本
+  activateDesc: 最後一步：確認版本及資料庫狀態，再將 100% Worker 流量切換至新版。
+  activationTarget: 待啟用版本
+  activationNeedD1: 啟用前須檢查對應 D1 資料庫，並完成所有待處理 Nightly SQL。
+  activate100: 將 100% 流量切換至新版
+  activationSuccess: 新版 Worker 已啟用
+  deploymentId: 部署 ID
+  versionId: 版本 ID
+  activationNote: 啟用操作不會更新 Cloudflare 排程觸發器或自訂路由。
+  installUnavailable: 首次安裝尚未開放
+  installUnavailableHint: 新安裝所需的 D1、KV 等資源建立仍在開發中。既有執行個體可使用更新流程。
+  actionConfirmD1: 確定要對 {target} 執行 {count} 項遷移嗎？既有 Worker 將繼續服務。
+  actionConfirmStage: 要將官方提交 {sha} 上傳為未啟用版本嗎？既有綁定將保留。
+  actionConfirmActivate: 確定要將版本 {version} 啟用並切換 100% 流量嗎？此操作將切換線上 Worker。
+  activationNoCandidate: 啟用前須先暫存並選擇候選版本。
+  authFailed: Cloudflare 授權失敗：{error}
+  unexpectedError: 發生未知錯誤
+  httpError: 請求失敗（HTTP {status}）
+  invalidResponse: API 回應無效
+  requestFailed: 操作失敗，請檢查詳情後重試。
+  showTechnical: 技術詳情
+  stageFinish: 已完成更新
+  stepBlocked: 請先完成目前步驟再繼續。
+  theme: 主題
+  lightTheme: 淺色
+  darkTheme: 深色
+  systemTheme: 跟隨系統
+  cancel: 取消
+  confirm: 確認
+  confirmStageTitle: 確認上傳未啟用的 Worker 版本
+  confirmD1Title: 確認執行 D1 遷移
+  confirmActivateTitle: 確認啟用 Worker 版本
+  languageSelect: 語言
+  confirmActionHint: 此操作需要另外確認，切換步驟不會自動執行。
+  sourceTitleShort: InsightFlare 部署
+  stateNotInstalled: 尚未安裝
+  stateMissingWorkerTag: 缺少 Worker 標記
+  statePermissionRequired: 需要授權
+  stateNotConfigured: 尚未設定
+  stateRepositoryMismatch: 儲存庫不相符
+  stateUnsafeTrigger: 建置觸發器有風險
+  stateCandidate: 待檢查的候選設定
+  apiPlan1: 重新驗證 OAuth 帳戶及所有權
+  apiPlan2: 確定並固定不可變的原始碼提交
+  apiPlan3: 下載並驗證固定 SHA 的官方 Nightly 壓縮檔
+  apiPlan4: 檢查並執行僅向前的 D1 遷移
+  apiPlan5: 檢查資源繫結並上傳 Worker 模組與靜態資源
+  apiPlan6: 保留原有密鑰、網域路由與使用者資料
+  apiPlan7: 驗證服務並記錄已部署的 SHA
+  apiBlocker1: 既有執行個體可使用 D1 遷移及 Worker 版本升級；首次安裝資源建立與一鍵部署尚未開放。
+  apiBlocker2: Worker 名稱已被未知應用占用，禁止自動接管。
+  apiBlocker3: 舊版執行個體須先明確確認接管。
+  apiBlocker4: 安裝前須先檢查既有 Worker。
+  apiBlocker5: 此帳戶尚未安裝 InsightFlare。
+  apiBlocker6: 修復需要已知的受管理部署 SHA。
+  apiIssue1: 無法驗證 Worker 身分或部署標記，已阻止自動接管。
+  apiIssue2: 既有 InsightFlare Worker 沒有受管理的 SHA，需要確認接管。
+  apiIssue3: Cloudflare 未回傳標準 Worker。首次安裝前請檢查授權是否能列出 Worker。
+  resourceCreate: 建立
+  resourcePreserve: 保留
+  resourceBlock: 阻止
+  resourceOptional: 可選
+  resourceUnknownOwnership: 須先驗證 Worker 所有權才能操作資源。
+  resourceUnexpectedBinding: 該繫結類型、識別碼或名稱異常，須人工檢查。
+  resourceExistingRequired: 既有執行個體缺少必要繫結，禁止自動取代。
+  resourceKeepSecret: 保留既有密鑰中繼資料，不讀取、不取代、不輪替內容。
+  resourceCreateD1: 建立獨立 D1 資料庫並套用已審核遷移。
+  resourceKeepD1: 保留目前 D1 資料庫 ID 與所有既有內容。
+  resourceCreateKv: 為網站設定建立 KV 命名空間。
+  resourceKeepKv: 保留目前 KV 命名空間及網站設定。
+  resourceCreateDo: 透過已審核 Worker 遷移建立攝取 DO SQLite 命名空間。
+  resourceKeepDo: 保留原有 Durable Object 命名空間與狀態。
+  resourceCreateSecret: 產生新的安全隨機密鑰，不向瀏覽器傳送內容。
+  resourceKeepRootSecret: 保留既有密鑰繫結，不讀取或輪替密鑰。
+  requiredBindingMissing: 缺少必要繫結 {name}，無法安全更新。

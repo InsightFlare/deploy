@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "./types";
+import { localeFromPath, requestLocale, localeCookie } from "./lib/i18n/page-request";
+import { localeToHtmlLang } from "./lib/i18n/config";
 import { DeployError } from "./types";
 import { resolveLatestMain } from "./core/source";
 import { resolveLatestPublicNightly, downloadVerifiedPublicRelease } from "./core/public-release";
@@ -354,9 +356,49 @@ app.post("/api/v1/providers/cloudflare/accounts/:accountId/prepare", async c => 
 
 app.notFound(c => c.json({ error: { code: "UNAVAILABLE", message: "Endpoint not found." } }, 404));
 const server = {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const path = new URL(request.url).pathname;
-    if (path.startsWith("/api/") || path.startsWith("/oauth/")) return app.fetch(request, env, ctx);
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    const { pathname } = url;
+    if (pathname.startsWith("/api/") || pathname.startsWith("/oauth/")) {
+      return app.fetch(request, env, ctx);
+    }
+    // Same URL-based locale selection and cookie semantics as InsightFlare.
+    // API/OAuth routes remain unprefixed and are unaffected.
+    if (pathname === "/") {
+      const locale = requestLocale(request);
+      url.pathname = "/" + locale;
+      const headers = new Headers({
+        Location: url.toString(),
+        "Cache-Control": "private, no-store",
+        "Set-Cookie": localeCookie(locale)
+      });
+      return new Response(null, { status: 307, headers });
+    }
+    const locale = localeFromPath(pathname);
+    if (locale) {
+      if (request.method !== "GET" && request.method !== "HEAD") return new Response(null, {status:405});
+      // Assets binding serves the SPA document for all locale paths. Run-worker-first
+      // is explicitly scoped to locale paths in wrangler.jsonc.
+      const assetRequest = new Request(new URL("/",request.url),{
+        method:request.method,
+        headers:request.headers
+      });
+      const response = await env.ASSETS.fetch(assetRequest);
+      const headers = new Headers(response.headers);
+      headers.append("Set-Cookie",localeCookie(locale));
+      headers.set("Content-Language",localeToHtmlLang(locale));
+      headers.set("Cache-Control","no-store");
+      // Keep the document language correct before hydration, as in InsightFlare's SSR shell.
+      if(request.method === "GET" && response.ok &&
+         response.headers.get("content-type")?.includes("text/html")) {
+        const html=(await response.text()).replace(/<html lang="en">/i,
+          '<html lang="'+localeToHtmlLang(locale)+'">');
+        headers.delete("content-length");
+        headers.delete("etag");
+        return new Response(html,{status:response.status,headers});
+      }
+      return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+    }
     return env.ASSETS.fetch(request);
   }
 };

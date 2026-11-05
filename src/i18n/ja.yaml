@@ -1,148 +1,200 @@
-# InsightFlare Deploy · ja
-# 与 InsightFlare 的 src/i18n/{locale}.yaml 使用相同语言代码和 Cookie 规范。
-brand: "InsightFlare Deploy"
-tagline: "あなたの分析環境を、あなたの Cloudflare アカウントに。"
-wizard: "デプロイアシスタント"
-wizardHelp: "手順に従って進めます。有効化を承認するまで既存の Worker は稼働し続けます。"
-language: "言語"
-connected: "接続済み"
-disconnected: "未接続"
-next: "続ける"
-back: "戻る"
-close: "閉じる"
-refresh: "更新"
-viewCommit: "コミットを見る"
-sourceGitHub: "GitHub でプロジェクトを見る"
-previous: "前のステップ"
-stepCount: "{total} ステップ中 {current}"
-progress: "設定の進捗"
-completed: "完了"
-current: "現在"
-upcoming: "未開始"
-needsAttention: "要対応"
-working: "処理中…"
-loading: "読み込み中…"
-unavailable: "利用不可"
-unknown: "不明"
-yes: "はい"
-no: "いいえ"
-available: "利用可能"
-missing: "なし"
-ready: "準備完了"
-pending: "保留中"
-dismiss: "閉じる"
-stepConnect: "接続"
-stepAccount: "アカウント"
-stepSource: "確認"
-stepD1: "データベース"
-stepStage: "ステージング"
-stepActivate: "有効化"
-connectTitle: "Cloudflare アカウントに接続"
-connectDesc: "Cloudflare で認証し、既存の InsightFlare を検出します。追加権限は必要なときだけ要求します。"
-connectButton: "Cloudflare に接続"
-oauthMissing: "このサービスの OAuth が設定されていません。"
-connectedDesc: "Cloudflare に接続しました。管理するアカウントを選択してください。"
-disconnect: "接続解除"
-dataPromise: "分析データは Cloudflare アカウント内に保持されます。"
-accountTitle: "管理するアカウントを選択"
-accountDesc: "選択した Cloudflare アカウントから InsightFlare Worker を検出します。"
-accountLabel: "Cloudflare アカウント"
-accountPlaceholder: "アカウントを選択"
-discovering: "既存のインストールを検出中…"
-noInstallation: "未インストール"
-managed: "管理対象インストール"
-legacy: "既存インスタンス・承認が必要"
-conflict: "Worker 名が競合"
-worker: "Worker"
-deployedSha: "デプロイ済みのソース"
-sourceTitle: "公式 Nightly を確認"
-sourceDesc: "すべての操作は公式 main の最新コミットに固定されます。変更前にプランを確認できます。"
-sourceBranch: "ソースブランチ"
-sourceCommit: "公式コミット"
-sourceLoading: "最新コミットを取得中…"
-sourceMissing: "ソースコミットを取得できません"
-commitDate: "コミット日時：{date}"
-buildTitle: "ビルド連携"
-buildDesc: "公式 Nightly は GitHub でビルドされます。Docker やローカルビルドは不要です。"
-repoVerified: "リポジトリ認証"
-planTitle: "デプロイ計画を確認"
-planDesc: "読み取り専用のプレビューです。準備だけでは何も変更されません。"
-operation: "操作"
-install: "main からインストール"
-update: "main に更新"
-repair: "現在のコミットを修復"
-previewPlan: "プランを確認"
-freezeSha: "確認済み SHA を固定"
-planSteps: "予定される手順"
-planBlockers: "計画の制限"
-noPlan: "アカウントを選択すると計画を確認できます。"
-resourceActions: "リソースの照合"
-resourceBlockers: "リソース制限：{count} 件"
-prepared: "操作を準備済み・未デプロイ"
-preparedUntil: "固定 SHA の期限：{time}"
-preparedHint: "準備では Cloudflare リソースを変更しません。"
-d1Title: "D1 マイグレーションを確認"
-d1Desc: "公式 SQL を確認し、未適用分を個別に実行します。既存 Worker は稼働を続けます。"
-d1Label: "D1 データベース"
-d1Placeholder: "データベースを選択"
-inspectMigrations: "マイグレーションを確認"
-verifyD1: "Nightly と D1 を検証中…"
-schemaCurrent: "スキーマは最新です"
-migrationApplied: "適用済み"
-migrationPending: "未適用"
-migrationTotal: "公式 SQL ファイル"
-recoveryPoint: "復旧ブックマーク"
-migrationRisk: "一部の移行は既存スキーマやデータを変更します。既存 Worker は稼働を続けるため、互換性を確認してください。"
-migrationReview: "要確認"
-migrationAdd: "追加"
-applyMigrations: "未適用 D1 マイグレーションを実行"
-applyingMigrations: "マイグレーションを実行中…"
-authD1Read: "D1 読み取りを許可"
-authD1Write: "D1 書き込みを許可"
-d1ScopeHint: "追加の Cloudflare 同意が必要です。読み取り確認では D1 書き込み権限を要求しません。"
-d1Progress: "{applied} 件適用、残り {remaining} 件"
-d1Complete: "D1 マイグレーションは完了しました。Worker の有効化は別の操作です。"
-d1ContinueHint: "移行が中断した場合は、再開前に D1 の履歴を再確認してください。"
-stageTitle: "Worker の新バージョンをステージング"
-stageDesc: "Nightly Worker をアップロードして検証しますが、トラフィックはまだ切り替えません。"
-inspectVersion: "Worker バージョンを確認"
-authDeploy: "Workers 書き込みと D1 を許可"
-nightlyCandidate: "公式 Nightly 候補"
-inactive: "未有効化"
-activeVersion: "現在の有効バージョン"
-migrationTag: "DO マイグレーションタグ"
-bindingsPreserved: "既存バインディングの保持：{count} 件"
-legacyApprove: "既存の非管理 Worker を確認し、D1、KV、DO、Secrets を置換せずに管理対象にすることを承認します。"
-uploadInactive: "非アクティブ版をアップロード"
-uploading: "アップロード中…"
-findPrevious: "以前のアップロードを検索"
-previousCandidates: "ステージング済みバージョン"
-useCandidate: "このバージョンを選択"
-stagedReady: "ステージング完了・確認可能"
-stageSafety: "D1、KV、DO、Secrets は保持されます。新バージョンへのトラフィックはありません。"
-stageRestoreEmpty: "互換性のある候補がありません。Nightly を先にアップロードしてください。"
-stageRestored: "Cloudflare のバージョン履歴から候補を復元しました。"
-stageContinueHint: "明示的に有効化するまで、既存 Worker が稼働します。"
-activateTitle: "確認して有効化"
-activateDesc: "最後の確認です。バージョンと DB を確認してから、トラフィックを 100% 切り替えます。"
-activationTarget: "有効化するバージョン"
-activationNeedD1: "有効化の前に対象 D1 を確認し、Nightly SQL の未適用分を完了してください。"
-activate100: "トラフィックを 100% 切り替えて有効化"
-activationSuccess: "Worker の新バージョンが有効になりました"
-deploymentId: "デプロイ ID"
-versionId: "バージョン ID"
-activationNote: "有効化しても Cloudflare の Cron トリガーやカスタムルートは更新されません。"
-installUnavailable: "新規インストールはまだ利用できません"
-installUnavailableHint: "新規の D1、KV などの自動作成は開発中です。既存インスタンスはアップグレードできます。"
-actionConfirmD1: "{target} に {count} 件の移行を実行しますか？既存 Worker は稼働を続けます。"
-actionConfirmStage: "公式ソース {sha} を非アクティブ版としてアップロードしますか？既存バインディングは保持されます。"
-actionConfirmActivate: "バージョン {version} にトラフィックを 100% 切り替えますか？稼働中の Worker が変更されます。"
-activationNoCandidate: "有効化にはステージング済みの候補が必要です。"
-authFailed: "Cloudflare の認証に失敗：{error}"
-unexpectedError: "予期しないエラー"
-httpError: "リクエスト失敗（HTTP {status}）"
-invalidResponse: "API レスポンスが無効です"
-requestFailed: "操作に失敗しました。詳細を確認して再試行してください。"
-showTechnical: "技術的な詳細"
-stageFinish: "アップデート完了"
-stepBlocked: "現在のステップを完了してから続けてください。"
+# InsightFlare AppMessages-compatible nested catalog
+deploy:
+  brand: InsightFlare Deploy
+  tagline: あなたの分析環境を、あなたの Cloudflare アカウントに。
+  wizard: デプロイアシスタント
+  wizardHelp: 手順に従って進めます。有効化を承認するまで既存の Worker は稼働し続けます。
+  language: 言語
+  connected: 接続済み
+  disconnected: 未接続
+  next: 続ける
+  back: 戻る
+  close: 閉じる
+  refresh: 更新
+  viewCommit: コミットを見る
+  sourceGitHub: GitHub でプロジェクトを見る
+  previous: 前のステップ
+  stepCount: "{total} ステップ中 {current}"
+  progress: 設定の進捗
+  completed: 完了
+  current: 現在
+  upcoming: 未開始
+  needsAttention: 要対応
+  working: 処理中…
+  loading: 読み込み中…
+  unavailable: 利用不可
+  unknown: 不明
+  yes: はい
+  no: いいえ
+  available: 利用可能
+  missing: なし
+  ready: 準備完了
+  pending: 保留中
+  dismiss: 閉じる
+  stepConnect: 接続
+  stepAccount: アカウント
+  stepSource: 確認
+  stepD1: データベース
+  stepStage: ステージング
+  stepActivate: 有効化
+  connectTitle: Cloudflare アカウントに接続
+  connectDesc: Cloudflare で認証し、既存の InsightFlare を検出します。追加権限は必要なときだけ要求します。
+  connectButton: Cloudflare に接続
+  oauthMissing: このサービスの OAuth が設定されていません。
+  connectedDesc: Cloudflare に接続しました。管理するアカウントを選択してください。
+  disconnect: 接続解除
+  dataPromise: 分析データは Cloudflare アカウント内に保持されます。
+  accountTitle: 管理するアカウントを選択
+  accountDesc: 選択した Cloudflare アカウントから InsightFlare Worker を検出します。
+  accountLabel: Cloudflare アカウント
+  accountPlaceholder: アカウントを選択
+  discovering: 既存のインストールを検出中…
+  noInstallation: 未インストール
+  managed: 管理対象インストール
+  legacy: 既存インスタンス・承認が必要
+  conflict: Worker 名が競合
+  worker: Worker
+  deployedSha: デプロイ済みのソース
+  sourceTitle: 公式 Nightly を確認
+  sourceDesc: すべての操作は公式 main の最新コミットに固定されます。変更前にプランを確認できます。
+  sourceBranch: ソースブランチ
+  sourceCommit: 公式コミット
+  sourceLoading: 最新コミットを取得中…
+  sourceMissing: ソースコミットを取得できません
+  commitDate: コミット日時：{date}
+  buildTitle: ビルド連携
+  buildDesc: 公式 Nightly は GitHub でビルドされます。Docker やローカルビルドは不要です。
+  repoVerified: リポジトリ認証
+  planTitle: デプロイ計画を確認
+  planDesc: 読み取り専用のプレビューです。準備だけでは何も変更されません。
+  operation: 操作
+  install: main からインストール
+  update: main に更新
+  repair: 現在のコミットを修復
+  previewPlan: プランを確認
+  freezeSha: 確認済み SHA を固定
+  planSteps: 予定される手順
+  planBlockers: 計画の制限
+  noPlan: アカウントを選択すると計画を確認できます。
+  resourceActions: リソースの照合
+  resourceBlockers: リソース制限：{count} 件
+  prepared: 操作を準備済み・未デプロイ
+  preparedUntil: 固定 SHA の期限：{time}
+  preparedHint: 準備では Cloudflare リソースを変更しません。
+  d1Title: D1 マイグレーションを確認
+  d1Desc: 公式 SQL を確認し、未適用分を個別に実行します。既存 Worker は稼働を続けます。
+  d1Label: D1 データベース
+  d1Placeholder: データベースを選択
+  inspectMigrations: マイグレーションを確認
+  verifyD1: Nightly と D1 を検証中…
+  schemaCurrent: スキーマは最新です
+  migrationApplied: 適用済み
+  migrationPending: 未適用
+  migrationTotal: 公式 SQL ファイル
+  recoveryPoint: 復旧ブックマーク
+  migrationRisk: 一部の移行は既存スキーマやデータを変更します。既存 Worker は稼働を続けるため、互換性を確認してください。
+  migrationReview: 要確認
+  migrationAdd: 追加
+  applyMigrations: 未適用 D1 マイグレーションを実行
+  applyingMigrations: マイグレーションを実行中…
+  authD1Read: D1 読み取りを許可
+  authD1Write: D1 書き込みを許可
+  d1ScopeHint: 追加の Cloudflare 同意が必要です。読み取り確認では D1 書き込み権限を要求しません。
+  d1Progress: "{applied} 件適用、残り {remaining} 件"
+  d1Complete: D1 マイグレーションは完了しました。Worker の有効化は別の操作です。
+  d1ContinueHint: 移行が中断した場合は、再開前に D1 の履歴を再確認してください。
+  stageTitle: Worker の新バージョンをステージング
+  stageDesc: Nightly Worker をアップロードして検証しますが、トラフィックはまだ切り替えません。
+  inspectVersion: Worker バージョンを確認
+  authDeploy: Workers 書き込みと D1 を許可
+  nightlyCandidate: 公式 Nightly 候補
+  inactive: 未有効化
+  activeVersion: 現在の有効バージョン
+  migrationTag: DO マイグレーションタグ
+  bindingsPreserved: 既存バインディングの保持：{count} 件
+  legacyApprove: 既存の非管理 Worker を確認し、D1、KV、DO、Secrets を置換せずに管理対象にすることを承認します。
+  uploadInactive: 非アクティブ版をアップロード
+  uploading: アップロード中…
+  findPrevious: 以前のアップロードを検索
+  previousCandidates: ステージング済みバージョン
+  useCandidate: このバージョンを選択
+  stagedReady: ステージング完了・確認可能
+  stageSafety: D1、KV、DO、Secrets は保持されます。新バージョンへのトラフィックはありません。
+  stageRestoreEmpty: 互換性のある候補がありません。Nightly を先にアップロードしてください。
+  stageRestored: Cloudflare のバージョン履歴から候補を復元しました。
+  stageContinueHint: 明示的に有効化するまで、既存 Worker が稼働します。
+  activateTitle: 確認して有効化
+  activateDesc: 最後の確認です。バージョンと DB を確認してから、トラフィックを 100% 切り替えます。
+  activationTarget: 有効化するバージョン
+  activationNeedD1: 有効化の前に対象 D1 を確認し、Nightly SQL の未適用分を完了してください。
+  activate100: トラフィックを 100% 切り替えて有効化
+  activationSuccess: Worker の新バージョンが有効になりました
+  deploymentId: デプロイ ID
+  versionId: バージョン ID
+  activationNote: 有効化しても Cloudflare の Cron トリガーやカスタムルートは更新されません。
+  installUnavailable: 新規インストールはまだ利用できません
+  installUnavailableHint: 新規の D1、KV などの自動作成は開発中です。既存インスタンスはアップグレードできます。
+  actionConfirmD1: "{target} に {count} 件の移行を実行しますか？既存 Worker は稼働を続けます。"
+  actionConfirmStage: 公式ソース {sha} を非アクティブ版としてアップロードしますか？既存バインディングは保持されます。
+  actionConfirmActivate: バージョン {version} にトラフィックを 100% 切り替えますか？稼働中の Worker が変更されます。
+  activationNoCandidate: 有効化にはステージング済みの候補が必要です。
+  authFailed: Cloudflare の認証に失敗：{error}
+  unexpectedError: 予期しないエラー
+  httpError: リクエスト失敗（HTTP {status}）
+  invalidResponse: API レスポンスが無効です
+  requestFailed: 操作に失敗しました。詳細を確認して再試行してください。
+  showTechnical: 技術的な詳細
+  stageFinish: アップデート完了
+  stepBlocked: 現在のステップを完了してから続けてください。
+  theme: テーマ
+  lightTheme: ライト
+  darkTheme: ダーク
+  systemTheme: システム
+  cancel: キャンセル
+  confirm: 確認
+  confirmStageTitle: Worker の非アクティブ版をアップロード
+  confirmD1Title: D1 マイグレーションを確認
+  confirmActivateTitle: Worker バージョンの有効化を確認
+  languageSelect: 言語
+  confirmActionHint: この操作には個別の承認が必要です。次のステップに進むだけでは実行されません。
+  sourceTitleShort: InsightFlare Deploy
+  stateNotInstalled: 未インストール
+  stateMissingWorkerTag: Worker タグなし
+  statePermissionRequired: 権限が必要
+  stateNotConfigured: 未設定
+  stateRepositoryMismatch: リポジトリが不一致
+  stateUnsafeTrigger: 危険なビルドトリガー
+  stateCandidate: 候補の設定
+  apiPlan1: OAuth アカウントと所有権を再確認
+  apiPlan2: 不変のソースコミットを特定して固定
+  apiPlan3: SHA 固定の公式 Nightly をダウンロードして検証
+  apiPlan4: 前進のみの D1 マイグレーションを確認・適用
+  apiPlan5: リソースを照合して Worker モジュールとアセットをアップロード
+  apiPlan6: 既存のシークレット、ドメインルート、ユーザーデータを保持
+  apiPlan7: 稼働状態を確認しデプロイ SHA を記録
+  apiBlocker1: 既存インスタンスは D1 移行と Worker 更新が利用できます。新規インストールと一括デプロイは未対応です。
+  apiBlocker2: Worker 名は不明なアプリが使用しており、自動引き継ぎは禁止です。
+  apiBlocker3: 旧インスタンスには明示的な引き継ぎ承認が必要です。
+  apiBlocker4: インストール前に既存 Worker の確認が必要です。
+  apiBlocker5: このアカウントには InsightFlare がインストールされていません。
+  apiBlocker6: 修復には管理対象デプロイの SHA が必要です。
+  apiIssue1: Worker の識別情報を確認できず、自動引き継ぎを拒否しました。
+  apiIssue2: 既存 Worker に管理 SHA がなく、引き継ぎ手続きが必要です。
+  apiIssue3: Cloudflare から標準 Worker が見つかりません。権限を確認してください。
+  resourceCreate: 作成
+  resourcePreserve: 保持
+  resourceBlock: ブロック
+  resourceOptional: 任意
+  resourceUnknownOwnership: リソース操作前に Worker の所有権を確認してください。
+  resourceUnexpectedBinding: バインディングの型・ID・名前に異常があり、手動確認が必要です。
+  resourceExistingRequired: 必須バインディングがありません。自動置換は禁止です。
+  resourceKeepSecret: 既存シークレットの値を読み取らず、置換・ローテーションせずに保持します。
+  resourceCreateD1: 独立 D1 データベースを作成し、確認済みマイグレーションを適用します。
+  resourceKeepD1: この D1 データベース ID と既存データを保持します。
+  resourceCreateKv: サイト設定用 KV 名前空間を作成します。
+  resourceKeepKv: この KV 名前空間とサイト設定を保持します。
+  resourceCreateDo: 承認済み Worker 移行を使って IngestDurableObject SQLite を作成します。
+  resourceKeepDo: 既存 Durable Object 名前空間と状態を保持します。
+  resourceCreateSecret: 安全な乱数でシークレットを生成し、ブラウザには送信しません。
+  resourceKeepRootSecret: シークレットを読み取らず、ローテーションせずに保持します。
+  requiredBindingMissing: 必須バインディング {name} がないため、安全に更新できません。

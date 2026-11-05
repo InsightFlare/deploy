@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,8 +7,11 @@
     <meta name="description" content="Install and maintain InsightFlare in your own Cloudflare account." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>InsightFlare Deploy</title>
+    <script>
+      (function(){try{var k='insightflare-theme';var t=localStorage.getItem(k)||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}})();
+    </script>
   </head>
-  <body>
+  <body class="antialiased font-mono">
     <div id="root"></div>
     <script type="module" src="/src/client/main.tsx"></script>
   </body>

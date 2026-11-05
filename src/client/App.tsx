@@ -1,14 +1,23 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useDeployLocale, type Locale } from "./i18n";
+import { pageMessages } from "./locale-route";
+import { localizeApiCopy, localizeBuildStatus, localizeResourceDisposition } from "./api-copy";
+import { SUPPORTED_LOCALES } from "../lib/i18n/config";
+import type { DeployMessageKey } from "../lib/i18n/messages";
+import { formatI18nTemplate } from "../lib/i18n/template";
+import { nativeLocaleName } from "../lib/i18n/native-locale-names";
+import { useTheme } from "./theme-provider";
 import {
   RiCloudLine, RiGitBranchLine, RiGithubLine, RiRefreshLine, RiLockLine,
   RiExternalLinkLine, RiLayoutGridLine, RiShieldCheckLine, RiCodeSSlashLine,
   RiServerLine, RiTerminalBoxLine, RiLogoutBoxRLine, RiInformationLine,
-  RiAlertLine, RiArrowLeftLine, RiArrowRightLine
+  RiAlertLine, RiArrowLeftLine, RiArrowRightLine, RiGlobalLine, RiMoonLine, RiSunLine, RiComputerLine, RiArrowDownSLine, RiCheckLine
 } from "@remixicon/react";
 import { Button } from "@insightflare/ui/button";
 import { Badge } from "@insightflare/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@insightflare/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@insightflare/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuItem } from "@insightflare/ui/dropdown-menu";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogTitle, AlertDialogDescription } from "@insightflare/ui/alert-dialog";
+import { Checkbox } from "@insightflare/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@insightflare/ui/select";
 import { Separator } from "@insightflare/ui/separator";
 
@@ -79,14 +88,37 @@ function Eyebrow({children}: {children: ReactNode}) {
   return <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-muted-foreground">{children}</p>;
 }
 function Notice({icon,title,text}:{icon:ReactNode;title:string;text:string}) {
-  return <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/15 p-4">
+  return <div className="flex items-start gap-3 rounded-none border border-border bg-muted/15 p-4">
     <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
     <div className="space-y-1"><p className="text-sm font-semibold">{title}</p><p className="text-xs leading-5 text-muted-foreground">{text}</p></div>
   </div>;
 }
 
+function ConfirmOperation({children,title,description,confirmText,cancelText,onConfirm,destructive=false}:{
+  children: ReactNode; title:string; description:string; confirmText:string;cancelText:string;
+  onConfirm:()=>void; destructive?:boolean;
+}) {
+  return <AlertDialog>
+    <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle icon={destructive?RiAlertLine:RiShieldCheckLine}>{title}</AlertDialogTitle>
+        <AlertDialogDescription>{description}</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+        <AlertDialogAction variant={destructive?"destructive":"default"} onClick={onConfirm}>{confirmText}</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>;
+}
+
 export function App() {
-  const { locale, setLocale, t } = useDeployLocale();
+  const { locale, messages, hrefForLocale } = pageMessages();
+  const t = (key: DeployMessageKey, params?: Record<string,string|number>) =>
+    formatI18nTemplate(messages.deploy[key],params??{});
+  const {theme,resolvedTheme,setTheme}=useTheme();
+  const ThemeIcon=(theme==="system"?resolvedTheme:theme)==="dark"?RiMoonLine:RiSunLine;
   const [step,setStep] = useState(()=>{ if(typeof window==="undefined") return 0; const saved=Number(window.sessionStorage.getItem("ifd:wizard:step")||"0"); return Number.isInteger(saved)&&saved>=0&&saved<=5?saved:0; });
   const [migrationAppliedCount,setMigrationAppliedCount] = useState(0);
   function goStep(next:number) { if(next>=0&&next<=5) setStep(next); }
@@ -198,8 +230,6 @@ export function App() {
   async function applyD1Migrations(){
     if(!accountId || !databaseId || !d1Preview || d1Applying ||
        !d1Preview.pendingMigrations || !d1Preview.migrationExecutionAvailable) return;
-    const target = d1Databases.find(db=>db.uuid===databaseId)?.name ?? databaseId;
-    if(!window.confirm(t("actionConfirmD1",{count:d1Preview.pendingMigrations,target}))) return;
     setD1Applying(true);setD1Message("");setMigrationAppliedCount(0);
     try {
       let digest=d1Preview.reviewedPlanDigest;
@@ -268,7 +298,6 @@ export function App() {
   async function stageWorkerVersion(){
     if(!accountId || !versionPreview || versionWorking ||
       (versionPreview.legacyAdoptionRequired && !legacyReviewed))return;
-    if(!window.confirm(t("actionConfirmStage",{sha:versionPreview.sourceSha.slice(0,12)})))return;
     setVersionWorking(true);setVersionMessage("");setStagedVersion(null);
     try{
       const {staged}=await api<{staged:StagedVersion}>(
@@ -290,7 +319,6 @@ export function App() {
     if(!accountId || !versionPreview || !stagedVersion || versionWorking ||
       !d1Preview || d1Preview.databaseId!==versionPreview.databaseId ||
       d1Preview.sourceSha!==versionPreview.sourceSha || d1Preview.pendingMigrations!==0)return;
-    if(!window.confirm(t("actionConfirmActivate",{version:stagedVersion.stagedVersionId})))return;
     setVersionWorking(true);setVersionMessage("");
     try{
       const {activation}=await api<{activation:ActivatedVersion}>(
@@ -392,50 +420,68 @@ export function App() {
     .replace(/Invalid API response/g, t("invalidResponse"))
     .replace(/Unexpected error/g, t("unexpectedError"));
 
-  return <div className="deploy-shell min-h-screen">
-    <header className="deploy-topbar">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <a href="/" aria-label="InsightFlare Deploy" className="flex items-center gap-2.5">
-          <span className="deploy-mark flex size-9 items-center justify-center rounded-lg"><RiLayoutGridLine className="size-5"/></span>
-          <span className="text-sm font-semibold tracking-tight">{t("brand")}</span>
+  return <div className="min-h-screen bg-background text-foreground font-mono antialiased">
+    <main className="mx-auto flex min-h-svh w-full max-w-4xl flex-col justify-center gap-6 px-4 py-10 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <a href={hrefForLocale(locale)} className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <RiLayoutGridLine className="size-5 text-primary"/>{t("brand")}
         </a>
-        <div className="flex items-center gap-2">
-          <Badge variant={session.connected ? "secondary" : "outline"} className="gap-1.5">
-            <span className={"size-1.5 rounded-full " + (session.connected ? "bg-emerald-500" : "bg-muted-foreground")}/>
-            {t(session.connected ? "connected" : "disconnected")}
-          </Badge>
-          <label className="sr-only" htmlFor="deploy-language">{t("language")}</label>
-          <Select value={locale} onValueChange={value=>setLocale(value as Locale)}>
-            <SelectTrigger id="deploy-language" className="h-9 w-[120px]" aria-label={t("language")}>
-              <SelectValue/>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="en">English</SelectItem>
-              <SelectItem value="zh">简体中文</SelectItem>
-              <SelectItem value="zh-tw">繁體中文</SelectItem>
-              <SelectItem value="ja">日本語</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={session.connected?"secondary":"outline"}>{t(session.connected?"connected":"disconnected")}</Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" aria-label={t("theme")}>
+                <ThemeIcon data-icon="inline-start" className="size-4"/>{t("theme")}
+                <RiArrowDownSLine data-icon="inline-end" className="size-3.5"/>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel>{t("theme")}</DropdownMenuLabel><DropdownMenuSeparator/>
+              <DropdownMenuRadioGroup value={theme} onValueChange={value=>{
+                if(value==="light"||value==="dark"||value==="system")setTheme(value);
+              }}>
+                <DropdownMenuRadioItem value="light"><RiSunLine className="size-4"/>{t("lightTheme")}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark"><RiMoonLine className="size-4"/>{t("darkTheme")}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="system"><RiComputerLine className="size-4"/>{t("systemTheme")}</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" aria-label={t("language")}>
+                <RiGlobalLine data-icon="inline-start" className="size-4"/>{t("language")}
+                <RiArrowDownSLine data-icon="inline-end" className="size-3.5"/>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel>{t("language")}</DropdownMenuLabel><DropdownMenuSeparator/>
+              {SUPPORTED_LOCALES.map(target=><DropdownMenuItem key={target} asChild>
+                <a href={hrefForLocale(target)}>
+                  <span className="inline-flex size-4 items-center justify-center">
+                    {locale===target?<RiCheckLine className="size-4"/>:null}
+                  </span>
+                  {nativeLocaleName(target)}
+                </a>
+              </DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-    </header>
-    <main className="deploy-wizard mx-auto w-full max-w-5xl px-4 pb-12 pt-9 sm:px-6 sm:pt-14">
-      <div className="mx-auto max-w-3xl space-y-3 pb-7 text-center">
-        <Badge variant="outline" className="px-3 py-1"><RiCloudLine className="mr-1 size-3.5"/>{t("wizard")}</Badge>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("tagline")}</h1>
-        <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">{t("wizardHelp")}</p>
+      <div className="mx-auto w-full max-w-3xl space-y-2">
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t("brand")}</h1>
+        <p className="max-w-prose text-xs leading-5 text-muted-foreground">{t("wizardHelp")}</p>
       </div>
-      <div className="mx-auto max-w-[880px]">
-        <Card className="deploy-wizard-panel overflow-hidden gap-0 py-0 shadow-lg shadow-black/5">
-          <div className="border-b border-border/70 px-5 pb-5 pt-6 sm:px-9 sm:pt-8">
+      <div className="mx-auto w-full max-w-3xl">
+        <Card className="gap-0 overflow-hidden py-0">
+          <CardHeader className="border-b border-border/70 px-4 py-5 sm:px-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
               <span className="font-medium tracking-wide">{t("stepCount",{current:step+1,total:stepDetails.length})}</span>
               <span>{t("progress")} · {Math.round((finishedCount / stepDetails.length) * 100)}%</span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar"
+            <div className="h-1.5 overflow-hidden rounded-none bg-secondary" role="progressbar"
               aria-label={t("progress")} aria-valuemin={0} aria-valuemax={100}
               aria-valuenow={Math.round((finishedCount / stepDetails.length) * 100)}>
-              <div className="h-full rounded-full bg-primary transition-all duration-300"
+              <div className="h-full rounded-none bg-primary transition-all duration-300"
                 style={{width:(finishedCount / stepDetails.length) * 100 + "%"}}/>
             </div>
             <ol className="deploy-steps mt-5 grid grid-cols-6 gap-1" aria-label={t("wizard")}>
@@ -445,9 +491,9 @@ export function App() {
                 return <li key={i} className="min-w-0">
                   <button type="button" onClick={()=>goStep(i)} disabled={i>step && !stepCompleted.slice(0,i).every(Boolean)}
                     aria-current={step===i ? "step" : undefined}
-                    className="deploy-step flex w-full flex-col items-center gap-1.5 rounded-lg px-0.5 py-2 text-center text-[10px] transition-colors sm:text-xs"
+                    className="deploy-step flex w-full flex-col items-center gap-1.5 rounded-none px-0.5 py-2 text-center text-[10px] transition-colors sm:text-xs"
                     data-active={step===i} data-complete={done}>
-                    <span className="deploy-step-circle flex size-8 items-center justify-center rounded-full border">
+                    <span className="deploy-step-circle flex size-8 items-center justify-center rounded-none border">
                       {done && i !== step ? <RiShieldCheckLine className="size-4"/> : <Icon className="size-4"/>}
                     </span>
                     <span className="max-w-full truncate">{item.title}</span>
@@ -455,24 +501,24 @@ export function App() {
                 </li>;
               })}
             </ol>
-          </div>
-          <section className="min-h-[315px] px-5 py-7 sm:px-9 sm:py-9" aria-labelledby="wizard-step-title">
+          </CardHeader>
+          <CardContent className="min-h-[280px] px-4 py-6 sm:px-6" role="region" aria-labelledby="wizard-step-title">
             <div className="mb-6 space-y-2">
               <Eyebrow>{t("stepCount",{current:step+1,total:stepDetails.length})}</Eyebrow>
-              <h2 id="wizard-step-title" className="text-xl font-semibold tracking-tight sm:text-2xl">
+              <CardTitle><h2 id="wizard-step-title" className="text-lg font-semibold tracking-tight">
                 {[
                   t("connectTitle"),t("accountTitle"),t("sourceTitle"),t("d1Title"),
                   t("stageTitle"),t("activateTitle")
                 ][step]}
-              </h2>
-              <p className="text-sm leading-6 text-muted-foreground">{selected.description}</p>
+              </h2></CardTitle>
+              <CardDescription>{selected.description}</CardDescription>
             </div>
-            {message && <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
+            {message && <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-none border border-destructive/30 bg-destructive/5 p-3 text-xs">
               <div className="flex min-w-0 items-start gap-2"><RiAlertLine className="size-4 shrink-0 text-destructive"/><span className="break-words">{localizedStatus(message)}</span></div>
               <Button size="xs" variant="ghost" onClick={()=>setMessage("")}>{t("dismiss")}</Button>
             </div>}
             {step===0 && <div className="space-y-5">
-              <div className="deploy-feature flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex items-start gap-3 rounded-none border border-border/70 bg-muted/20 p-4">
                 <RiShieldCheckLine className="mt-0.5 size-5 shrink-0 text-primary"/>
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{t("dataPromise")}</p>
@@ -501,7 +547,7 @@ export function App() {
                 </Select>
               </div>
               {accountMessage && <p role="status" className="text-xs leading-5 text-muted-foreground">{localizedStatus(accountMessage)}</p>}
-              {deployment && <div className="space-y-3 rounded-xl border border-border bg-muted/15 p-4 text-xs" data-testid="deployment-discovery">
+              {deployment && <div className="space-y-3 rounded-none border border-border bg-muted/15 p-4 text-xs" data-testid="deployment-discovery">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-semibold">{t("worker")}</span>
                   <Badge variant={deployment.kind==="managed"?"secondary":"outline"}>
@@ -510,12 +556,12 @@ export function App() {
                 </div>
                 <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">{t("worker")}</span><code>{deployment.workerName}</code></div>
                 <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">{t("deployedSha")}</span><code>{deployment.deployedSha?.slice(0,12)??t("unknown")}</code></div>
-                {deployment.issues.map(issue=><p className="leading-relaxed text-muted-foreground" key={issue}>{issue}</p>)}
+                {deployment.issues.map(issue=><p className="leading-relaxed text-muted-foreground" key={issue}>{localizeApiCopy(locale,issue)}</p>)}
               </div>}
               {deployment?.kind==="not-installed" && <Notice icon={<RiLockLine className="size-4"/>} title={t("installUnavailable")} text={t("installUnavailableHint")}/>}
             </div>}
             {step===2 && <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-none border border-border/70 bg-muted/10 p-4">
                 <div className="min-w-0 space-y-1">
                   <Eyebrow>{t("sourceCommit")}</Eyebrow>
                   <code className="deploy-mono block text-base font-semibold">{source?.shortSha??(sourceWorking?t("loading"):t("sourceMissing"))}</code>
@@ -528,17 +574,17 @@ export function App() {
                   {source && <Button variant="outline" size="sm" asChild><a href={source.url} target="_blank" rel="noopener noreferrer"><RiExternalLinkLine/>{t("viewCommit")}</a></Button>}
                 </div>
               </div>
-              <div className="space-y-2 rounded-xl border border-border/70 p-4">
+              <div className="space-y-2 rounded-none border border-border/70 p-4">
                 <p className="text-sm font-semibold">{t("buildTitle")}</p>
                 <p className="text-xs leading-5 text-muted-foreground">{t("buildDesc")}</p>
                 {readiness && <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <Badge variant="outline">{readiness.state.replaceAll("-"," ")}</Badge>
+                  <Badge variant="outline">{localizeBuildStatus(locale,readiness.state)}</Badge>
                   <Badge variant="outline">{t("repoVerified")}: {t(readiness.verifiedRepoIdentity?"yes":"no")}</Badge>
                 </div>}
                 {readinessMessage && <p className="text-xs text-muted-foreground">{localizedStatus(readinessMessage)}</p>}
-                {readiness?.safetyBlockers?.map((blocker,i)=><p key={i} className="text-xs text-muted-foreground">{blocker}</p>)}
+                {readiness?.safetyBlockers?.map((blocker,i)=><p key={i} className="text-xs text-muted-foreground">{localizeApiCopy(locale,blocker)}</p>)}
               </div>
-              <div className="space-y-4 rounded-xl border border-border/70 p-4">
+              <div className="space-y-4 rounded-none border border-border/70 p-4">
                 <div><p className="text-sm font-semibold">{t("planTitle")}</p><p className="text-xs text-muted-foreground">{t("planDesc")}</p></div>
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="w-full space-y-1.5 sm:w-52">
@@ -560,13 +606,13 @@ export function App() {
                     <Eyebrow>{t("sourceCommit")}</Eyebrow><code className="deploy-mono block text-xs">{plan.sourceSha}</code>
                     <Eyebrow>{t("planBlockers")}</Eyebrow>
                     {plan.blockers.length===0 && <Badge variant="secondary">{t("ready")}</Badge>}
-                    {plan.blockers.map(x=><p key={x} className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><RiAlertLine className="size-3.5 shrink-0"/>{x}</p>)}
+                    {plan.blockers.map(x=><p key={x} className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><RiAlertLine className="size-3.5 shrink-0"/>{localizeApiCopy(locale,x)}</p>)}
                   </div>
                   <div className="space-y-2"><Eyebrow>{t("planSteps")}</Eyebrow>
-                    <ol className="space-y-2">{plan.proposedSteps.map((x,i)=><li className="flex gap-2 text-xs leading-5" key={i}><span className="text-primary">{i+1}.</span>{x}</li>)}</ol>
+                    <ol className="space-y-2">{plan.proposedSteps.map((x,i)=><li className="flex gap-2 text-xs leading-5" key={i}><span className="text-primary">{i+1}.</span>{localizeApiCopy(locale,x)}</li>)}</ol>
                   </div>
                 </div> : <p className="text-xs text-muted-foreground">{t("noPlan")}</p>}
-                {preparedRun && <div className="space-y-2 rounded-lg bg-muted/30 p-3 text-xs">
+                {preparedRun && <div className="space-y-2 rounded-none bg-muted/30 p-3 text-xs">
                   <p className="font-medium">{t("prepared")}</p>
                   <p className="text-muted-foreground">{t("preparedUntil",{time:new Date(preparedRun.expiresAt).toLocaleTimeString(locale)})}</p>
                   <code className="deploy-mono block">{preparedRun.pinnedSha}</code>
@@ -575,11 +621,12 @@ export function App() {
                 {resourcePlan && <div className="space-y-3 border-t border-border pt-3">
                   <p className="text-sm font-medium">{t("resourceActions")}</p>
                   <Badge variant="outline">{t("resourceBlockers",{count:resourcePlan.actions.filter(a=>a.disposition==="block").length})}</Badge>
-                  {resourcePlan.blockers.map(x=><p key={x} className="text-xs text-destructive">{x}</p>)}
+                  {resourcePlan.blockers.map(x=><p key={x} className="text-xs text-destructive">{localizeApiCopy(locale,x)}</p>)}
                   <div className="grid gap-2 sm:grid-cols-2">{resourcePlan.actions.map(a=>
-                    <div className="min-w-0 rounded-lg border border-border/70 p-2.5 text-xs" key={a.binding}>
+                    <div className="min-w-0 rounded-none border border-border/70 p-2.5 text-xs" key={a.binding}>
                       <code className="deploy-mono font-semibold">{a.binding}</code>
-                      <p className="mt-1 text-muted-foreground">{a.description}</p>
+                      <Badge variant="outline">{localizeResourceDisposition(locale,a.disposition)}</Badge>
+                      <p className="mt-1 text-muted-foreground">{localizeApiCopy(locale,a.description)}</p>
                     </div>)}</div>
                 </div>}
               </div>
@@ -605,7 +652,7 @@ export function App() {
                   <a href="/api/v1/auth/cloudflare/start?capability=d1-read" className="text-primary underline underline-offset-4">{t("authD1Read")}</a>
                   <a href="/api/v1/auth/cloudflare/start?capability=d1-write" className="text-primary underline underline-offset-4">{t("authD1Write")}</a>
                 </div>}
-                {d1Preview && <div className="space-y-4 rounded-xl border border-border/80 p-4" data-testid="d1-preview">
+                {d1Preview && <div className="space-y-4 rounded-none border border-border/80 p-4" data-testid="d1-preview">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <code className="text-xs">{d1Preview.sourceSha.slice(0,12)}</code>
                     <Badge variant={d1Preview.pendingMigrations?"outline":"secondary"}>
@@ -618,7 +665,7 @@ export function App() {
                       [t("migrationApplied"),d1Preview.appliedMigrations],
                       [t("migrationPending"),d1Preview.pendingMigrations],
                       [t("recoveryPoint"),t(d1Preview.recoveryBookmarkAvailable?"available":"missing")]
-                    ].map(([label,value])=><div key={label} className="space-y-1 rounded-lg bg-muted/25 p-3">
+                    ].map(([label,value])=><div key={label} className="space-y-1 rounded-none bg-muted/25 p-3">
                       <p className="text-[11px] text-muted-foreground">{label}</p><p className="text-lg font-semibold">{value}</p>
                     </div>)}
                   </div>
@@ -627,26 +674,32 @@ export function App() {
                     {d1Preview.pending.map(m=><div key={m.name} className="flex items-start gap-3 rounded-md border border-border/70 p-2.5 text-xs">
                       <Badge variant={m.destructive?"destructive":"outline"}>{t(m.destructive?"migrationReview":"migrationAdd")}</Badge>
                       <div className="min-w-0"><code className="deploy-mono block">{m.name}</code>
-                        {m.warnings.map(w=><p key={w} className="mt-1 text-muted-foreground">{w}</p>)}
+                        {m.warnings.map(w=><p key={w} className="mt-1 text-muted-foreground">{localizeApiCopy(locale,w)}</p>)}
                       </div>
                     </div>)}
                   </div>}
-                  {d1Preview.blockers.map(b=><p key={b} className="text-xs text-destructive">{b}</p>)}
+                  {d1Preview.blockers.map(b=><p key={b} className="text-xs text-destructive">{localizeApiCopy(locale,b)}</p>)}
                   {d1Applying && <div className="space-y-2" role="status">
                     <p className="text-xs">{t("d1Progress",{applied:migrationAppliedCount,remaining:Math.max(0,d1Preview.pendingMigrations-migrationAppliedCount)})}</p>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuemin={0} aria-valuemax={d1Preview.pendingMigrations} aria-valuenow={migrationAppliedCount}>
+                    <div className="h-1.5 overflow-hidden rounded-none bg-secondary" role="progressbar" aria-valuemin={0} aria-valuemax={d1Preview.pendingMigrations} aria-valuenow={migrationAppliedCount}>
                       <div className="h-full bg-primary transition-all duration-300" style={{width:Math.round((migrationAppliedCount/d1Preview.pendingMigrations)*100)+"%"}}/>
                     </div>
                   </div>}
-                  {d1Preview.pendingMigrations>0 && <Button disabled={d1Applying||d1Working} onClick={()=>void applyD1Migrations()}>
-                    <RiShieldCheckLine/>{d1Applying?t("applyingMigrations"):t("applyMigrations")}
-                  </Button>}
+                  {d1Preview.pendingMigrations>0 && <ConfirmOperation
+                    title={t("confirmD1Title")}
+                    description={t("actionConfirmD1",{count:d1Preview.pendingMigrations,target:d1Databases.find(db=>db.uuid===databaseId)?.name??databaseId})}
+                    cancelText={t("cancel")} confirmText={t("confirm")}
+                    onConfirm={()=>void applyD1Migrations()}>
+                    <Button disabled={d1Applying||d1Working}>
+                      <RiShieldCheckLine/>{d1Applying?t("applyingMigrations"):t("applyMigrations")}
+                    </Button>
+                  </ConfirmOperation>}
                   <p className="text-xs leading-5 text-muted-foreground">{t("d1ScopeHint")}</p>
                 </div>}
               </>}
             </div>}
             {step===4 && <div className="space-y-5">
-              {versionWorking && <div role="status" className="space-y-2"><p className="text-xs text-muted-foreground">{t("working")}</p><div className="h-1.5 overflow-hidden rounded-full bg-secondary"><div className="deploy-indeterminate h-full w-1/3 rounded-full bg-primary"/></div></div>}
+              {versionWorking && <div role="status" className="space-y-2"><p className="text-xs text-muted-foreground">{t("working")}</p><div className="h-1.5 overflow-hidden rounded-none bg-secondary"><div className="deploy-indeterminate h-full w-1/3 rounded-none bg-primary"/></div></div>}
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" disabled={!installationSupported||versionWorking} onClick={()=>void inspectWorkerVersions()}>
                   <RiInformationLine/>{versionWorking?t("working"):t("inspectVersion")}
@@ -655,7 +708,7 @@ export function App() {
                   <a href="/api/v1/auth/cloudflare/start?capability=deploy"><RiShieldCheckLine/>{t("authDeploy")}</a></Button>}
               </div>
               {versionMessage && <p role="status" className="text-xs leading-5 text-muted-foreground">{localizedStatus(versionMessage)}</p>}
-              {versionPreview && <div className="space-y-4 rounded-xl border border-border p-4" data-testid="worker-version-preview">
+              {versionPreview && <div className="space-y-4 rounded-none border border-border p-4" data-testid="worker-version-preview">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold">{t("nightlyCandidate")}</p><Badge variant="outline">{t("inactive")}</Badge>
                 </div>
@@ -665,22 +718,27 @@ export function App() {
                   <div className="sm:col-span-2"><p className="text-muted-foreground">{t("migrationTag")}</p><code className="deploy-mono">{versionPreview.activeMigrationTag} → {versionPreview.targetMigrationTag}</code></div>
                 </div>
                 <p className="text-xs text-muted-foreground">{t("bindingsPreserved",{count:versionPreview.existingBindingsPreserved})}</p>
-                {versionPreview.legacyAdoptionRequired && <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-xs leading-5">
-                  <input type="checkbox" checked={legacyReviewed} onChange={e=>setLegacyReviewed(e.target.checked)} className="mt-1"/>
+                {versionPreview.legacyAdoptionRequired && <label className="flex cursor-pointer items-start gap-3 rounded-none border border-border p-3 text-xs leading-5">
+                  <Checkbox checked={legacyReviewed} onCheckedChange={checked=>setLegacyReviewed(checked===true)} className="mt-1"/>
                   {t("legacyApprove")}
                 </label>}
                 <div className="flex flex-wrap gap-2">
-                  <Button disabled={versionWorking || (versionPreview.legacyAdoptionRequired&&!legacyReviewed)} onClick={()=>void stageWorkerVersion()}>
-                    <RiShieldCheckLine/>{versionWorking?t("uploading"):t("uploadInactive")}
-                  </Button>
+                  <ConfirmOperation title={t("confirmStageTitle")}
+                    description={t("actionConfirmStage",{sha:versionPreview.sourceSha.slice(0,12)})}
+                    cancelText={t("cancel")} confirmText={t("confirm")}
+                    onConfirm={()=>void stageWorkerVersion()}>
+                    <Button disabled={versionWorking || (versionPreview.legacyAdoptionRequired&&!legacyReviewed)}>
+                      <RiShieldCheckLine/>{versionWorking?t("uploading"):t("uploadInactive")}
+                    </Button>
+                  </ConfirmOperation>
                   <Button variant="outline" disabled={versionWorking} onClick={()=>void findStagedVersions()}>
                     <RiRefreshLine/>{t("findPrevious")}
                   </Button>
                 </div>
               </div>}
-              {versionCandidates.length>0 && versionPreview && <div className="space-y-2 rounded-xl border border-border p-4">
+              {versionCandidates.length>0 && versionPreview && <div className="space-y-2 rounded-none border border-border p-4">
                 <p className="text-sm font-semibold">{t("previousCandidates")}</p>
-                {versionCandidates.map(candidate=><div key={candidate.stagedVersionId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 p-2">
+                {versionCandidates.map(candidate=><div key={candidate.stagedVersionId} className="flex flex-wrap items-center justify-between gap-2 rounded-none border border-border/50 p-2">
                   <code className="deploy-mono max-w-full text-xs">{candidate.stagedVersionId}</code>
                   <Button variant="outline" size="sm" disabled={versionWorking||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
                     onClick={()=>setStagedVersion({stagedVersionId:candidate.stagedVersionId,sourceSha:candidate.sourceSha,
@@ -691,35 +749,39 @@ export function App() {
               <p className="text-xs text-muted-foreground">{t("stageContinueHint")}</p>
             </div>}
             {step===5 && <div className="space-y-5">
-              {activatedVersion ? <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-5" role="status">
+              {activatedVersion ? <div className="space-y-3 rounded-none border border-primary/30 bg-primary/5 p-5" role="status">
                 <div className="flex items-center gap-2 text-primary"><RiShieldCheckLine className="size-6"/><h3 className="text-lg font-semibold">{t("activationSuccess")}</h3></div>
                 <div className="space-y-1 text-xs"><p>{t("deploymentId")}: <code className="deploy-mono">{activatedVersion.deploymentId}</code></p>
                   <p>{t("versionId")}: <code className="deploy-mono">{activatedVersion.activatedVersionId}</code></p></div>
               </div> : <>
                 {!stagedVersion && <Notice icon={<RiInformationLine className="size-4"/>} title={t("activationNoCandidate")} text={t("stageContinueHint")}/>}
-                {stagedVersion && <div className="space-y-3 rounded-xl border border-border p-4" data-testid="worker-staged-version">
+                {stagedVersion && <div className="space-y-3 rounded-none border border-border p-4" data-testid="worker-staged-version">
                   <p className="text-sm font-semibold">{t("activationTarget")}</p>
                   <code className="deploy-mono block text-xs">{stagedVersion.stagedVersionId}</code>
                   <p className="text-xs text-muted-foreground">{t("stageSafety")}</p>
                   {!d1Current && <Notice icon={<RiAlertLine className="size-4"/>} title={t("needsAttention")} text={t("activationNeedD1")}/>}
-                  <Button variant="destructive" disabled={versionWorking||!d1Current||!versionPreview||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
-                    onClick={()=>void activateWorkerVersion()}>
-                    <RiShieldCheckLine/>{versionWorking?t("working"):t("activate100")}
-                  </Button>
+                  <ConfirmOperation destructive title={t("confirmActivateTitle")}
+                    description={t("actionConfirmActivate",{version:stagedVersion.stagedVersionId})}
+                    cancelText={t("cancel")} confirmText={t("confirm")}
+                    onConfirm={()=>void activateWorkerVersion()}>
+                    <Button variant="destructive" disabled={versionWorking||!d1Current||!versionPreview||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}>
+                      <RiShieldCheckLine/>{versionWorking?t("working"):t("activate100")}
+                    </Button>
+                  </ConfirmOperation>
                 </div>}
               </>}
               {versionMessage && <p role="status" className="text-xs text-muted-foreground">{versionMessage}</p>}
               <p className="text-xs text-muted-foreground">{t("activationNote")}</p>
             </div>}
-          </section>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-muted/15 px-5 py-4 sm:px-9">
+          </CardContent>
+          <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 px-4 py-4 sm:px-6">
             <Button variant="outline" onClick={()=>goStep(step-1)} disabled={step===0||stageBusy}>
               <RiArrowLeftLine/>{t("previous")}
             </Button>
             {step<5 ? <Button onClick={()=>goStep(step+1)} disabled={!mayAdvance[step]||stageBusy}>
               {t("next")}<RiArrowRightLine/>
             </Button> : <Badge variant={activatedVersion?"secondary":"outline"}>{activatedVersion?t("stageFinish"):t("needsAttention")}</Badge>}
-          </div>
+          </CardFooter>
         </Card>
         <footer className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-xs text-muted-foreground">
           <RiShieldCheckLine className="size-4 text-primary"/>{t("dataPromise")}

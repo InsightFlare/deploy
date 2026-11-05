@@ -40,13 +40,18 @@ For local OAuth tests, configure Worker secrets using an untracked `.dev.vars` f
 pnpm check
 ```
 
-## Interface
+## UI and internationalization
 
-The control plane uses the same `@insightflare/ui` React components and Tailwind CSS 4 theme as InsightFlare.
+Deploy reuses **InsightFlare UI** components and conventions rather than its own visual theme:
+- `@insightflare/ui/styles.css` and its tokens; Card, Button, Select, Badge, DropdownMenu, Checkbox, and AlertDialog all come from the published `@insightflare/ui` package. The wizard is a Card with progressive steps, not a custom rounded or gradient shell.
+- The same JetBrains Mono variable font and `insightflare-theme` preference (`light`, `dark`, `system`). The theme provider logic is reused from InsightFlare; no hard-coded default dark class.
+- `src/i18n/{en,zh,zh-tw,ja}.yaml` stores nested `deploy` messages; `pnpm i18n:generate` generates `src/lib/i18n/messages.ts` with typed `AppMessages` and `getMessages(locale)`, and `pnpm i18n:check` verifies locale structure and interpolation placeholders. Locale constants, native names, and template formatter use the same interfaces as InsightFlare.
+- Language is **path-based**, as in InsightFlare: `/en`, `/zh`, `/zh-tw`, `/ja`. The homepage redirects with InsightFlare's Accept-Language / `if_locale` preference; the worker serves the SPA at each locale path and writes the same locale cookie. API and OAuth endpoints remain outside the locale prefix. Changing language reloads the correct URL and restores in-progress non-sensitive wizard navigation from sessionStorage.
+- D1 migrations, inactive version uploads, and activation are separate, explicitly confirmed actions using the shared AlertDialog component; advancing a step never performs a write.
 
-The control plane installs the published `@insightflare/ui` npm package at a pinned version; no local repository checkout, vendored tarball, or developer-specific filesystem path is required.
+The control plane consumes the published `@insightflare/ui` package; no local InsightFlare checkout is required to build Deploy. When changing the look and feel, update the shared UI library instead of adding a second palette, font or component design.
 
-`pnpm dev` serves the complete app through local Wrangler. For Vite hot reload, run `pnpm dev:web` alongside the Wrangler backend and open port 5173.
+`pnpm dev` serves the complete app through local Wrangler. For Vite hot reload, run `pnpm dev:web` alongside the Wrangler backend and open port 5173. Use `pnpm check` for typechecks, translations, tests, Vite and Wrangler dry-run.
 
 ## Deployment model
 

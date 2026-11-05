@@ -1,148 +1,208 @@
-# InsightFlare Deploy · en
-# 与 InsightFlare 的 src/i18n/{locale}.yaml 使用相同语言代码和 Cookie 规范。
-brand: "InsightFlare Deploy"
-tagline: "Your analytics, your Cloudflare account."
-wizard: "Deployment assistant"
-wizardHelp: "One step at a time. Your existing Worker keeps running until you approve activation."
-language: "Language"
-connected: "Connected"
-disconnected: "Not connected"
-next: "Continue"
-back: "Back"
-close: "Close"
-refresh: "Refresh"
-viewCommit: "View commit"
-sourceGitHub: "View project on GitHub"
-previous: "Previous step"
-stepCount: "Step {current} of {total}"
-progress: "Setup progress"
-completed: "Completed"
-current: "Current"
-upcoming: "Upcoming"
-needsAttention: "Requires attention"
-working: "Working…"
-loading: "Loading…"
-unavailable: "Unavailable"
-unknown: "Unknown"
-yes: "Yes"
-no: "No"
-available: "Available"
-missing: "Missing"
-ready: "Ready"
-pending: "Pending"
-dismiss: "Dismiss"
-stepConnect: "Connect"
-stepAccount: "Account"
-stepSource: "Review"
-stepD1: "Database"
-stepStage: "Stage"
-stepActivate: "Activate"
-connectTitle: "Connect your Cloudflare account"
-connectDesc: "Sign in with Cloudflare to discover your existing InsightFlare installation. We request additional permissions only when needed."
-connectButton: "Connect with Cloudflare"
-oauthMissing: "OAuth is not configured for this service."
-connectedDesc: "Your Cloudflare session is active. Continue to select the account to manage."
-disconnect: "Disconnect"
-dataPromise: "Your analytics data stays inside your Cloudflare account."
-accountTitle: "Choose the account to manage"
-accountDesc: "We detect an InsightFlare Worker directly from the selected Cloudflare account."
-accountLabel: "Cloudflare account"
-accountPlaceholder: "Select an account"
-discovering: "Discovering existing installation…"
-noInstallation: "Not installed"
-managed: "Managed installation"
-legacy: "Existing instance · approval required"
-conflict: "Worker name conflict"
-worker: "Worker"
-deployedSha: "Deployed source"
-sourceTitle: "Review the official Nightly"
-sourceDesc: "Every operation is pinned to the current official main commit. Inspect the plan before changing infrastructure."
-sourceBranch: "Source branch"
-sourceCommit: "Official commit"
-sourceLoading: "Retrieving latest commit…"
-sourceMissing: "Source commit unavailable"
-commitDate: "Committed {date}"
-buildTitle: "Build integration"
-buildDesc: "The official Nightly artifact is built on GitHub; no user-side Docker or compilation is required."
-repoVerified: "Repository identity"
-planTitle: "Review deployment plan"
-planDesc: "A read-only preview. Preparing a run does not install or update anything."
-operation: "Operation"
-install: "Install from main"
-update: "Update to main"
-repair: "Repair current commit"
-previewPlan: "Preview plan"
-freezeSha: "Freeze reviewed SHA"
-planSteps: "Planned steps"
-planBlockers: "Plan limitations"
-noPlan: "Select an account to preview a deployment plan."
-resourceActions: "Resource reconciliation"
-resourceBlockers: "{count} resource blockers"
-prepared: "Prepared operation · not deployed"
-preparedUntil: "Pinned SHA expires at {time}"
-preparedHint: "Preparing does not modify Cloudflare resources."
-d1Title: "Review D1 migrations"
-d1Desc: "Inspect the official SQL files, then apply pending migrations separately. The existing Worker stays online."
-d1Label: "D1 database"
-d1Placeholder: "Choose a database"
-inspectMigrations: "Inspect migrations"
-verifyD1: "Verifying Nightly and D1…"
-schemaCurrent: "Schema is current"
-migrationApplied: "Applied"
-migrationPending: "Pending"
-migrationTotal: "Official SQL files"
-recoveryPoint: "Recovery bookmark"
-migrationRisk: "Some migrations alter existing schema or data. Confirm compatibility before applying; the existing Worker continues serving."
-migrationReview: "Review"
-migrationAdd: "Add"
-applyMigrations: "Apply pending D1 migrations"
-applyingMigrations: "Applying migrations…"
-authD1Read: "Authorize D1 Read"
-authD1Write: "Authorize D1 Write"
-d1ScopeHint: "This requires explicit Cloudflare consent. Read-only inspection does not request D1 Write."
-d1Progress: "Applied {applied}, {remaining} remaining"
-d1Complete: "D1 migrations are complete. Worker activation is separate."
-d1ContinueHint: "Refresh the D1 preview after an interrupted migration before proceeding."
-stageTitle: "Stage a Worker version"
-stageDesc: "Upload and verify the Nightly Worker without sending any traffic to it."
-inspectVersion: "Inspect Worker version"
-authDeploy: "Authorize Workers Write + D1"
-nightlyCandidate: "Official Nightly candidate"
-inactive: "Not active"
-activeVersion: "Active Worker version"
-migrationTag: "DO migration tag"
-bindingsPreserved: "Existing bindings preserved: {count}"
-legacyApprove: "I reviewed this existing unmanaged Worker and approve adopting it without replacing its D1, KV, DO or Secrets."
-uploadInactive: "Upload inactive version"
-uploading: "Uploading…"
-findPrevious: "Find previous upload"
-previousCandidates: "Staged versions"
-useCandidate: "Select version"
-stagedReady: "Version staged · ready for review"
-stageSafety: "D1, KV, DO and Secrets remain unchanged. No new Worker traffic is enabled."
-stageRestoreEmpty: "No compatible staged versions found. Upload the Nightly candidate first."
-stageRestored: "Compatible candidates recovered from Cloudflare version history."
-stageContinueHint: "The current Worker remains live until you explicitly activate the new version."
-activateTitle: "Review and activate"
-activateDesc: "Final checkpoint. Check the target version and database before switching 100% of Worker traffic."
-activationTarget: "Candidate version"
-activationNeedD1: "Inspect the matching D1 database and apply pending Nightly SQL before activating."
-activate100: "Activate at 100% traffic"
-activationSuccess: "Worker version successfully activated"
-deploymentId: "Deployment ID"
-versionId: "Version ID"
-activationNote: "Activation does not update Cloudflare Cron triggers or custom routes."
-installUnavailable: "New installation is not enabled yet"
-installUnavailableHint: "Creating D1, KV and other resources for a fresh installation is still under development. Existing installations can use the upgrade flow."
-actionConfirmD1: "Apply {count} migrations to {target}? The existing Worker will continue serving."
-actionConfirmStage: "Upload official source {sha} as an inactive Worker version? Existing bindings are preserved."
-actionConfirmActivate: "Activate version {version} at 100% traffic? This switches the live Worker deployment."
-activationNoCandidate: "A staged candidate is required before activation."
-authFailed: "Cloudflare authorization failed: {error}"
-unexpectedError: "Unexpected error"
-httpError: "Request failed (HTTP {status})"
-invalidResponse: "Invalid API response"
-requestFailed: "The operation failed; review details and retry."
-showTechnical: "Technical details"
-stageFinish: "You're up to date"
-stepBlocked: "Complete the current step before continuing."
+# InsightFlare AppMessages-compatible nested catalog
+deploy:
+  brand: InsightFlare Deploy
+  tagline: Your analytics, your Cloudflare account.
+  wizard: Deployment assistant
+  wizardHelp: One step at a time. Your existing Worker keeps running until you approve activation.
+  language: Language
+  connected: Connected
+  disconnected: Not connected
+  next: Continue
+  back: Back
+  close: Close
+  refresh: Refresh
+  viewCommit: View commit
+  sourceGitHub: View project on GitHub
+  previous: Previous step
+  stepCount: Step {current} of {total}
+  progress: Setup progress
+  completed: Completed
+  current: Current
+  upcoming: Upcoming
+  needsAttention: Requires attention
+  working: Working…
+  loading: Loading…
+  unavailable: Unavailable
+  unknown: Unknown
+  yes: Yes
+  no: No
+  available: Available
+  missing: Missing
+  ready: Ready
+  pending: Pending
+  dismiss: Dismiss
+  stepConnect: Connect
+  stepAccount: Account
+  stepSource: Review
+  stepD1: Database
+  stepStage: Stage
+  stepActivate: Activate
+  connectTitle: Connect your Cloudflare account
+  connectDesc: Sign in with Cloudflare to discover your existing InsightFlare installation. We request
+    additional permissions only when needed.
+  connectButton: Connect with Cloudflare
+  oauthMissing: OAuth is not configured for this service.
+  connectedDesc: Your Cloudflare session is active. Continue to select the account to manage.
+  disconnect: Disconnect
+  dataPromise: Your analytics data stays inside your Cloudflare account.
+  accountTitle: Choose the account to manage
+  accountDesc: We detect an InsightFlare Worker directly from the selected Cloudflare account.
+  accountLabel: Cloudflare account
+  accountPlaceholder: Select an account
+  discovering: Discovering existing installation…
+  noInstallation: Not installed
+  managed: Managed installation
+  legacy: Existing instance · approval required
+  conflict: Worker name conflict
+  worker: Worker
+  deployedSha: Deployed source
+  sourceTitle: Review the official Nightly
+  sourceDesc: Every operation is pinned to the current official main commit. Inspect the plan before
+    changing infrastructure.
+  sourceBranch: Source branch
+  sourceCommit: Official commit
+  sourceLoading: Retrieving latest commit…
+  sourceMissing: Source commit unavailable
+  commitDate: Committed {date}
+  buildTitle: Build integration
+  buildDesc: The official Nightly artifact is built on GitHub; no user-side Docker or compilation is required.
+  repoVerified: Repository identity
+  planTitle: Review deployment plan
+  planDesc: A read-only preview. Preparing a run does not install or update anything.
+  operation: Operation
+  install: Install from main
+  update: Update to main
+  repair: Repair current commit
+  previewPlan: Preview plan
+  freezeSha: Freeze reviewed SHA
+  planSteps: Planned steps
+  planBlockers: Plan limitations
+  noPlan: Select an account to preview a deployment plan.
+  resourceActions: Resource reconciliation
+  resourceBlockers: "{count} resource blockers"
+  prepared: Prepared operation · not deployed
+  preparedUntil: Pinned SHA expires at {time}
+  preparedHint: Preparing does not modify Cloudflare resources.
+  d1Title: Review D1 migrations
+  d1Desc: Inspect the official SQL files, then apply pending migrations separately. The existing
+    Worker stays online.
+  d1Label: D1 database
+  d1Placeholder: Choose a database
+  inspectMigrations: Inspect migrations
+  verifyD1: Verifying Nightly and D1…
+  schemaCurrent: Schema is current
+  migrationApplied: Applied
+  migrationPending: Pending
+  migrationTotal: Official SQL files
+  recoveryPoint: Recovery bookmark
+  migrationRisk: Some migrations alter existing schema or data. Confirm compatibility before applying;
+    the existing Worker continues serving.
+  migrationReview: Review
+  migrationAdd: Add
+  applyMigrations: Apply pending D1 migrations
+  applyingMigrations: Applying migrations…
+  authD1Read: Authorize D1 Read
+  authD1Write: Authorize D1 Write
+  d1ScopeHint: This requires explicit Cloudflare consent. Read-only inspection does not request D1 Write.
+  d1Progress: Applied {applied}, {remaining} remaining
+  d1Complete: D1 migrations are complete. Worker activation is separate.
+  d1ContinueHint: Refresh the D1 preview after an interrupted migration before proceeding.
+  stageTitle: Stage a Worker version
+  stageDesc: Upload and verify the Nightly Worker without sending any traffic to it.
+  inspectVersion: Inspect Worker version
+  authDeploy: Authorize Workers Write + D1
+  nightlyCandidate: Official Nightly candidate
+  inactive: Not active
+  activeVersion: Active Worker version
+  migrationTag: DO migration tag
+  bindingsPreserved: "Existing bindings preserved: {count}"
+  legacyApprove: I reviewed this existing unmanaged Worker and approve adopting it without replacing
+    its D1, KV, DO or Secrets.
+  uploadInactive: Upload inactive version
+  uploading: Uploading…
+  findPrevious: Find previous upload
+  previousCandidates: Staged versions
+  useCandidate: Select version
+  stagedReady: Version staged · ready for review
+  stageSafety: D1, KV, DO and Secrets remain unchanged. No new Worker traffic is enabled.
+  stageRestoreEmpty: No compatible staged versions found. Upload the Nightly candidate first.
+  stageRestored: Compatible candidates recovered from Cloudflare version history.
+  stageContinueHint: The current Worker remains live until you explicitly activate the new version.
+  activateTitle: Review and activate
+  activateDesc: Final checkpoint. Check the target version and database before switching 100% of Worker traffic.
+  activationTarget: Candidate version
+  activationNeedD1: Inspect the matching D1 database and apply pending Nightly SQL before activating.
+  activate100: Activate at 100% traffic
+  activationSuccess: Worker version successfully activated
+  deploymentId: Deployment ID
+  versionId: Version ID
+  activationNote: Activation does not update Cloudflare Cron triggers or custom routes.
+  installUnavailable: New installation is not enabled yet
+  installUnavailableHint: Creating D1, KV and other resources for a fresh installation is still under
+    development. Existing installations can use the upgrade flow.
+  actionConfirmD1: Apply {count} migrations to {target}? The existing Worker will continue serving.
+  actionConfirmStage: Upload official source {sha} as an inactive Worker version? Existing bindings are preserved.
+  actionConfirmActivate: Activate version {version} at 100% traffic? This switches the live Worker deployment.
+  activationNoCandidate: A staged candidate is required before activation.
+  authFailed: "Cloudflare authorization failed: {error}"
+  unexpectedError: Unexpected error
+  httpError: Request failed (HTTP {status})
+  invalidResponse: Invalid API response
+  requestFailed: The operation failed; review details and retry.
+  showTechnical: Technical details
+  stageFinish: You're up to date
+  stepBlocked: Complete the current step before continuing.
+  theme: Theme
+  lightTheme: Light
+  darkTheme: Dark
+  systemTheme: System
+  cancel: Cancel
+  confirm: Confirm
+  confirmStageTitle: Upload inactive Worker version
+  confirmD1Title: Confirm D1 migrations
+  confirmActivateTitle: Activate the Worker version
+  languageSelect: Language
+  confirmActionHint: This is a separate operation that requires your approval.
+  sourceTitleShort: InsightFlare Deploy
+  stateNotInstalled: Not installed
+  stateMissingWorkerTag: Missing Worker tag
+  statePermissionRequired: Permission required
+  stateNotConfigured: Not configured
+  stateRepositoryMismatch: Repository mismatch
+  stateUnsafeTrigger: Unsafe build trigger
+  stateCandidate: Candidate
+  apiPlan1: Revalidate OAuth account and ownership
+  apiPlan2: Resolve and pin a single immutable source commit
+  apiPlan3: Download and verify the SHA-pinned official Nightly tar.gz
+  apiPlan4: Review and apply compatible forward-only D1 migrations
+  apiPlan5: Reconcile resources and upload Worker modules and assets
+  apiPlan6: Preserve all existing secrets, domain routes and user data
+  apiPlan7: Verify health and record the deployed commit SHA
+  apiBlocker1: Existing Worker upgrades are available through the D1 migration and Worker Versions
+    panels; new-install resource provisioning and one-click full deployment plans are not enabled.
+  apiBlocker2: Worker name is occupied by an unknown application. Automatic takeover is forbidden.
+  apiBlocker3: Existing legacy instance must complete an explicit adoption flow.
+  apiBlocker4: An existing Worker must be reviewed before installation.
+  apiBlocker5: Nothing is installed in this account.
+  apiBlocker6: Repair requires a known managed deployment SHA.
+  apiIssue1: Worker identity or deployment marker cannot be verified. Refusing automatic takeover.
+  apiIssue2: Existing InsightFlare Worker has no managed deployment SHA; a safe adoption process is required.
+  apiIssue3: No standard Worker was returned by Cloudflare. Check that the authorization can list
+    Workers before starting a new installation.
+  resourceCreate: Create
+  resourcePreserve: Preserve
+  resourceBlock: Block
+  resourceOptional: Optional
+  resourceUnknownOwnership: Worker ownership must be established before handling this resource.
+  resourceUnexpectedBinding: This binding has an unexpected type, identifier, or duplicate name. Manual review required.
+  resourceExistingRequired: Existing instance lacks this required binding; automatic replacement is forbidden.
+  resourceKeepSecret: Preserve existing secret metadata without reading, replacing or rotating its value.
+  resourceCreateD1: Create an isolated D1 database and apply reviewed schema migrations.
+  resourceKeepD1: Retain this exact D1 database ID and its existing contents.
+  resourceCreateKv: Create a KV namespace for site settings.
+  resourceKeepKv: Retain this exact KV namespace and all stored site settings.
+  resourceCreateDo: Create the IngestDurableObject SQLite namespace using the reviewed Worker migration.
+  resourceKeepDo: Preserve the existing Durable Object namespace and all actor state.
+  resourceCreateSecret: Generate a new cryptographically random secret; never send it to the browser.
+  resourceKeepRootSecret: Keep the existing secret binding without retrieving or rotating its value.
+  requiredBindingMissing: Required binding {name} is missing; cannot safely update.

@@ -1,6 +1,210 @@
-// Generated from src/i18n/*.yaml. Run pnpm i18n:generate.
-export const messages = {
-  "en": {
+// @generated from src/i18n/*.yaml by scripts/generate-i18n.mjs.
+import type { Locale } from "./config";
+
+export interface AppMessages {
+  "deploy": {
+    "brand": string;
+    "tagline": string;
+    "wizard": string;
+    "wizardHelp": string;
+    "language": string;
+    "connected": string;
+    "disconnected": string;
+    "next": string;
+    "back": string;
+    "close": string;
+    "refresh": string;
+    "viewCommit": string;
+    "sourceGitHub": string;
+    "previous": string;
+    "stepCount": string;
+    "progress": string;
+    "completed": string;
+    "current": string;
+    "upcoming": string;
+    "needsAttention": string;
+    "working": string;
+    "loading": string;
+    "unavailable": string;
+    "unknown": string;
+    "yes": string;
+    "no": string;
+    "available": string;
+    "missing": string;
+    "ready": string;
+    "pending": string;
+    "dismiss": string;
+    "stepConnect": string;
+    "stepAccount": string;
+    "stepSource": string;
+    "stepD1": string;
+    "stepStage": string;
+    "stepActivate": string;
+    "connectTitle": string;
+    "connectDesc": string;
+    "connectButton": string;
+    "oauthMissing": string;
+    "connectedDesc": string;
+    "disconnect": string;
+    "dataPromise": string;
+    "accountTitle": string;
+    "accountDesc": string;
+    "accountLabel": string;
+    "accountPlaceholder": string;
+    "discovering": string;
+    "noInstallation": string;
+    "managed": string;
+    "legacy": string;
+    "conflict": string;
+    "worker": string;
+    "deployedSha": string;
+    "sourceTitle": string;
+    "sourceDesc": string;
+    "sourceBranch": string;
+    "sourceCommit": string;
+    "sourceLoading": string;
+    "sourceMissing": string;
+    "commitDate": string;
+    "buildTitle": string;
+    "buildDesc": string;
+    "repoVerified": string;
+    "planTitle": string;
+    "planDesc": string;
+    "operation": string;
+    "install": string;
+    "update": string;
+    "repair": string;
+    "previewPlan": string;
+    "freezeSha": string;
+    "planSteps": string;
+    "planBlockers": string;
+    "noPlan": string;
+    "resourceActions": string;
+    "resourceBlockers": string;
+    "prepared": string;
+    "preparedUntil": string;
+    "preparedHint": string;
+    "d1Title": string;
+    "d1Desc": string;
+    "d1Label": string;
+    "d1Placeholder": string;
+    "inspectMigrations": string;
+    "verifyD1": string;
+    "schemaCurrent": string;
+    "migrationApplied": string;
+    "migrationPending": string;
+    "migrationTotal": string;
+    "recoveryPoint": string;
+    "migrationRisk": string;
+    "migrationReview": string;
+    "migrationAdd": string;
+    "applyMigrations": string;
+    "applyingMigrations": string;
+    "authD1Read": string;
+    "authD1Write": string;
+    "d1ScopeHint": string;
+    "d1Progress": string;
+    "d1Complete": string;
+    "d1ContinueHint": string;
+    "stageTitle": string;
+    "stageDesc": string;
+    "inspectVersion": string;
+    "authDeploy": string;
+    "nightlyCandidate": string;
+    "inactive": string;
+    "activeVersion": string;
+    "migrationTag": string;
+    "bindingsPreserved": string;
+    "legacyApprove": string;
+    "uploadInactive": string;
+    "uploading": string;
+    "findPrevious": string;
+    "previousCandidates": string;
+    "useCandidate": string;
+    "stagedReady": string;
+    "stageSafety": string;
+    "stageRestoreEmpty": string;
+    "stageRestored": string;
+    "stageContinueHint": string;
+    "activateTitle": string;
+    "activateDesc": string;
+    "activationTarget": string;
+    "activationNeedD1": string;
+    "activate100": string;
+    "activationSuccess": string;
+    "deploymentId": string;
+    "versionId": string;
+    "activationNote": string;
+    "installUnavailable": string;
+    "installUnavailableHint": string;
+    "actionConfirmD1": string;
+    "actionConfirmStage": string;
+    "actionConfirmActivate": string;
+    "activationNoCandidate": string;
+    "authFailed": string;
+    "unexpectedError": string;
+    "httpError": string;
+    "invalidResponse": string;
+    "requestFailed": string;
+    "showTechnical": string;
+    "stageFinish": string;
+    "stepBlocked": string;
+    "theme": string;
+    "lightTheme": string;
+    "darkTheme": string;
+    "systemTheme": string;
+    "cancel": string;
+    "confirm": string;
+    "confirmStageTitle": string;
+    "confirmD1Title": string;
+    "confirmActivateTitle": string;
+    "languageSelect": string;
+    "confirmActionHint": string;
+    "sourceTitleShort": string;
+    "stateNotInstalled": string;
+    "stateMissingWorkerTag": string;
+    "statePermissionRequired": string;
+    "stateNotConfigured": string;
+    "stateRepositoryMismatch": string;
+    "stateUnsafeTrigger": string;
+    "stateCandidate": string;
+    "apiPlan1": string;
+    "apiPlan2": string;
+    "apiPlan3": string;
+    "apiPlan4": string;
+    "apiPlan5": string;
+    "apiPlan6": string;
+    "apiPlan7": string;
+    "apiBlocker1": string;
+    "apiBlocker2": string;
+    "apiBlocker3": string;
+    "apiBlocker4": string;
+    "apiBlocker5": string;
+    "apiBlocker6": string;
+    "apiIssue1": string;
+    "apiIssue2": string;
+    "apiIssue3": string;
+    "resourceCreate": string;
+    "resourcePreserve": string;
+    "resourceBlock": string;
+    "resourceOptional": string;
+    "resourceUnknownOwnership": string;
+    "resourceUnexpectedBinding": string;
+    "resourceExistingRequired": string;
+    "resourceKeepSecret": string;
+    "resourceCreateD1": string;
+    "resourceKeepD1": string;
+    "resourceCreateKv": string;
+    "resourceKeepKv": string;
+    "resourceCreateDo": string;
+    "resourceKeepDo": string;
+    "resourceCreateSecret": string;
+    "resourceKeepRootSecret": string;
+    "requiredBindingMissing": string;
+  };
+};
+const enMessages: AppMessages = {
+  "deploy": {
     "brand": "InsightFlare Deploy",
     "tagline": "Your analytics, your Cloudflare account.",
     "wizard": "Deployment assistant",
@@ -146,9 +350,63 @@ export const messages = {
     "requestFailed": "The operation failed; review details and retry.",
     "showTechnical": "Technical details",
     "stageFinish": "You're up to date",
-    "stepBlocked": "Complete the current step before continuing."
-  },
-  "zh": {
+    "stepBlocked": "Complete the current step before continuing.",
+    "theme": "Theme",
+    "lightTheme": "Light",
+    "darkTheme": "Dark",
+    "systemTheme": "System",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "confirmStageTitle": "Upload inactive Worker version",
+    "confirmD1Title": "Confirm D1 migrations",
+    "confirmActivateTitle": "Activate the Worker version",
+    "languageSelect": "Language",
+    "confirmActionHint": "This is a separate operation that requires your approval.",
+    "sourceTitleShort": "InsightFlare Deploy",
+    "stateNotInstalled": "Not installed",
+    "stateMissingWorkerTag": "Missing Worker tag",
+    "statePermissionRequired": "Permission required",
+    "stateNotConfigured": "Not configured",
+    "stateRepositoryMismatch": "Repository mismatch",
+    "stateUnsafeTrigger": "Unsafe build trigger",
+    "stateCandidate": "Candidate",
+    "apiPlan1": "Revalidate OAuth account and ownership",
+    "apiPlan2": "Resolve and pin a single immutable source commit",
+    "apiPlan3": "Download and verify the SHA-pinned official Nightly tar.gz",
+    "apiPlan4": "Review and apply compatible forward-only D1 migrations",
+    "apiPlan5": "Reconcile resources and upload Worker modules and assets",
+    "apiPlan6": "Preserve all existing secrets, domain routes and user data",
+    "apiPlan7": "Verify health and record the deployed commit SHA",
+    "apiBlocker1": "Existing Worker upgrades are available through the D1 migration and Worker Versions panels; new-install resource provisioning and one-click full deployment plans are not enabled.",
+    "apiBlocker2": "Worker name is occupied by an unknown application. Automatic takeover is forbidden.",
+    "apiBlocker3": "Existing legacy instance must complete an explicit adoption flow.",
+    "apiBlocker4": "An existing Worker must be reviewed before installation.",
+    "apiBlocker5": "Nothing is installed in this account.",
+    "apiBlocker6": "Repair requires a known managed deployment SHA.",
+    "apiIssue1": "Worker identity or deployment marker cannot be verified. Refusing automatic takeover.",
+    "apiIssue2": "Existing InsightFlare Worker has no managed deployment SHA; a safe adoption process is required.",
+    "apiIssue3": "No standard Worker was returned by Cloudflare. Check that the authorization can list Workers before starting a new installation.",
+    "resourceCreate": "Create",
+    "resourcePreserve": "Preserve",
+    "resourceBlock": "Block",
+    "resourceOptional": "Optional",
+    "resourceUnknownOwnership": "Worker ownership must be established before handling this resource.",
+    "resourceUnexpectedBinding": "This binding has an unexpected type, identifier, or duplicate name. Manual review required.",
+    "resourceExistingRequired": "Existing instance lacks this required binding; automatic replacement is forbidden.",
+    "resourceKeepSecret": "Preserve existing secret metadata without reading, replacing or rotating its value.",
+    "resourceCreateD1": "Create an isolated D1 database and apply reviewed schema migrations.",
+    "resourceKeepD1": "Retain this exact D1 database ID and its existing contents.",
+    "resourceCreateKv": "Create a KV namespace for site settings.",
+    "resourceKeepKv": "Retain this exact KV namespace and all stored site settings.",
+    "resourceCreateDo": "Create the IngestDurableObject SQLite namespace using the reviewed Worker migration.",
+    "resourceKeepDo": "Preserve the existing Durable Object namespace and all actor state.",
+    "resourceCreateSecret": "Generate a new cryptographically random secret; never send it to the browser.",
+    "resourceKeepRootSecret": "Keep the existing secret binding without retrieving or rotating its value.",
+    "requiredBindingMissing": "Required binding {name} is missing; cannot safely update."
+  }
+};
+const zhMessages: AppMessages = {
+  "deploy": {
     "brand": "InsightFlare 部署",
     "tagline": "你的分析系统，部署在自己的 Cloudflare 账户。",
     "wizard": "部署向导",
@@ -294,9 +552,63 @@ export const messages = {
     "requestFailed": "操作失败，请检查详情后重试。",
     "showTechnical": "技术详情",
     "stageFinish": "已完成升级",
-    "stepBlocked": "请先完成当前步骤再继续。"
-  },
-  "zh-tw": {
+    "stepBlocked": "请先完成当前步骤再继续。",
+    "theme": "主题",
+    "lightTheme": "亮色",
+    "darkTheme": "暗色",
+    "systemTheme": "跟随系统",
+    "cancel": "取消",
+    "confirm": "确认",
+    "confirmStageTitle": "确认上传未激活 Worker 版本",
+    "confirmD1Title": "确认执行 D1 迁移",
+    "confirmActivateTitle": "确认激活 Worker 版本",
+    "languageSelect": "语言",
+    "confirmActionHint": "此操作需要单独确认，继续步骤并不会自动执行。",
+    "sourceTitleShort": "InsightFlare 部署",
+    "stateNotInstalled": "尚未安装",
+    "stateMissingWorkerTag": "缺少 Worker 标记",
+    "statePermissionRequired": "需要授权",
+    "stateNotConfigured": "尚未配置",
+    "stateRepositoryMismatch": "仓库不匹配",
+    "stateUnsafeTrigger": "构建触发器存在风险",
+    "stateCandidate": "待检查的候选配置",
+    "apiPlan1": "重新验证 OAuth 账户及所有权",
+    "apiPlan2": "确定并固定不可变的源码提交",
+    "apiPlan3": "下载并校验固定 SHA 的官方 Nightly 包",
+    "apiPlan4": "检查并执行仅向前的 D1 迁移",
+    "apiPlan5": "检查资源绑定并上传 Worker 模块与静态资源",
+    "apiPlan6": "保留原有密钥、域名路由和用户数据",
+    "apiPlan7": "验证服务并记录已部署的 SHA",
+    "apiBlocker1": "已有实例可以使用 D1 迁移和 Worker 版本升级；首次安装资源创建与一键部署仍未开放。",
+    "apiBlocker2": "Worker 名称已被未知应用占用，禁止自动接管。",
+    "apiBlocker3": "旧版实例必须先明确确认接管。",
+    "apiBlocker4": "安装前必须先检查已有 Worker。",
+    "apiBlocker5": "此账户尚未安装 InsightFlare。",
+    "apiBlocker6": "修复需要已知的托管版本 SHA。",
+    "apiIssue1": "无法验证 Worker 身份或部署标记，已阻止自动接管。",
+    "apiIssue2": "已有 InsightFlare Worker 没有受管理的 SHA，需要确认接管。",
+    "apiIssue3": "Cloudflare 未返回标准 Worker。首次安装前请检查授权是否允许列出 Worker。",
+    "resourceCreate": "创建",
+    "resourcePreserve": "保留",
+    "resourceBlock": "阻止",
+    "resourceOptional": "可选",
+    "resourceUnknownOwnership": "需要先验证 Worker 所有权才能操作资源。",
+    "resourceUnexpectedBinding": "该绑定类型、标识或名称异常，需要人工检查。",
+    "resourceExistingRequired": "现有实例缺少必要绑定，禁止自动替换。",
+    "resourceKeepSecret": "保留已有密钥元数据，不读取、不替换、不轮换其内容。",
+    "resourceCreateD1": "创建独立 D1 数据库并应用已审核迁移。",
+    "resourceKeepD1": "保留当前 D1 数据库 ID 和所有已有内容。",
+    "resourceCreateKv": "为网站设置创建 KV 命名空间。",
+    "resourceKeepKv": "保留当前 KV 命名空间和站点设置。",
+    "resourceCreateDo": "通过已审核 Worker 迁移创建摄取 DO SQLite 命名空间。",
+    "resourceKeepDo": "保留原有 Durable Object 命名空间与状态。",
+    "resourceCreateSecret": "生成新的安全随机密钥，不向浏览器发送其内容。",
+    "resourceKeepRootSecret": "保留已有密钥绑定，不读取或轮换密钥。",
+    "requiredBindingMissing": "缺少必要绑定 {name}，无法安全更新。"
+  }
+};
+const zh_twMessages: AppMessages = {
+  "deploy": {
     "brand": "InsightFlare 部署",
     "tagline": "你的分析系統，部署在自己的 Cloudflare 帳戶。",
     "wizard": "部署精靈",
@@ -442,9 +754,63 @@ export const messages = {
     "requestFailed": "操作失敗，請檢查詳情後重試。",
     "showTechnical": "技術詳情",
     "stageFinish": "已完成更新",
-    "stepBlocked": "請先完成目前步驟再繼續。"
-  },
-  "ja": {
+    "stepBlocked": "請先完成目前步驟再繼續。",
+    "theme": "主題",
+    "lightTheme": "淺色",
+    "darkTheme": "深色",
+    "systemTheme": "跟隨系統",
+    "cancel": "取消",
+    "confirm": "確認",
+    "confirmStageTitle": "確認上傳未啟用的 Worker 版本",
+    "confirmD1Title": "確認執行 D1 遷移",
+    "confirmActivateTitle": "確認啟用 Worker 版本",
+    "languageSelect": "語言",
+    "confirmActionHint": "此操作需要另外確認，切換步驟不會自動執行。",
+    "sourceTitleShort": "InsightFlare 部署",
+    "stateNotInstalled": "尚未安裝",
+    "stateMissingWorkerTag": "缺少 Worker 標記",
+    "statePermissionRequired": "需要授權",
+    "stateNotConfigured": "尚未設定",
+    "stateRepositoryMismatch": "儲存庫不相符",
+    "stateUnsafeTrigger": "建置觸發器有風險",
+    "stateCandidate": "待檢查的候選設定",
+    "apiPlan1": "重新驗證 OAuth 帳戶及所有權",
+    "apiPlan2": "確定並固定不可變的原始碼提交",
+    "apiPlan3": "下載並驗證固定 SHA 的官方 Nightly 壓縮檔",
+    "apiPlan4": "檢查並執行僅向前的 D1 遷移",
+    "apiPlan5": "檢查資源繫結並上傳 Worker 模組與靜態資源",
+    "apiPlan6": "保留原有密鑰、網域路由與使用者資料",
+    "apiPlan7": "驗證服務並記錄已部署的 SHA",
+    "apiBlocker1": "既有執行個體可使用 D1 遷移及 Worker 版本升級；首次安裝資源建立與一鍵部署尚未開放。",
+    "apiBlocker2": "Worker 名稱已被未知應用占用，禁止自動接管。",
+    "apiBlocker3": "舊版執行個體須先明確確認接管。",
+    "apiBlocker4": "安裝前須先檢查既有 Worker。",
+    "apiBlocker5": "此帳戶尚未安裝 InsightFlare。",
+    "apiBlocker6": "修復需要已知的受管理部署 SHA。",
+    "apiIssue1": "無法驗證 Worker 身分或部署標記，已阻止自動接管。",
+    "apiIssue2": "既有 InsightFlare Worker 沒有受管理的 SHA，需要確認接管。",
+    "apiIssue3": "Cloudflare 未回傳標準 Worker。首次安裝前請檢查授權是否能列出 Worker。",
+    "resourceCreate": "建立",
+    "resourcePreserve": "保留",
+    "resourceBlock": "阻止",
+    "resourceOptional": "可選",
+    "resourceUnknownOwnership": "須先驗證 Worker 所有權才能操作資源。",
+    "resourceUnexpectedBinding": "該繫結類型、識別碼或名稱異常，須人工檢查。",
+    "resourceExistingRequired": "既有執行個體缺少必要繫結，禁止自動取代。",
+    "resourceKeepSecret": "保留既有密鑰中繼資料，不讀取、不取代、不輪替內容。",
+    "resourceCreateD1": "建立獨立 D1 資料庫並套用已審核遷移。",
+    "resourceKeepD1": "保留目前 D1 資料庫 ID 與所有既有內容。",
+    "resourceCreateKv": "為網站設定建立 KV 命名空間。",
+    "resourceKeepKv": "保留目前 KV 命名空間及網站設定。",
+    "resourceCreateDo": "透過已審核 Worker 遷移建立攝取 DO SQLite 命名空間。",
+    "resourceKeepDo": "保留原有 Durable Object 命名空間與狀態。",
+    "resourceCreateSecret": "產生新的安全隨機密鑰，不向瀏覽器傳送內容。",
+    "resourceKeepRootSecret": "保留既有密鑰繫結，不讀取或輪替密鑰。",
+    "requiredBindingMissing": "缺少必要繫結 {name}，無法安全更新。"
+  }
+};
+const jaMessages: AppMessages = {
+  "deploy": {
     "brand": "InsightFlare Deploy",
     "tagline": "あなたの分析環境を、あなたの Cloudflare アカウントに。",
     "wizard": "デプロイアシスタント",
@@ -590,7 +956,66 @@ export const messages = {
     "requestFailed": "操作に失敗しました。詳細を確認して再試行してください。",
     "showTechnical": "技術的な詳細",
     "stageFinish": "アップデート完了",
-    "stepBlocked": "現在のステップを完了してから続けてください。"
+    "stepBlocked": "現在のステップを完了してから続けてください。",
+    "theme": "テーマ",
+    "lightTheme": "ライト",
+    "darkTheme": "ダーク",
+    "systemTheme": "システム",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "confirmStageTitle": "Worker の非アクティブ版をアップロード",
+    "confirmD1Title": "D1 マイグレーションを確認",
+    "confirmActivateTitle": "Worker バージョンの有効化を確認",
+    "languageSelect": "言語",
+    "confirmActionHint": "この操作には個別の承認が必要です。次のステップに進むだけでは実行されません。",
+    "sourceTitleShort": "InsightFlare Deploy",
+    "stateNotInstalled": "未インストール",
+    "stateMissingWorkerTag": "Worker タグなし",
+    "statePermissionRequired": "権限が必要",
+    "stateNotConfigured": "未設定",
+    "stateRepositoryMismatch": "リポジトリが不一致",
+    "stateUnsafeTrigger": "危険なビルドトリガー",
+    "stateCandidate": "候補の設定",
+    "apiPlan1": "OAuth アカウントと所有権を再確認",
+    "apiPlan2": "不変のソースコミットを特定して固定",
+    "apiPlan3": "SHA 固定の公式 Nightly をダウンロードして検証",
+    "apiPlan4": "前進のみの D1 マイグレーションを確認・適用",
+    "apiPlan5": "リソースを照合して Worker モジュールとアセットをアップロード",
+    "apiPlan6": "既存のシークレット、ドメインルート、ユーザーデータを保持",
+    "apiPlan7": "稼働状態を確認しデプロイ SHA を記録",
+    "apiBlocker1": "既存インスタンスは D1 移行と Worker 更新が利用できます。新規インストールと一括デプロイは未対応です。",
+    "apiBlocker2": "Worker 名は不明なアプリが使用しており、自動引き継ぎは禁止です。",
+    "apiBlocker3": "旧インスタンスには明示的な引き継ぎ承認が必要です。",
+    "apiBlocker4": "インストール前に既存 Worker の確認が必要です。",
+    "apiBlocker5": "このアカウントには InsightFlare がインストールされていません。",
+    "apiBlocker6": "修復には管理対象デプロイの SHA が必要です。",
+    "apiIssue1": "Worker の識別情報を確認できず、自動引き継ぎを拒否しました。",
+    "apiIssue2": "既存 Worker に管理 SHA がなく、引き継ぎ手続きが必要です。",
+    "apiIssue3": "Cloudflare から標準 Worker が見つかりません。権限を確認してください。",
+    "resourceCreate": "作成",
+    "resourcePreserve": "保持",
+    "resourceBlock": "ブロック",
+    "resourceOptional": "任意",
+    "resourceUnknownOwnership": "リソース操作前に Worker の所有権を確認してください。",
+    "resourceUnexpectedBinding": "バインディングの型・ID・名前に異常があり、手動確認が必要です。",
+    "resourceExistingRequired": "必須バインディングがありません。自動置換は禁止です。",
+    "resourceKeepSecret": "既存シークレットの値を読み取らず、置換・ローテーションせずに保持します。",
+    "resourceCreateD1": "独立 D1 データベースを作成し、確認済みマイグレーションを適用します。",
+    "resourceKeepD1": "この D1 データベース ID と既存データを保持します。",
+    "resourceCreateKv": "サイト設定用 KV 名前空間を作成します。",
+    "resourceKeepKv": "この KV 名前空間とサイト設定を保持します。",
+    "resourceCreateDo": "承認済み Worker 移行を使って IngestDurableObject SQLite を作成します。",
+    "resourceKeepDo": "既存 Durable Object 名前空間と状態を保持します。",
+    "resourceCreateSecret": "安全な乱数でシークレットを生成し、ブラウザには送信しません。",
+    "resourceKeepRootSecret": "シークレットを読み取らず、ローテーションせずに保持します。",
+    "requiredBindingMissing": "必須バインディング {name} がないため、安全に更新できません。"
   }
-} as const;
-export type MessageKey = keyof typeof messages.en;
+};
+const DICTIONARIES: Record<Locale,AppMessages> = {
+  "en": enMessages,
+  "zh": zhMessages,
+  "zh-tw": zh_twMessages,
+  "ja": jaMessages,
+};
+export function getMessages(locale: Locale): AppMessages { return DICTIONARIES[locale]; }
+export type DeployMessageKey = keyof AppMessages["deploy"];
