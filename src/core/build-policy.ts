@@ -96,7 +96,7 @@ export interface BuildProcessContract {
   noSharedBuildArtifact: false;
   officialPublicNightlyPreferred: true;
   nightlyChannel: "nightly";
-  nightlyPublishActive: false;
+  nightlyPublishActive: true;
   sourceFetchWithoutFork: true;
   isolatedLinuxBuilderPrototype: true;
   isolatedBuilderProductionReady: false;
@@ -116,7 +116,7 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   noSharedBuildArtifact: false,
   officialPublicNightlyPreferred: true,
   nightlyChannel: "nightly",
-  nightlyPublishActive: false,
+  nightlyPublishActive: true,
   sourceFetchWithoutFork: true,
   isolatedLinuxBuilderPrototype: true,
   isolatedBuilderProductionReady: false,
@@ -126,14 +126,14 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   productionReady: false,
   caveats: [
     "Official GitHub CI can publish a verified build for each upstream main commit to the rolling nightly prerelease; no user fork or external object storage is required.",
-    "The nightly publisher is not yet enabled on upstream main. Never substitute a formal Release or an older nightly build when the latest commit is pending.",
-    "Each downloaded asset must match the official GitHub SHA256 digest and complete internal manifest.",
+    "The official nightly publisher is active on upstream main. Never substitute a formal Release or an older nightly build when the exact latest commit is pending.",
+    "The single downloaded nightly tar.gz must match GitHub SHA256 and its complete internal manifest, including every D1 migration SQL hash.",
     "Public build artifacts are shared official CI outputs; the old isolated per-user compiler is an optional experiment.",
     "A private Linux Docker builder prototype remains optional and is not needed by Deploy users; production readiness is unverified.",
     "Do not run a user build inside production application containers or share the build checkout between users.",
     "Cloudflare Builds requires an independently authorized user-scoped build token.",
     "Connecting main to Workers Builds normally triggers builds after upstream pushes.",
-    "Compile only the pinned Git SHA; keep source compilation separate from remote D1 migrations.",
+    "Compile only the pinned Git SHA; Deploy must separately inspect and apply the end user's D1 migrations before production activation, under account-specific authorization.",
     "Wrangler versions upload creates a version WITHOUT activating live traffic; wrangler deploy and versions deploy do deploy.",
     "A non-promoting command alone cannot establish a safe source, isolated build or database migration.",
     "The Beta Worker Versions API with deploy=false also supports an explicitly staged version.",

@@ -35,7 +35,6 @@ export interface PublicDeployRelease {
   sha: string;
   tag: "nightly";
   artifactDigest: string;
-  manifestAsset: GithubReleaseAsset;
   archiveAsset: GithubReleaseAsset;
 }
 
@@ -92,7 +91,7 @@ function verifiedAsset(raw: unknown, tag: string, expectedName: string): GithubR
 
 /** Nightly is a mutable prerelease CHANNEL, not a version or source Git tag. */
 export function parseNightlyPointer(body: unknown): {
-  sha: string; artifactDigest: string; archive: string; manifest: string;
+  sha: string; artifactDigest: string; archive: string;
 } {
   if (typeof body !== "string" || body.length > 16000) return reject("nightly release notes are missing");
   const marker = new RegExp("<!--\\s*" + NIGHTLY_MARKER + "\\s+(\\{[^\\r\\n<>]{1,1000}\\})\\s*-->", "g");
@@ -104,12 +103,12 @@ export function parseNightlyPointer(body: unknown): {
   if (typeof raw.sha !== "string" || !/^[a-f0-9]{40}$/.test(raw.sha) ||
     typeof raw.artifactDigest !== "string" || !HEX.test(raw.artifactDigest) ||
     raw.archive !== "insightflare-deploy-" + raw.sha + ".tar.gz" ||
-    raw.manifest !== "insightflare-deploy-" + raw.sha + ".json") {
+    "manifest" in raw) {
     return reject("nightly source pointer is inconsistent with its SHA-addressed asset names");
   }
   return {
     sha: raw.sha, artifactDigest: raw.artifactDigest,
-    archive: raw.archive, manifest: raw.manifest
+    archive: raw.archive
   };
 }
 
@@ -139,12 +138,12 @@ export async function resolvePublicDeployRelease(
       "The latest upstream commit has not been published to nightly yet; the build may still be running.", 409);
   }
   // The channel's actual Git tag never needs to move. The vetted notes pointer
-  // changes only after both uniquely SHA-addressed files have been uploaded.
+  // changes only after the single new SHA-addressed tar.gz is uploaded.
   const assets = [...data.assets] as unknown[];
   const found = (name: string) => assets.find(x => (x as { name?: string })?.name === name);
   // Some API responses may truncate attached assets; fetch paginated asset
-  // metadata only when the current SHA pair isn't already in the release body.
-  if (!found(pointer.archive) || !found(pointer.manifest)) {
+  // metadata only when the current SHA archive is not in the release body.
+  if (!found(pointer.archive)) {
     if (!Number.isSafeInteger(data.id) || (data.id as number) <= 0) {
       return reject("nightly release asset listing was truncated and has no valid release ID");
     }
@@ -159,14 +158,13 @@ export async function resolvePublicDeployRelease(
       const pageAssets = await assetResponse.json() as unknown;
       if (!Array.isArray(pageAssets)) return reject("nightly asset listing is invalid");
       assets.push(...pageAssets);
-      if (found(pointer.archive) && found(pointer.manifest)) break;
+      if (found(pointer.archive)) break;
       if (pageAssets.length < 100) break;
     }
   }
   return {
     sha: sourceSha, tag: NIGHTLY_TAG,
     artifactDigest: pointer.artifactDigest,
-    manifestAsset: verifiedAsset(found(pointer.manifest), NIGHTLY_TAG, pointer.manifest),
     archiveAsset: verifiedAsset(found(pointer.archive), NIGHTLY_TAG, pointer.archive)
   };
 }
@@ -322,23 +320,21 @@ function validateManifest(input: unknown, sha: string): ReleaseManifest {
 export async function downloadVerifiedPublicRelease(
   release: PublicDeployRelease, fetcher: typeof fetch = fetch
 ): Promise<ReleaseArtifact> {
-  const [manifestBytes, archiveBytes] = await Promise.all([
-    downloadAsset(release.manifestAsset, fetcher), downloadAsset(release.archiveAsset, fetcher)
-  ]);
+  const archiveBytes = await downloadAsset(release.archiveAsset, fetcher);
+  const parsed = parseDeployTar(await decompressArchive(archiveBytes));
+  const internalManifest = parsed.get("manifest.json");
+  if (!internalManifest) return reject("internal manifest is missing");
   let external: ReleaseManifest;
   try {
-    external = validateManifest(JSON.parse(new TextDecoder().decode(manifestBytes)), release.sha);
+    external = validateManifest(
+      JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(internalManifest)), release.sha
+    );
   } catch (error) {
     if (error instanceof DeployError) throw error;
-    return reject("external manifest is not valid JSON");
+    return reject("internal manifest is not valid JSON");
   }
   if (external.artifactDigest !== release.artifactDigest) {
     return reject("nightly pointer digest differs from its verified manifest");
-  }
-  const parsed = parseDeployTar(await decompressArchive(archiveBytes));
-  const internalManifest = parsed.get("manifest.json");
-  if (!internalManifest || await sha256(internalManifest) !== await sha256(manifestBytes)) {
-    return reject("internal manifest and Release manifest differ");
   }
   parsed.delete("manifest.json");
   if (external.files.length !== parsed.size) return reject("manifest file count differs from the archive");

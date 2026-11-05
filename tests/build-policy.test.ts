@@ -69,7 +69,7 @@ describe("user-owned build safety policy", () => {
     expect(BUILD_PROCESS_CONTRACT.noSharedBuildArtifact).toBe(false);
     expect(BUILD_PROCESS_CONTRACT.officialPublicNightlyPreferred).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.nightlyChannel).toBe("nightly");
-    expect(BUILD_PROCESS_CONTRACT.nightlyPublishActive).toBe(false);
+    expect(BUILD_PROCESS_CONTRACT.nightlyPublishActive).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.sourceFetchWithoutFork).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.isolatedLinuxBuilderPrototype).toBe(true);
     expect(BUILD_PROCESS_CONTRACT.isolatedBuilderProductionReady).toBe(false);

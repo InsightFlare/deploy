@@ -11,7 +11,7 @@ const otherSha = "e".repeat(40);
 const digest = "a".repeat(64);
 const base = "insightflare-deploy-" + sha;
 const notes = (commit = sha, hash = digest) =>
-  `# Nightly\n<!-- insightflare-deploy-nightly-v1 {"sha":"${commit}","artifactDigest":"${hash}","archive":"insightflare-deploy-${commit}.tar.gz","manifest":"insightflare-deploy-${commit}.json"} -->\n`;
+  `# Nightly\n<!-- insightflare-deploy-nightly-v1 {"sha":"${commit}","artifactDigest":"${hash}","archive":"insightflare-deploy-${commit}.tar.gz"} -->\n`;
 const asset = (name: string, bytes: Uint8Array = new Uint8Array([1, 2, 3])) => ({
   name,
   size: bytes.length,
@@ -22,10 +22,7 @@ function release(extra: Record<string, unknown> = {}) {
   return {
     id: 123, tag_name: "nightly", target_commitish: otherSha,
     draft: false, prerelease: true, immutable: false,
-    body: notes(), assets: [
-      asset(base + ".json"), asset(base + ".tar.gz"),
-      asset("insightflare-deploy-" + otherSha + ".tar.gz")
-    ], ...extra
+    body: notes(), assets: [asset(base + ".tar.gz")], ...extra
   };
 }
 function mockApi(data: object, head = sha) {
@@ -40,7 +37,7 @@ function mockApi(data: object, head = sha) {
 describe("rolling nightly channel resolution", () => {
   it("parses exactly one SHA-addressed pointer and rejects malformed or ambiguous notes", () => {
     expect(parseNightlyPointer(notes())).toEqual({
-      sha, artifactDigest: digest, archive: base + ".tar.gz", manifest: base + ".json"
+      sha, artifactDigest: digest, archive: base + ".tar.gz"
     });
     expect(() => parseNightlyPointer(notes() + notes())).toThrow("one verifiable");
     expect(() => parseNightlyPointer(notes(sha, "z".repeat(64)))).toThrow("inconsistent");
@@ -53,7 +50,6 @@ describe("rolling nightly channel resolution", () => {
     const resolved = await resolveLatestPublicNightly(fetcher);
     expect(resolved).toMatchObject({
       sha, tag: "nightly", artifactDigest: digest,
-      manifestAsset: { name: base + ".json" },
       archiveAsset: { name: base + ".tar.gz" }
     });
     const urls = (fetcher as ReturnType<typeof vi.fn>).mock.calls.map(x => String(x[0]));
@@ -69,9 +65,9 @@ describe("rolling nightly channel resolution", () => {
     await expect(resolveLatestPublicNightly(fetcher)).rejects.toThrow("build may still be running");
   });
 
-  it("allows older assets to coexist, but always chooses only exact SHA filenames", async () => {
-    const result = await resolvePublicDeployRelease(sha, mockApi(release()));
-    expect(result.manifestAsset.name).toBe(base + ".json");
+  it("chooses the exact active SHA archive even during old-archive cleanup", async () => {
+    const previous = asset("insightflare-deploy-" + otherSha + ".tar.gz");
+    const result = await resolvePublicDeployRelease(sha, mockApi(release({ assets: [previous, asset(base + ".tar.gz")] })));
     expect(result.archiveAsset.name).toBe(base + ".tar.gz");
   });
 
@@ -87,8 +83,8 @@ describe("rolling nightly channel resolution", () => {
       release({ draft: true }),
       release({ prerelease: false }),
       release({ tag_name: "v0.7.1" }),
-      release({ assets: [asset(base + ".json"), { ...asset(base + ".tar.gz"), digest: undefined }] }),
-      release({ assets: [asset(base + ".json"), { ...asset(base + ".tar.gz"), browser_download_url: "https://untrusted.invalid/evil" }] })
+      release({ assets: [{ ...asset(base + ".tar.gz"), digest: undefined }] }),
+      release({ assets: [{ ...asset(base + ".tar.gz"), browser_download_url: "https://untrusted.invalid/evil" }] })
     ]) {
       await expect(resolvePublicDeployRelease(sha, mockApi(data))).rejects.toThrow();
     }
@@ -156,11 +152,10 @@ function fixture() {
   const archive = gzipSync(tar);
   const listing = release({
     body: notes(sha, actualDigest),
-    assets: [asset(base + ".json", json), asset(base + ".tar.gz", archive)]
+    assets: [asset(base + ".tar.gz", archive)]
   });
   const fetcher = vi.fn(async (url: string) => {
     if (url.endsWith("/releases/tags/nightly")) return Response.json(listing);
-    if (url.endsWith("/" + base + ".json")) return new Response(json);
     if (url.endsWith("/" + base + ".tar.gz")) return new Response(archive);
     throw new Error("Unexpected URL " + url);
   }) as unknown as typeof fetch;
@@ -184,12 +179,12 @@ describe("nightly asset binary verification", () => {
     const release = await resolvePublicDeployRelease(sha, f.fetcher);
     const fetcher = vi.fn(async (url: string) => {
       if (url.endsWith(".tar.gz")) return new Response(new Uint8Array(f.archive.map((x, i) => i === 11 ? x ^ 1 : x)));
-      return new Response(f.json);
+      throw new Error("Unexpected URL " + url);
     }) as typeof fetch;
     await expect(downloadVerifiedPublicRelease(release, fetcher)).rejects.toThrow("SHA256 mismatch");
   });
 
-  it("refuses a modified nightly pointer even if both GitHub assets still have valid digests", async () => {
+  it("refuses a modified nightly pointer even when the GitHub archive has a valid digest", async () => {
     const f = fixture();
     const forged = release({
       body: notes(sha, digest),

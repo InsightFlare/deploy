@@ -228,6 +228,123 @@ export class CloudflareClient {
     return this.request<T>(path, { method: "POST", body }, 120000, bearerToken);
   }
 
+  /**
+   * Inspect the user's D1 migration readiness without reading application data.
+   * Only sqlite_master table names and Wrangler's d1_migrations ledger are read.
+   * All statements are constant strings, not arbitrary client-supplied SQL.
+   */
+  async d1MigrationSnapshot(accountId: string, databaseId: string): Promise<{
+    accountId: string; databaseId: string; tableNames: string[];
+    appliedNames: string[] | null; bookmark: string;
+  }> {
+    if (!/^[a-f0-9]{32}$/i.test(accountId) ||
+        !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId)) {
+      throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare account or D1 database identifier.");
+    }
+    await this.requireAccount(accountId);
+    const base = `/accounts/${accountId}/d1/database/${databaseId}`;
+    const metadata = await this.get<{ uuid?: string; name?: string; version?: string }>(base);
+    if (metadata.uuid?.toLowerCase() !== databaseId.toLowerCase()) {
+      throw new DeployError("SOURCE_MOVED", "D1 identity differs from the reviewed database ID.", 409);
+    }
+    if (metadata.version === "alpha") {
+      throw new DeployError("UNAVAILABLE", "Legacy alpha D1 storage has no supported Time Travel recovery; automatic migrations are blocked.", 409);
+    }
+
+    const query = async (sql: string): Promise<Array<Record<string, unknown>>> => {
+      const results = await this.postJson<Array<{
+        results?: Array<Record<string, unknown>>; success?: boolean
+      }>>(base + "/query", { sql });
+      if (!Array.isArray(results) || results.length !== 1 ||
+          results[0]?.success !== true || !Array.isArray(results[0].results)) {
+        throw new DeployError("UPSTREAM_UNAVAILABLE", "D1 returned an invalid migration-inspection result.", 502);
+      }
+      return results[0].results;
+    };
+    const tables = await query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name");
+    const tableNames = tables.map(row => row.name);
+    if (tableNames.some(name => typeof name !== "string") ||
+        new Set(tableNames).size !== tableNames.length) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "D1 table inventory is invalid.", 502);
+    }
+    let appliedNames: string[] | null = null;
+    if (tableNames.includes("d1_migrations")) {
+      const applied = await query("SELECT name FROM d1_migrations ORDER BY id ASC");
+      const names = applied.map(row => row.name);
+      if (names.some(name => typeof name !== "string")) {
+        throw new DeployError("UPSTREAM_UNAVAILABLE", "Wrangler migration ledger contains invalid names.", 502);
+      }
+      appliedNames = names as string[];
+    }
+    const bookmark = await this.get<{ bookmark?: string }>(base + "/time_travel/bookmark");
+    if (!bookmark || typeof bookmark.bookmark !== "string" ||
+        bookmark.bookmark.length < 1 || bookmark.bookmark.length > 200) {
+      throw new DeployError("UNAVAILABLE", "D1 Time Travel bookmark is unavailable; migration safety review blocked.", 409);
+    }
+    return {
+      accountId: accountId.toLowerCase(),
+      databaseId: databaseId.toLowerCase(),
+      tableNames: tableNames as string[],
+      appliedNames,
+      bookmark: bookmark.bookmark
+    };
+  }
+
+  /**
+   * Experimental D1 migration transport. Not exposed through any HTTP route.
+   * Must be called only after user approval, exact migration hash verification,
+   * an exclusive durable lease and a fresh migration snapshot.
+   *
+   * A single REST SQL batch groups the verified file with its Wrangler ledger
+   * INSERT. Transactional behavior of multi-statement SQL/PRAGMA must still be
+   * tested against a disposable D1 database before production use.
+   */
+  async d1ApplyVerifiedMigration(
+    accountId: string,
+    databaseId: string,
+    migration: { name: string; sql: string; sha256: string },
+    createLedger: boolean
+  ): Promise<void> {
+    if (!/^[a-f0-9]{32}$/i.test(accountId) ||
+        !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId) ||
+        !/^\d{4}_[a-z0-9][a-z0-9_-]*\.sql$/.test(migration?.name ?? "") ||
+        typeof migration.sql !== "string" ||
+        new TextEncoder().encode(migration.sql).byteLength > 90_000 ||
+        !/^[a-f0-9]{64}$/.test(migration.sha256) ||
+        typeof createLedger !== "boolean") {
+      throw new DeployError("INVALID_SOURCE", "Unrecognized authorized D1 migration input.");
+    }
+    const source = new TextEncoder().encode(migration.sql);
+    const hash = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", source)),
+      byte => byte.toString(16).padStart(2, "0")
+    ).join("");
+    if (hash !== migration.sha256) {
+      throw new DeployError("SOURCE_MOVED", "D1 migration SQL differs from the reviewed release manifest.", 409);
+    }
+
+    await this.requireAccount(accountId);
+    const entries: Array<{ sql: string; params?: string[] }> = [];
+    if (createLedger) {
+      entries.push({ sql: "CREATE TABLE d1_migrations (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        "name TEXT UNIQUE, " +
+        "applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)" });
+    }
+    entries.push({ sql: migration.sql });
+    entries.push({ sql: "INSERT INTO d1_migrations (name) VALUES (?)",
+      params: [migration.name] });
+    const result = await this.postJson<Array<{ success?: boolean }>>(
+      `/accounts/${accountId}/d1/database/${databaseId}/query`,
+      { batch: entries }, 120000
+    );
+    if (!Array.isArray(result) || result.length < entries.length ||
+        result.some(row => row?.success !== true)) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE",
+        "D1 migration batch returned an incomplete result. Do not retry until the ledger is inspected.", 502);
+    }
+  }
+
   async accounts(): Promise<CloudflareAccount[]> {
     const all: CloudflareAccount[] = [];
     for (let page = 1; page <= 10; page++) {
