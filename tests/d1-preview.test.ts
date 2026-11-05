@@ -86,6 +86,19 @@ describe("safe D1 migration preview, no database writes", () => {
     expect(cloudflare.d1MigrationSnapshot).not.toHaveBeenCalled();
   });
 
+  it("requires writer quiescence for ANY pending update, including additive SQL", async () => {
+    const cloudflare = reader({ tableNames:["d1_migrations","users"], appliedNames:[] });
+    const result = await inspectD1MigrationPreview(cloudflare,observed("managed"),
+      databaseId,await fixture());
+    expect(result.pendingMigrations).toBe(1);
+    expect(result.destructiveUpgrade).toBe(false);
+    expect(result.maintenanceRequired).toBe(true);
+    expect(result.maintenanceVerified).toBe(false);
+    expect(result.maintenanceWriteSources).toHaveLength(4);
+    expect(result.blockers.some(item => item.includes("writers are not quiesced"))).toBe(true);
+    expect(result.executionAvailable).toBe(false);
+  });
+
   it("marks legacy instance for explicit adoption without enabling migration execution", async () => {
     const result = await inspectD1MigrationPreview(reader(),observed("legacy-candidate"),
       databaseId,await fixture());

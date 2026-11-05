@@ -29,9 +29,18 @@ type D1Preview = {
   deploymentKind: Kind; totalMigrations: number;
   appliedMigrations: number; pendingMigrations: number;
   initialInstall: boolean; destructiveUpgrade: boolean;
-  needsConfirmation: boolean; recoveryBookmarkAvailable: boolean;
+  needsConfirmation: boolean; maintenanceRequired: boolean;
+  maintenanceVerified: false; maintenanceWriteSources: string[];
+  recoveryBookmarkAvailable: boolean;
   reviewedPlanDigest: string; executionAvailable: false; blockers: string[];
   pending: Array<{ name: string; sha256: string; sqlBytes: number; destructive: boolean; warnings: string[] }>;
+};
+type D1JournalStatus = {
+  phase: "reviewed" | "armed" | "in-flight" | "uncertain" | "completed" | "cancelled";
+  sourceSha: string; total: number; appliedBefore: number; appliedByDeploy: number;
+  remaining: number; inFlightName: string | null; incident: string | null;
+  recoveryBookmarkAvailable: boolean; existingInstallationNeedsQuiescence: boolean;
+  createdAt: number; updatedAt: number; executionAvailable: false;
 };
 type PreparedRun = {
   id: string; intent: "install" | "update" | "repair";
@@ -91,6 +100,8 @@ export function App() {
   const [d1Preview,setD1Preview]=useState<D1Preview|null>(null);
   const [d1Message,setD1Message]=useState("");
   const [d1Working,setD1Working]=useState(false);
+  const [d1Status,setD1Status]=useState<D1JournalStatus|null>(null);
+  const [d1StatusError,setD1StatusError]=useState("");
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
   const [resourcePlan,setResourcePlan]=useState<ResourcePlan|null>(null);
@@ -169,6 +180,18 @@ export function App() {
       .catch(e=>{if(!cancelled)setD1Message(errorText(e));});
     return ()=>{cancelled=true;};
   },[session.connected,accountId]);
+
+  useEffect(()=>{
+    setD1Status(null);setD1StatusError("");
+    if(!accountId || !databaseId || !session.connected) return;
+    let cancelled=false;
+    void api<{status:D1JournalStatus|null}>(
+      "/api/v1/providers/cloudflare/accounts/"+accountId+
+      "/d1/migration-status?databaseId="+encodeURIComponent(databaseId)
+    ).then(v=>{if(!cancelled)setD1Status(v.status);})
+     .catch(e=>{if(!cancelled)setD1StatusError(errorText(e));});
+    return ()=>{cancelled=true;};
+  },[accountId,databaseId,session.connected]);
 
   async function previewD1(){
     if(!accountId || !databaseId || d1Working) return;
@@ -381,6 +404,21 @@ export function App() {
                 This requires explicit Cloudflare consent. The OAuth client must also allow the <code>d1.read</code> scope; no D1 Write permission is requested for inspection.
               </p>
             </div>}
+            {d1StatusError&&<p role="status" className="text-xs text-muted-foreground">Migration status unavailable: {d1StatusError}</p>}
+            {d1Status&&<div data-testid="d1-run-status" className="space-y-2 border border-border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Eyebrow>Persistent migration journal</Eyebrow>
+                <Badge variant={d1Status.phase==="uncertain"?"destructive":"outline"}>{d1Status.phase.replaceAll("-"," ")}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {d1Status.appliedByDeploy} migrations confirmed in this run, {d1Status.remaining} remaining.
+              </p>
+              {d1Status.inFlightName&&<p className="text-xs">Last attempted: <code>{d1Status.inFlightName}</code></p>}
+              {d1Status.phase==="uncertain"&&<p className="text-xs text-destructive">
+                Outcome uncertain; further writes require independent D1 ledger reconciliation. Never retry automatically.
+              </p>}
+              <p className="text-xs text-muted-foreground">The original recovery bookmark is retained privately, not displayed in the browser. This view is read-only.</p>
+            </div>}
             {d1Preview&&<div className="space-y-3 border border-border p-4" data-testid="d1-preview">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Eyebrow>Verified source {d1Preview.sourceSha.slice(0,12)}</Eyebrow>
@@ -394,6 +432,17 @@ export function App() {
                 <div><p className="text-muted-foreground">Pending</p><p className="mt-1 text-base font-semibold">{d1Preview.pendingMigrations}</p></div>
                 <div><p className="text-muted-foreground">Recovery point</p><p className="mt-1 font-medium">{d1Preview.recoveryBookmarkAvailable?"Available":"Missing"}</p></div>
               </div>
+              {d1Preview.maintenanceRequired && !d1Preview.maintenanceVerified &&
+                <div className="space-y-2 border border-destructive/40 p-3 text-xs">
+                  <p className="flex items-start gap-2 font-medium text-destructive">
+                    <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Maintenance safety checks not yet implemented for an active InsightFlare instance.
+                  </p>
+                  <p className="text-muted-foreground">Even with a migration lock, the old Worker may still write to D1 through:</p>
+                  <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                    {d1Preview.maintenanceWriteSources.map(source=><li key={source}>{source}</li>)}
+                  </ul>
+                  <p className="text-muted-foreground">Execution remains blocked until every writer is fenced and buffered events are safely drained.</p>
+                </div>}
               {d1Preview.destructiveUpgrade&&<p className="flex items-start gap-2 text-xs text-destructive">
                 <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Some migrations change existing schema or data. A maintenance window and explicit approval are mandatory.
               </p>}

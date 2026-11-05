@@ -11,7 +11,7 @@ import { discoverDeployment } from "./providers/cloudflare/discovery";
 import { inspectBuildReadiness } from "./providers/cloudflare/build-readiness";
 import { BUILD_ADAPTER_STATUS } from "./providers/cloudflare/builds";
 import { BUILD_PROCESS_CONTRACT } from "./core/build-policy";
-import { prepareAccountRun, readAccountRun } from "./session/runs";
+import { prepareAccountRun, readAccountRun, readDatabaseMigrationStatus } from "./session/runs";
 import { assertReviewedSource } from "./core/run";
 import { oauthConfigured, startOAuth, finishOAuth, connectionStatus, signOut, userToken, assertSameOrigin, sessionIdentity } from "./security/oauth";
 
@@ -96,6 +96,26 @@ app.get("/api/v1/providers/cloudflare/accounts/:accountId/d1/migration-preview",
     }
     throw error;
   }
+});
+
+/**
+ * Read-only state of an already reviewed migration; visible ONLY to the
+ * original connected session. A missing journal is never an error and does
+ * not imply that migration execution is enabled.
+ */
+app.get("/api/v1/providers/cloudflare/accounts/:accountId/d1/migration-status", async c => {
+  const accountId = c.req.param("accountId");
+  const databaseId = c.req.query("databaseId");
+  if (!ACCOUNT.test(accountId) ||
+      !databaseId || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Valid account and D1 database ID are required.");
+  }
+  const client = new CloudflareClient(await userToken(c));
+  await client.requireAccount(accountId);
+  const status = await readDatabaseMigrationStatus(
+    c.env, accountId, databaseId, sessionIdentity(c)
+  );
+  return c.json({ status }, 200, { "Cache-Control": "no-store" });
 });
 
 app.get("/api/v1/providers/cloudflare/accounts/:accountId/deployment", async c => {
