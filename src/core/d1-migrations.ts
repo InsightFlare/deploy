@@ -25,7 +25,7 @@ export interface D1MigrationSnapshot {
   tableNames: string[];
   /** null means that the standard d1_migrations table is absent. */
   appliedNames: string[] | null;
-  /** Current Cloudflare Time Travel bookmark. */
+  /** Optional diagnostic Time Travel bookmark; not required by Wrangler migrations. */
   bookmark: string;
 }
 
@@ -75,7 +75,7 @@ export async function planD1Migrations(
       !HASH.test(release.manifest.artifactDigest) ||
       release.manifest.artifactDigest !== release.artifact.summary.digest ||
       !ACCOUNT.test(snapshot?.accountId ?? "") || !DB_ID.test(snapshot?.databaseId ?? "") ||
-      !snapshot.bookmark || snapshot.bookmark.length > 200 ||
+      typeof snapshot.bookmark !== "string" || snapshot.bookmark.length > 200 ||
       !Array.isArray(snapshot.tableNames) || snapshot.tableNames.some(x => typeof x !== "string")) {
     return blocked("verified source, database identity or recovery bookmark missing");
   }
@@ -109,28 +109,26 @@ export async function planD1Migrations(
   if (ledgerExists !== (snapshot.appliedNames !== null)) {
     return blocked("the migration ledger presence disagrees with database metadata");
   }
-  if (!ledgerExists && tables.some(name => !name.startsWith("sqlite_") && !name.startsWith("_cf_"))) {
-    return blocked("existing tables have no Wrangler migration ledger; manual adoption is required");
-  }
   const applied = snapshot.appliedNames ?? [];
-  if (!Array.isArray(applied) || applied.length > migrations.length || new Set(applied).size !== applied.length) {
+  if (!Array.isArray(applied) || new Set(applied).size !== applied.length ||
+      applied.some(name => typeof name !== "string" || name.length > 256)) {
     return blocked("invalid or duplicated applied-migration ledger");
   }
-  for (let i = 0; i < applied.length; i++) {
-    if (typeof applied[i] !== "string" || applied[i] !== migrations[i]?.name) {
-      return blocked("unknown, reordered, or missing migration in the database history");
-    }
-  }
-  const pending = migrations.slice(applied.length);
-  const initialInstall = !ledgerExists && applied.length === 0;
+  // Follow Wrangler: migration filenames, not a mandatory ledger prefix,
+  // determine what remains to be applied in sorted source-file order.
+  // Existing non-migration tables and unrelated ledger names are NOT blocked:
+  // let the actual SQL succeed/fail exactly as during a manual deployment.
+  const completed = new Set(applied);
+  const pending = migrations.filter(step => !completed.has(step.name));
+  const initialInstall = !ledgerExists &&
+    tables.every(name => name.startsWith("sqlite_") || name.startsWith("_cf_"));
   const destructiveUpgrade = !initialInstall && pending.some(step => step.destructive);
   const planDigest = await hashBytes(JSON.stringify({
     sourceSha: release.release.sha,
     artifactDigest: release.manifest.artifactDigest,
     accountId: snapshot.accountId,
     databaseId: snapshot.databaseId.toLowerCase(),
-    bookmark: snapshot.bookmark,
-    applied,
+    applied: [...applied].sort(),
     pending: pending.map(step => [step.name, step.sha256]),
     initialInstall
   }));
@@ -152,7 +150,6 @@ export function requireD1MigrationApproval(
     databaseId: string;
     sourceSha: string;
     reviewedPlanDigest: string;
-    maintenanceWindowConfirmed: boolean;
     approvalGranted: boolean;
   }
 ): void {
@@ -161,8 +158,7 @@ export function requireD1MigrationApproval(
       approval.databaseId.toLowerCase() !== plan.databaseId ||
       approval.sourceSha !== plan.sourceSha ||
       approval.reviewedPlanDigest !== plan.reviewedPlanDigest ||
-      !approval.approvalGranted ||
-      (plan.destructiveUpgrade && !approval.maintenanceWindowConfirmed)) {
+      !approval.approvalGranted) {
     return blocked("user approval does not match the exact source, D1 database and migration plan");
   }
 }

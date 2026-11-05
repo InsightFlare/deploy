@@ -69,15 +69,16 @@ describe("Cloudflare D1 user-account migration preflight (read-only)", () => {
     await expect(client.d1MigrationSnapshot(accountId, databaseId)).rejects.toThrow("identity differs");
   });
 
-  it("refuses legacy D1 alpha storage without Time Travel recovery", async () => {
+  it("allows legacy D1 storage when Wrangler-style ledger reads work", async () => {
     const { client, seen } = clientWithHistory({ legacyAlpha: true });
-    await expect(client.d1MigrationSnapshot(accountId, databaseId)).rejects.toThrow("Legacy alpha D1 storage");
-    expect(seen.filter(x => x.method === "POST")).toHaveLength(0);
+    const state = await client.d1MigrationSnapshot(accountId, databaseId);
+    expect(state.appliedNames).toEqual(["0001_initial.sql"]);
+    expect(seen.filter(x => x.method === "POST")).toHaveLength(2);
   });
 
-  it("blocks missing recoverable bookmark or a failed ledger read", async () => {
+  it("treats Time Travel bookmark as optional but still stops for a failed migration ledger read", async () => {
     const noBookmark = clientWithHistory({ missingBookmark: true });
-    await expect(noBookmark.client.d1MigrationSnapshot(accountId, databaseId)).rejects.toThrow("bookmark is unavailable");
+    expect((await noBookmark.client.d1MigrationSnapshot(accountId, databaseId)).bookmark).toBe("");
     const failed = clientWithHistory({ rejectedLedger: true });
     await expect(failed.client.d1MigrationSnapshot(accountId, databaseId)).rejects.not.toThrow("Secret DB error");
     await expect(failed.client.d1MigrationSnapshot(accountId, databaseId)).rejects.toThrow("HTTP 503");

@@ -24,12 +24,11 @@ export interface D1MigrationPreview {
   initialInstall: boolean;
   destructiveUpgrade: boolean;
   needsConfirmation: boolean;
-  maintenanceRequired: boolean;
-  maintenanceVerified: false;
-  maintenanceWriteSources: string[];
-  recoveryBookmarkAvailable: true;
+  recoveryBookmarkAvailable: boolean;
   reviewedPlanDigest: string;
   pending: Array<{ name: string; sha256: string; sqlBytes: number; destructive: boolean; warnings: string[] }>;
+  /** Remote D1 migrations are supported, like Wrangler; Worker activation is separate. */
+  migrationExecutionAvailable: true;
   executionAvailable: false;
   blockers: string[];
 }
@@ -64,18 +63,6 @@ export async function inspectD1MigrationPreview(
   }
   const snapshot = await reader.d1MigrationSnapshot(accountId, databaseId);
   const plan = await planD1Migrations(release, snapshot);
-  // This is a reporting contract, NOT a claim of a maintenance lock.
-  // Real upgrades require a runtime writer-quiescence handshake in the
-  // InsightFlare Worker/INGEST_DO/scheduled services, which does not yet exist.
-  const maintenanceRequired = observed.kind !== "not-installed" && plan.pending.length > 0;
-  const maintenanceWriteSources = maintenanceRequired
-    ? [
-      "HTTP and server-function database writes",
-      "IngestDurableObject buffered D1 flushes and pending alarms",
-      "Scheduled analytics rollups, ingestion sweeps and database maintenance",
-      "Any external clients still writing through the old Worker"
-    ]
-    : [];
   return {
     sourceSha: plan.sourceSha,
     artifactDigest: plan.artifactDigest,
@@ -87,20 +74,15 @@ export async function inspectD1MigrationPreview(
     initialInstall: plan.initialInstall,
     destructiveUpgrade: plan.destructiveUpgrade,
     needsConfirmation: plan.needsConfirmation,
-    maintenanceRequired,
-    maintenanceVerified: false,
-    maintenanceWriteSources,
-    recoveryBookmarkAvailable: true,
+    recoveryBookmarkAvailable: Boolean(plan.bookmark),
     reviewedPlanDigest: plan.reviewedPlanDigest,
     pending: plan.pending.map(item => ({ ...item, warnings: [...item.warnings] })),
+    migrationExecutionAvailable: true,
     executionAvailable: false,
     blockers: [
       ...(observed.kind === "legacy-candidate"
         ? ["Legacy Worker adoption requires explicit review before migration or promotion."] : []),
-      ...(maintenanceRequired ? [
-        "Existing InsightFlare writers are not quiesced. A D1 lease alone cannot stop Worker, Durable Object and scheduled writes."
-      ] : []),
-      "D1 migration execution and Worker activation are not enabled in this control plane yet."
+      "Worker upload and activation are separate from D1 migration and are not yet enabled."
     ]
   };
 }

@@ -278,10 +278,6 @@ export class CloudflareClient {
     if (metadata.uuid?.toLowerCase() !== databaseId.toLowerCase()) {
       throw new DeployError("SOURCE_MOVED", "D1 identity differs from the reviewed database ID.", 409);
     }
-    if (metadata.version === "alpha") {
-      throw new DeployError("UNAVAILABLE", "Legacy alpha D1 storage has no supported Time Travel recovery; automatic migrations are blocked.", 409);
-    }
-
     const query = async (sql: string): Promise<Array<Record<string, unknown>>> => {
       const results = await this.postJson<Array<{
         results?: Array<Record<string, unknown>>; success?: boolean
@@ -307,29 +303,33 @@ export class CloudflareClient {
       }
       appliedNames = names as string[];
     }
-    const bookmark = await this.get<{ bookmark?: string }>(base + "/time_travel/bookmark");
-    if (!bookmark || typeof bookmark.bookmark !== "string" ||
-        bookmark.bookmark.length < 1 || bookmark.bookmark.length > 200) {
-      throw new DeployError("UNAVAILABLE", "D1 Time Travel bookmark is unavailable; migration safety review blocked.", 409);
+    // Wrangler does not require a Time Travel bookmark to apply migrations.
+    // Treat its availability as optional metadata (the database itself might
+    // be on a plan or legacy storage mode without that endpoint).
+    let bookmark = "";
+    try {
+      const response = await this.get<{ bookmark?: string }>(base + "/time_travel/bookmark");
+      if (typeof response?.bookmark === "string" && response.bookmark.length <= 200) {
+        bookmark = response.bookmark;
+      }
+    } catch {
+      // Not a migration blocker.
     }
     return {
       accountId: accountId.toLowerCase(),
       databaseId: databaseId.toLowerCase(),
       tableNames: tableNames as string[],
       appliedNames,
-      bookmark: bookmark.bookmark
+      bookmark
     };
   }
 
   /**
-   * Experimental D1 migration transport. Not exposed through any HTTP route.
-   * Must be called only after user approval, exact migration hash verification,
-   * an exclusive durable lease and a fresh migration snapshot.
-   *
-   * A single REST SQL batch groups the verified file with its Wrangler ledger
-   * INSERT. Atomic rollback, all 43 canonical SQL files, and final schema
-   * parity were tested on disposable remote D1 (2026-11-05), but real user
-   * writes remain blocked until durable locks and maintenance checks exist.
+   * Wrangler-equivalent D1 migration file execution: an official SQL file
+   * and its d1_migrations ledger INSERT are executed atomically in one REST
+   * batch. No maintenance mode or additional Durable Object is involved.
+   * The caller must verify the official manifest and selected D1 identity.
+   * Tested with all 43 canonical SQL files against a disposable remote D1.
    */
   async d1ApplyVerifiedMigration(
     accountId: string,

@@ -11,6 +11,11 @@ describe("least-privilege Cloudflare OAuth escalation", () => {
       defaultScopes + " d1.read"
     );
   });
+  it("requests D1 Write only from the user's explicit action, never by default", () => {
+    expect(requestedOAuthScopes(defaultScopes, "d1-write")).toBe(
+      defaultScopes + " d1.read d1.write"
+    );
+  });
   it("never duplicates a previously allowed scope", () => {
     expect(requestedOAuthScopes(defaultScopes+" d1.read", "d1-read").split("d1.read")).toHaveLength(2);
   });

@@ -52,7 +52,7 @@ describe("safe D1 migration preview, no database writes", () => {
     expect(result).toMatchObject({
       sourceSha:sha,databaseId,totalMigrations:1,appliedMigrations:0,
       pendingMigrations:1,initialInstall:true,recoveryBookmarkAvailable:true,
-      executionAvailable:false
+      migrationExecutionAvailable:true,executionAvailable:false
     });
     expect(result.pending[0]?.name).toBe("0001_initial.sql");
     expect(JSON.stringify(result)).not.toContain(sql);
@@ -86,16 +86,14 @@ describe("safe D1 migration preview, no database writes", () => {
     expect(cloudflare.d1MigrationSnapshot).not.toHaveBeenCalled();
   });
 
-  it("requires writer quiescence for ANY pending update, including additive SQL", async () => {
+  it("allows normal migration preview for an existing running Worker without requiring quiescence", async () => {
     const cloudflare = reader({ tableNames:["d1_migrations","users"], appliedNames:[] });
     const result = await inspectD1MigrationPreview(cloudflare,observed("managed"),
       databaseId,await fixture());
     expect(result.pendingMigrations).toBe(1);
     expect(result.destructiveUpgrade).toBe(false);
-    expect(result.maintenanceRequired).toBe(true);
-    expect(result.maintenanceVerified).toBe(false);
-    expect(result.maintenanceWriteSources).toHaveLength(4);
-    expect(result.blockers.some(item => item.includes("writers are not quiesced"))).toBe(true);
+    expect(result.migrationExecutionAvailable).toBe(true);
+    expect(result.blockers.some(item => /quiesc|maintenance|writers/.test(item))).toBe(false);
     expect(result.executionAvailable).toBe(false);
   });
 

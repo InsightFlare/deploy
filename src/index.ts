@@ -4,6 +4,7 @@ import { DeployError } from "./types";
 import { resolveLatestMain } from "./core/source";
 import { resolveLatestPublicNightly, downloadVerifiedPublicRelease } from "./core/public-release";
 import { inspectD1MigrationPreview } from "./core/d1-preview";
+import { applyManualD1Migrations } from "./core/d1-manual";
 import { deploymentPlan, type Intent } from "./core/plan";
 import { planResourceReconciliation } from "./core/reconcile";
 import { CloudflareClient } from "./providers/cloudflare/client";
@@ -11,7 +12,7 @@ import { discoverDeployment } from "./providers/cloudflare/discovery";
 import { inspectBuildReadiness } from "./providers/cloudflare/build-readiness";
 import { BUILD_ADAPTER_STATUS } from "./providers/cloudflare/builds";
 import { BUILD_PROCESS_CONTRACT } from "./core/build-policy";
-import { prepareAccountRun, readAccountRun, readDatabaseMigrationStatus } from "./session/runs";
+import { prepareAccountRun, readAccountRun } from "./session/runs";
 import { assertReviewedSource } from "./core/run";
 import { oauthConfigured, startOAuth, finishOAuth, connectionStatus, signOut, userToken, assertSameOrigin, sessionIdentity } from "./security/oauth";
 
@@ -29,11 +30,12 @@ app.onError((error, c) => {
   return c.json({ error: { code: "UPSTREAM_UNAVAILABLE", message: "The request could not be completed. Please retry." } }, 503, { "Cache-Control": "no-store" });
 });
 
-app.get("/api/v1/health", c => c.json({ ok: true, service: "insightflare-deploy", deploymentMutationsEnabled: false }));
+app.get("/api/v1/health", c => c.json({ ok: true, service: "insightflare-deploy", d1MigrationsAvailable: true, deploymentMutationsEnabled: false }));
 app.get("/api/v1/config", c => c.json({
   source: c.env.SOURCE_REPOSITORY || "RavelloH/InsightFlare",
   oauthConfigured: oauthConfigured(c.env),
   deploymentMutationsEnabled: false,
+  d1MigrationsAvailable: true,
   builds: BUILD_ADAPTER_STATUS
 }, 200, { "Cache-Control": "no-store" }));
 
@@ -99,23 +101,55 @@ app.get("/api/v1/providers/cloudflare/accounts/:accountId/d1/migration-preview",
 });
 
 /**
- * Read-only state of an already reviewed migration; visible ONLY to the
- * original connected session. A missing journal is never an error and does
- * not imply that migration execution is enabled.
+ * Manual-deployment-equivalent D1 migration step. Old Worker traffic and
+ * cron/ingestion continue normally; no maintenance barrier or extra DO is
+ * involved. Each POST applies at most four SQL files, allowing the UI to
+ * resume from the Wrangler d1_migrations ledger if the tab closes.
  */
-app.get("/api/v1/providers/cloudflare/accounts/:accountId/d1/migration-status", async c => {
+app.post("/api/v1/providers/cloudflare/accounts/:accountId/d1/migrations/apply", async c => {
+  assertSameOrigin(c);
   const accountId = c.req.param("accountId");
-  const databaseId = c.req.query("databaseId");
-  if (!ACCOUNT.test(accountId) ||
-      !databaseId || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId)) {
-    throw new DeployError("INVALID_ACCOUNT", "Valid account and D1 database ID are required.");
+  if (!ACCOUNT.test(accountId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  }
+  const body = await c.req.json().catch(() => null) as {
+    databaseId?: string; sourceSha?: string; reviewedPlanDigest?: string;
+  } | null;
+  const databaseId = body?.databaseId?.toLowerCase();
+  if (!databaseId || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId) ||
+      !/^[a-f0-9]{40}$/.test(body?.sourceSha ?? "") ||
+      !/^[a-f0-9]{64}$/.test(body?.reviewedPlanDigest ?? "")) {
+    throw new DeployError("INVALID_SOURCE", "A reviewed database, exact source SHA and plan digest are required.");
   }
   const client = new CloudflareClient(await userToken(c));
-  await client.requireAccount(accountId);
-  const status = await readDatabaseMigrationStatus(
-    c.env, accountId, databaseId, sessionIdentity(c)
-  );
-  return c.json({ status }, 200, { "Cache-Control": "no-store" });
+  try {
+    const [observed, databases] = await Promise.all([
+      discoverDeployment(client, accountId), client.d1Databases(accountId)
+    ]);
+    if (!databases.some(db => db.uuid === databaseId)) {
+      throw new DeployError("UNAVAILABLE", "Selected D1 database is absent from the authorized account.", 409);
+    }
+    const release = await resolveLatestPublicNightly();
+    if (release.sha !== body?.sourceSha) {
+      throw new DeployError("SOURCE_MOVED", "The official main commit has changed; refresh the migration preview.", 409);
+    }
+    const verified = await downloadVerifiedPublicRelease(release);
+    const preview = await inspectD1MigrationPreview(client, observed, databaseId, verified);
+    if (preview.reviewedPlanDigest !== body?.reviewedPlanDigest) {
+      throw new DeployError("SOURCE_MOVED", "The D1 migration history changed; refresh the preview.", 409);
+    }
+    const progress = await applyManualD1Migrations(client, verified, {
+      accountId, databaseId, sourceSha: release.sha,
+      reviewedPlanDigest: preview.reviewedPlanDigest, maxFiles: 4
+    });
+    return c.json({ progress }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    if (error instanceof DeployError && error.status === 403) {
+      throw new DeployError("UNAVAILABLE",
+        "D1 access denied. Reconnect Cloudflare with an OAuth grant that includes D1 Write.", 403);
+    }
+    throw error;
+  }
 });
 
 app.get("/api/v1/providers/cloudflare/accounts/:accountId/deployment", async c => {
@@ -178,7 +212,7 @@ app.post("/api/v1/providers/cloudflare/accounts/:accountId/prepare", async c => 
   // Never prepare executable work unless the entire workflow has passed
   // user-owned build, migration and deployment safety validation.
   const blockers = [...new Set([...plan.blockers, ...resources.blockers,
-    "Official Nightly is verified; user-owned D1 migration execution, staged Worker upload and final activation remain disabled pending safety approval."])];
+    "Official Nightly is verified; D1 migration execution follows manual Wrangler behavior, while Worker upload and activation remain disabled."])];
   const run = await prepareAccountRun(c.env, {
     accountId, ownerId: sessionIdentity(c), intent: body.intent as Intent,
     pinnedSha: plan.sourceSha, currentSha: observed.deployedSha, blockers

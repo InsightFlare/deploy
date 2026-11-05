@@ -50,13 +50,14 @@ export function assertSameOrigin(c: AppContext): void {
   }
 }
 
-/** Explicit, least-privilege OAuth scopes for read-only migration inspection. */
+/** Explicit OAuth consent; D1 writes are never requested by default. */
 export function requestedOAuthScopes(base: string, capability?: string): string {
-  if (capability && capability !== "d1-read") {
+  if (capability && capability !== "d1-read" && capability !== "d1-write") {
     throw new DeployError("INVALID_SOURCE", "Unsupported Cloudflare OAuth capability request.");
   }
   const scopes = new Set(base.split(/\s+/).filter(Boolean));
-  if (capability === "d1-read") scopes.add("d1.read");
+  if (capability === "d1-read" || capability === "d1-write") scopes.add("d1.read");
+  if (capability === "d1-write") scopes.add("d1.write");
   return [...scopes].join(" ");
 }
 
@@ -75,9 +76,8 @@ export async function startOAuth(c: AppContext): Promise<Response> {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", c.env.CF_OAUTH_CLIENT_ID!);
   url.searchParams.set("redirect_uri", callbackUri(c));
-  // Least privilege by default. D1 Read is requested only when the user
-  // expressly chooses the database-inspection flow; never silently elevate.
-  // The OAuth client must separately allow this scope in Cloudflare's console.
+  // Least privilege by default. The user explicitly chooses D1 Read or
+  // D1 Write; the OAuth application must allow the chosen scopes.
   url.searchParams.set("scope",
     requestedOAuthScopes(c.env.CF_OAUTH_SCOPES, c.req.query("capability")));
   url.searchParams.set("state", state);

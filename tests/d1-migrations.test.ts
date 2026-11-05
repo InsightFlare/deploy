@@ -82,14 +82,24 @@ describe("verified Nightly SQL migration planner, read-only", () => {
     expect(plan.destructiveUpgrade).toBe(false);
   });
 
+  it("follows Wrangler filenames, even on a populated database or non-prefix ledger", async () => {
+    const populated = await planD1Migrations(await fixture(), snapshot({
+      tableNames: ["users"], appliedNames: null
+    }));
+    expect(populated.initialInstall).toBe(false);
+    expect(populated.pending).toHaveLength(3);
+    const nonPrefix = await planD1Migrations(await fixture(), snapshot({
+      tableNames: ["d1_migrations", "users"],
+      appliedNames: ["0002_add_columns.sql", "9999_custom.sql"]
+    }));
+    expect(nonPrefix.pending.map(x => x.name)).toEqual(["0001_initial.sql", "0003_extra.sql"]);
+  });
+
   it.each([
-    { tableNames: ["users"], appliedNames: null },
-    { tableNames: ["d1_migrations"], appliedNames: ["0002_add_columns.sql"] },
     { tableNames: ["d1_migrations"], appliedNames: ["0001_initial.sql", "0001_initial.sql"] },
-    { tableNames: ["d1_migrations"], appliedNames: ["0001_initial.sql", "9999_rogue.sql"] },
     { tableNames: [], appliedNames: ["0001_initial.sql"] },
     { tableNames: ["d1_migrations"], appliedNames: null }
-  ])("refuses ambiguous or unrecognized existing schemas: %j", async overrides => {
+  ])("refuses malformed migration metadata: %j", async overrides => {
     await expect(planD1Migrations(await fixture(), snapshot(overrides))).rejects.toThrow();
   });
 
@@ -105,7 +115,7 @@ describe("verified Nightly SQL migration planner, read-only", () => {
     await expect(planD1Migrations(noFile, snapshot())).rejects.toThrow();
   });
 
-  it("changes approval fingerprint when D1 identity, bookmark, or pending history changes", async () => {
+  it("binds review to DB identity and ledger, not unrelated Time Travel bookmarks", async () => {
     const data = await fixture();
     const first = await planD1Migrations(data, snapshot());
     const otherBookmark = await planD1Migrations(data, snapshot({ bookmark: "second-bookmark" }));
@@ -113,22 +123,22 @@ describe("verified Nightly SQL migration planner, read-only", () => {
     const upgraded = await planD1Migrations(data, snapshot({
       tableNames: ["d1_migrations"], appliedNames: ["0001_initial.sql"]
     }));
-    expect(new Set([first.reviewedPlanDigest, otherBookmark.reviewedPlanDigest,
-      otherDb.reviewedPlanDigest, upgraded.reviewedPlanDigest]).size).toBe(4);
+    expect(first.reviewedPlanDigest).toBe(otherBookmark.reviewedPlanDigest);
+    expect(new Set([first.reviewedPlanDigest,
+      otherDb.reviewedPlanDigest, upgraded.reviewedPlanDigest]).size).toBe(3);
   });
 
-  it("requires explicit approval and a confirmed maintenance window for destructive upgrades", async () => {
+  it("does not demand a maintenance window for ordinary Wrangler-style upgrades", async () => {
     const plan = await planD1Migrations(await fixture(), snapshot({
       tableNames: ["d1_migrations"], appliedNames: ["0001_initial.sql"]
     }));
     const approval = { accountId, databaseId, sourceSha: sha,
       reviewedPlanDigest: plan.reviewedPlanDigest,
-      maintenanceWindowConfirmed: false, approvalGranted: true };
-    expect(() => requireD1MigrationApproval(plan, approval)).toThrow();
+      approvalGranted: true };
+    expect(() => requireD1MigrationApproval(plan, approval)).not.toThrow();
+    expect(() => requireD1MigrationApproval(plan, approval)).not.toThrow();
     expect(() => requireD1MigrationApproval(plan,
-      { ...approval, maintenanceWindowConfirmed: true })).not.toThrow();
-    expect(() => requireD1MigrationApproval(plan,
-      { ...approval, maintenanceWindowConfirmed: true, databaseId: "e".repeat(32) })).toThrow();
+      { ...approval, databaseId: "e".repeat(32) })).toThrow();
   });
 
   it("never implicitly approves D1 mutations for a new installation either", async () => {
@@ -136,7 +146,7 @@ describe("verified Nightly SQL migration planner, read-only", () => {
     expect(() => requireD1MigrationApproval(plan, {
       accountId, databaseId, sourceSha: sha,
       reviewedPlanDigest: plan.reviewedPlanDigest,
-      maintenanceWindowConfirmed: true, approvalGranted: false
+      approvalGranted: false
     })).toThrow();
   });
 });

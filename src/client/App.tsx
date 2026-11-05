@@ -29,18 +29,10 @@ type D1Preview = {
   deploymentKind: Kind; totalMigrations: number;
   appliedMigrations: number; pendingMigrations: number;
   initialInstall: boolean; destructiveUpgrade: boolean;
-  needsConfirmation: boolean; maintenanceRequired: boolean;
-  maintenanceVerified: false; maintenanceWriteSources: string[];
-  recoveryBookmarkAvailable: boolean;
-  reviewedPlanDigest: string; executionAvailable: false; blockers: string[];
+  needsConfirmation: boolean; recoveryBookmarkAvailable: boolean;
+  reviewedPlanDigest: string; migrationExecutionAvailable: true;
+  executionAvailable: false; blockers: string[];
   pending: Array<{ name: string; sha256: string; sqlBytes: number; destructive: boolean; warnings: string[] }>;
-};
-type D1JournalStatus = {
-  phase: "reviewed" | "armed" | "in-flight" | "uncertain" | "completed" | "cancelled";
-  sourceSha: string; total: number; appliedBefore: number; appliedByDeploy: number;
-  remaining: number; inFlightName: string | null; incident: string | null;
-  recoveryBookmarkAvailable: boolean; existingInstallationNeedsQuiescence: boolean;
-  createdAt: number; updatedAt: number; executionAvailable: false;
 };
 type PreparedRun = {
   id: string; intent: "install" | "update" | "repair";
@@ -100,8 +92,7 @@ export function App() {
   const [d1Preview,setD1Preview]=useState<D1Preview|null>(null);
   const [d1Message,setD1Message]=useState("");
   const [d1Working,setD1Working]=useState(false);
-  const [d1Status,setD1Status]=useState<D1JournalStatus|null>(null);
-  const [d1StatusError,setD1StatusError]=useState("");
+  const [d1Applying,setD1Applying]=useState(false);
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
   const [resourcePlan,setResourcePlan]=useState<ResourcePlan|null>(null);
@@ -181,18 +172,48 @@ export function App() {
     return ()=>{cancelled=true;};
   },[session.connected,accountId]);
 
-  useEffect(()=>{
-    setD1Status(null);setD1StatusError("");
-    if(!accountId || !databaseId || !session.connected) return;
-    let cancelled=false;
-    void api<{status:D1JournalStatus|null}>(
-      "/api/v1/providers/cloudflare/accounts/"+accountId+
-      "/d1/migration-status?databaseId="+encodeURIComponent(databaseId)
-    ).then(v=>{if(!cancelled)setD1Status(v.status);})
-     .catch(e=>{if(!cancelled)setD1StatusError(errorText(e));});
-    return ()=>{cancelled=true;};
-  },[accountId,databaseId,session.connected]);
-
+  async function applyD1Migrations(){
+    if(!accountId || !databaseId || !d1Preview || d1Applying ||
+       !d1Preview.pendingMigrations || !d1Preview.migrationExecutionAvailable) return;
+    const target = d1Databases.find(db=>db.uuid===databaseId)?.name ?? databaseId;
+    if(!window.confirm("Apply "+d1Preview.pendingMigrations+" official D1 migrations to "+
+      target+"? As with manual Wrangler deployment, the existing Worker continues serving during migrations.")) return;
+    setD1Applying(true);setD1Message("");
+    try {
+      let digest=d1Preview.reviewedPlanDigest;
+      let remaining=d1Preview.pendingMigrations;
+      let applied=0;
+      // Each API request applies up to four migration files. A closed tab or
+      // interrupted request can be resumed by inspecting the D1 ledger again.
+      for(let requests=0;remaining>0 && requests<150;requests++){
+        const {progress}=await api<{progress:{
+          sourceSha:string; databaseId:string; applied:string[];
+          remaining:number; nextReviewedPlanDigest:string; completed:boolean
+        }}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/d1/migrations/apply",{
+          method:"POST",headers:{"Content-Type":"application/json",Origin:window.location.origin},
+          body:JSON.stringify({
+            databaseId,sourceSha:d1Preview.sourceSha,reviewedPlanDigest:digest
+          })
+        });
+        if(!progress.applied.length || progress.remaining>=remaining) {
+          throw new Error("D1 migration progress was not confirmed. Refresh the preview.");
+        }
+        applied+=progress.applied.length;
+        remaining=progress.remaining;
+        digest=progress.nextReviewedPlanDigest;
+        setD1Message("Applied "+applied+" migration(s); "+remaining+" remaining.");
+      }
+      if(remaining>0) throw new Error("Migration process stopped; refresh the preview.");
+      const updated=await api<{preview:D1Preview}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+
+        "/d1/migration-preview?databaseId="+encodeURIComponent(databaseId)
+      );
+      setD1Preview(updated.preview);
+      setD1Message("All D1 migrations have been applied; Worker deployment is a separate step.");
+    }catch(e){
+      setD1Message(errorText(e)+" Check the latest D1 migration history before continuing.");
+    }finally{setD1Applying(false);}
+  }
   async function previewD1(){
     if(!accountId || !databaseId || d1Working) return;
     setD1Working(true);setD1Preview(null);setD1Message("");
@@ -253,8 +274,8 @@ export function App() {
           </a>)}
       </nav>
       <div className="mt-6 space-y-3 border-t border-sidebar-border pt-5 md:mt-auto">
-        <Badge variant="outline">Preview · Read-only</Badge>
-        <p className="text-xs leading-relaxed text-muted-foreground">Official Nightly is verified; account-specific migrations and activation remain gated.</p>
+        <Badge variant="outline">Nightly · D1 migrations</Badge>
+        <p className="text-xs leading-relaxed text-muted-foreground">Official Nightly and D1 migrations are available. Worker upload and activation remain separate.</p>
         <a className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           href="https://github.com/InsightFlare/deploy" target="_blank" rel="noopener noreferrer">
           Source code <RiExternalLinkLine className="size-3.5"/>
@@ -373,7 +394,7 @@ export function App() {
         <Card className="deploy-card" id="database">
           <CardHeader><div className="flex items-start justify-between gap-3">
             <div className="space-y-1"><Eyebrow>Database</Eyebrow><CardTitle>D1 migration readiness</CardTitle>
-              <CardDescription>Compare your database with the verified official Nightly migration history. No SQL changes are made.</CardDescription></div>
+              <CardDescription>Inspect the official Nightly migrations, then apply pending SQL like Wrangler. The existing Worker keeps serving.</CardDescription></div>
             <RiServerLine className="size-5 text-primary"/>
           </div></CardHeader>
           <CardContent className="space-y-4">
@@ -388,10 +409,10 @@ export function App() {
                     {db.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" disabled={!databaseId||d1Working} onClick={()=>void previewD1()}>
+              <Button variant="outline" disabled={!databaseId||d1Working||d1Applying} onClick={()=>void previewD1()}>
                 <RiShieldCheckLine/>{d1Working?"Verifying Nightly and D1…":"Inspect migrations"}
               </Button>
-              <Badge variant="outline"><RiLockLine className="mr-1 size-3"/>Read-only</Badge>
+              <Badge variant="outline">Wrangler-compatible migrations</Badge>
             </div>
             {d1Message&&<p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground" role="status">
               <RiInformationLine className="mt-0.5 size-4 shrink-0"/>{d1Message}
@@ -403,21 +424,6 @@ export function App() {
               <p className="text-xs leading-relaxed text-muted-foreground">
                 This requires explicit Cloudflare consent. The OAuth client must also allow the <code>d1.read</code> scope; no D1 Write permission is requested for inspection.
               </p>
-            </div>}
-            {d1StatusError&&<p role="status" className="text-xs text-muted-foreground">Migration status unavailable: {d1StatusError}</p>}
-            {d1Status&&<div data-testid="d1-run-status" className="space-y-2 border border-border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <Eyebrow>Persistent migration journal</Eyebrow>
-                <Badge variant={d1Status.phase==="uncertain"?"destructive":"outline"}>{d1Status.phase.replaceAll("-"," ")}</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {d1Status.appliedByDeploy} migrations confirmed in this run, {d1Status.remaining} remaining.
-              </p>
-              {d1Status.inFlightName&&<p className="text-xs">Last attempted: <code>{d1Status.inFlightName}</code></p>}
-              {d1Status.phase==="uncertain"&&<p className="text-xs text-destructive">
-                Outcome uncertain; further writes require independent D1 ledger reconciliation. Never retry automatically.
-              </p>}
-              <p className="text-xs text-muted-foreground">The original recovery bookmark is retained privately, not displayed in the browser. This view is read-only.</p>
             </div>}
             {d1Preview&&<div className="space-y-3 border border-border p-4" data-testid="d1-preview">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -432,19 +438,9 @@ export function App() {
                 <div><p className="text-muted-foreground">Pending</p><p className="mt-1 text-base font-semibold">{d1Preview.pendingMigrations}</p></div>
                 <div><p className="text-muted-foreground">Recovery point</p><p className="mt-1 font-medium">{d1Preview.recoveryBookmarkAvailable?"Available":"Missing"}</p></div>
               </div>
-              {d1Preview.maintenanceRequired && !d1Preview.maintenanceVerified &&
-                <div className="space-y-2 border border-destructive/40 p-3 text-xs">
-                  <p className="flex items-start gap-2 font-medium text-destructive">
-                    <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Maintenance safety checks not yet implemented for an active InsightFlare instance.
-                  </p>
-                  <p className="text-muted-foreground">Even with a migration lock, the old Worker may still write to D1 through:</p>
-                  <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-                    {d1Preview.maintenanceWriteSources.map(source=><li key={source}>{source}</li>)}
-                  </ul>
-                  <p className="text-muted-foreground">Execution remains blocked until every writer is fenced and buffered events are safely drained.</p>
-                </div>}
+
               {d1Preview.destructiveUpgrade&&<p className="flex items-start gap-2 text-xs text-destructive">
-                <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Some migrations change existing schema or data. A maintenance window and explicit approval are mandatory.
+                <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Some migrations change existing schema or data. As with manual deployment, old Worker requests can continue during the change; verify compatibility before applying.
               </p>}
               {d1Preview.pending.length>0&&<div className="max-h-56 space-y-2 overflow-y-auto">
                 {d1Preview.pending.map(item=><div key={item.name} className="flex items-start gap-3 border border-border/70 p-2.5 text-xs">
@@ -457,7 +453,17 @@ export function App() {
               {d1Preview.blockers.map(blocker=><p key={blocker} className="flex items-start gap-2 text-xs text-muted-foreground">
                 <RiLockLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}
               </p>)}
-              <p className="text-xs text-muted-foreground">No migration, restoration or Worker activation is performed by this preview.</p>
+              {d1Preview.pendingMigrations>0&&<div className="flex flex-wrap items-center gap-3 pt-2">
+                <Button disabled={d1Applying||d1Working} onClick={()=>void applyD1Migrations()}>
+                  <RiShieldCheckLine/>{d1Applying?"Applying migrations…":"Apply pending D1 migrations"}
+                </Button>
+                {session.oauthConfigured&&<a href="/api/v1/auth/cloudflare/start?capability=d1-write"
+                  className="text-xs text-primary underline underline-offset-4">Authorize D1 Write</a>}
+              </div>}
+              <p className="text-xs text-muted-foreground">
+                Migration files are applied in Wrangler order without pausing the existing Worker.
+                Failed SQL stops at the failing file. Worker upload and activation are separate.
+              </p>
             </div>}
           </CardContent>
         </Card>
