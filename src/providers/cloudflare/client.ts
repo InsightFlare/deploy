@@ -228,6 +228,37 @@ export class CloudflareClient {
     return this.request<T>(path, { method: "POST", body }, 120000, bearerToken);
   }
 
+  /** List names/IDs only from the caller's selected, authorized Cloudflare account. */
+  async d1Databases(accountId: string): Promise<Array<{ uuid: string; name: string; version?: string }>> {
+    if (!/^[a-f0-9]{32}$/i.test(accountId)) {
+      throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+    }
+    await this.requireAccount(accountId);
+    const databases: Array<{ uuid: string; name: string; version?: string }> = [];
+    const seen = new Set<string>();
+    for (let page = 1; page <= 5; page++) {
+      const result = await this.get<Array<{ uuid?: unknown; name?: unknown; version?: unknown }>>(
+        `/accounts/${accountId}/d1/database?per_page=100&page=${page}`
+      );
+      if (!Array.isArray(result) || result.length > 100) {
+        throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an invalid D1 inventory.", 502);
+      }
+      for (const db of result) {
+        if (typeof db?.uuid !== "string" ||
+            !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(db.uuid) ||
+            typeof db.name !== "string" || db.name.length > 128 ||
+            seen.has(db.uuid.toLowerCase())) {
+          throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare D1 inventory contains an invalid or duplicated database.", 502);
+        }
+        seen.add(db.uuid.toLowerCase());
+        databases.push({ uuid: db.uuid.toLowerCase(), name: db.name,
+          ...(typeof db.version === "string" ? { version: db.version } : {}) });
+      }
+      if (result.length < 100) return databases;
+    }
+    throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare D1 inventory exceeds the safe pagination limit.", 502);
+  }
+
   /**
    * Inspect the user's D1 migration readiness without reading application data.
    * Only sqlite_master table names and Wrangler's d1_migrations ledger are read.
@@ -296,8 +327,9 @@ export class CloudflareClient {
    * an exclusive durable lease and a fresh migration snapshot.
    *
    * A single REST SQL batch groups the verified file with its Wrangler ledger
-   * INSERT. Transactional behavior of multi-statement SQL/PRAGMA must still be
-   * tested against a disposable D1 database before production use.
+   * INSERT. Atomic rollback, all 43 canonical SQL files, and final schema
+   * parity were tested on disposable remote D1 (2026-11-05), but real user
+   * writes remain blocked until durable locks and maintenance checks exist.
    */
   async d1ApplyVerifiedMigration(
     accountId: string,

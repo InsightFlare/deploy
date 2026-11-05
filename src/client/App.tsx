@@ -23,6 +23,16 @@ type BuildReadiness = {
   verifiedRepoIdentity?: boolean; canStageWithoutPromotion?: boolean;
   automaticPushBuildPossible?: boolean; safetyBlockers?: string[];
 };
+type D1Database = { uuid: string; name: string; version?: string };
+type D1Preview = {
+  sourceSha: string; artifactDigest: string; databaseId: string;
+  deploymentKind: Kind; totalMigrations: number;
+  appliedMigrations: number; pendingMigrations: number;
+  initialInstall: boolean; destructiveUpgrade: boolean;
+  needsConfirmation: boolean; recoveryBookmarkAvailable: boolean;
+  reviewedPlanDigest: string; executionAvailable: false; blockers: string[];
+  pending: Array<{ name: string; sha256: string; sqlBytes: number; destructive: boolean; warnings: string[] }>;
+};
 type PreparedRun = {
   id: string; intent: "install" | "update" | "repair";
   pinnedSha: string; createdAt: number; expiresAt: number;
@@ -44,6 +54,7 @@ const nav = [
   { title: "Source", href: "#source", Icon: RiGitBranchLine },
   { title: "Cloudflare account", href: "#account", Icon: RiCloudLine },
   { title: "Build integration", href: "#build-readiness", Icon: RiCodeSSlashLine },
+  { title: "D1 migration preview", href: "#database", Icon: RiServerLine },
   { title: "Deployment plan", href: "#plan", Icon: RiTerminalBoxLine }
 ];
 
@@ -75,6 +86,11 @@ export function App() {
   const [deployment,setDeployment]=useState<Deployment|null>(null);
   const [readiness,setReadiness]=useState<BuildReadiness|null>(null);
   const [readinessMessage,setReadinessMessage]=useState("");
+  const [d1Databases,setD1Databases]=useState<D1Database[]>([]);
+  const [databaseId,setDatabaseId]=useState("");
+  const [d1Preview,setD1Preview]=useState<D1Preview|null>(null);
+  const [d1Message,setD1Message]=useState("");
+  const [d1Working,setD1Working]=useState(false);
   const [intent,setIntent]=useState<Intent>("install");
   const [plan,setPlan]=useState<Plan|null>(null);
   const [resourcePlan,setResourcePlan]=useState<ResourcePlan|null>(null);
@@ -143,6 +159,29 @@ export function App() {
     return ()=>{cancelled=true;};
   },[accountId,session.connected]);
 
+  useEffect(()=>{
+    setD1Databases([]);setDatabaseId("");setD1Preview(null);setD1Message("");
+    if(!session.connected||!accountId) return;
+    let cancelled=false;
+    setD1Message("Loading D1 databases from the selected account…");
+    void api<{databases:D1Database[]}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/d1/databases")
+      .then(v=>{if(!cancelled){setD1Databases(v.databases);setD1Message(v.databases.length?"":"No D1 databases found in this account.");}})
+      .catch(e=>{if(!cancelled)setD1Message(errorText(e));});
+    return ()=>{cancelled=true;};
+  },[session.connected,accountId]);
+
+  async function previewD1(){
+    if(!accountId || !databaseId || d1Working) return;
+    setD1Working(true);setD1Preview(null);setD1Message("");
+    try {
+      const data=await api<{preview:D1Preview}>(
+        "/api/v1/providers/cloudflare/accounts/"+accountId+
+        "/d1/migration-preview?databaseId="+encodeURIComponent(databaseId)
+      );
+      setD1Preview(data.preview);
+    } catch(e){setD1Message(errorText(e));}
+    finally{setD1Working(false);}
+  }
   async function preview(){
     if(!accountId)return;
     setWorking(true);setPlan(null);setResourcePlan(null);setPreparedRun(null);
@@ -192,7 +231,7 @@ export function App() {
       </nav>
       <div className="mt-6 space-y-3 border-t border-sidebar-border pt-5 md:mt-auto">
         <Badge variant="outline">Preview · Read-only</Badge>
-        <p className="text-xs leading-relaxed text-muted-foreground">Deployment execution is disabled until user-owned builds are verified.</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">Official Nightly is verified; account-specific migrations and activation remain gated.</p>
         <a className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           href="https://github.com/InsightFlare/deploy" target="_blank" rel="noopener noreferrer">
           Source code <RiExternalLinkLine className="size-3.5"/>
@@ -231,7 +270,7 @@ export function App() {
 
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Status overview">
           <Metric caption="Source branch" value="main" note="Official upstream repository" Icon={RiGitBranchLine}/>
-          <Metric caption="Build strategy" value="From source" note="One commit pinned per operation" Icon={RiCodeSSlashLine}/>
+          <Metric caption="Build strategy" value="Official Nightly" note="Verified archive pinned to a main commit" Icon={RiCodeSSlashLine}/>
           <Metric caption="Control plane" value="Read-only" note="Infrastructure changes disabled" Icon={RiShieldCheckLine}/>
         </section>
 
@@ -305,6 +344,72 @@ export function App() {
               {readiness.safetyBlockers?.map((blocker,i)=><p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><RiAlertLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}</p>)}
               <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLockLine className="size-4"/>Build execution remains disabled until permissions, provenance and migration safety are validated.</p>
             </> : <p className="text-xs leading-relaxed text-muted-foreground">{readinessMessage || "Connect Cloudflare and select an account to inspect its build integration."}</p>}
+          </CardContent>
+        </Card>
+
+        <Card className="deploy-card" id="database">
+          <CardHeader><div className="flex items-start justify-between gap-3">
+            <div className="space-y-1"><Eyebrow>Database</Eyebrow><CardTitle>D1 migration readiness</CardTitle>
+              <CardDescription>Compare your database with the verified official Nightly migration history. No SQL changes are made.</CardDescription></div>
+            <RiServerLine className="size-5 text-primary"/>
+          </div></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-full space-y-2 sm:w-80">
+                <label htmlFor="d1-select" className="text-xs font-medium">D1 database</label>
+                <Select value={databaseId} onValueChange={v=>{setDatabaseId(v);setD1Preview(null);setD1Message("");}}>
+                  <SelectTrigger className="w-full" id="d1-select" disabled={!session.connected||!d1Databases.length}>
+                    <SelectValue placeholder="Choose a database"/>
+                  </SelectTrigger>
+                  <SelectContent>{d1Databases.map(db=><SelectItem key={db.uuid} value={db.uuid}>
+                    {db.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" disabled={!databaseId||d1Working} onClick={()=>void previewD1()}>
+                <RiShieldCheckLine/>{d1Working?"Verifying Nightly and D1…":"Inspect migrations"}
+              </Button>
+              <Badge variant="outline"><RiLockLine className="mr-1 size-3"/>Read-only</Badge>
+            </div>
+            {d1Message&&<p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground" role="status">
+              <RiInformationLine className="mt-0.5 size-4 shrink-0"/>{d1Message}
+            </p>}
+            {session.oauthConfigured&&d1Message.includes("D1 access denied")&&<div className="space-y-2 border border-border bg-muted/10 p-3">
+              <Button variant="outline" size="sm" asChild>
+                <a href="/api/v1/auth/cloudflare/start?capability=d1-read"><RiShieldCheckLine/>Authorize D1 Read</a>
+              </Button>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                This requires explicit Cloudflare consent. The OAuth client must also allow the <code>d1.read</code> scope; no D1 Write permission is requested for inspection.
+              </p>
+            </div>}
+            {d1Preview&&<div className="space-y-3 border border-border p-4" data-testid="d1-preview">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Eyebrow>Verified source {d1Preview.sourceSha.slice(0,12)}</Eyebrow>
+                <Badge variant={d1Preview.pendingMigrations?"outline":"secondary"}>
+                  {d1Preview.pendingMigrations?d1Preview.pendingMigrations+" pending":"Schema current"}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <div><p className="text-muted-foreground">Official SQL files</p><p className="mt-1 text-base font-semibold">{d1Preview.totalMigrations}</p></div>
+                <div><p className="text-muted-foreground">Applied</p><p className="mt-1 text-base font-semibold">{d1Preview.appliedMigrations}</p></div>
+                <div><p className="text-muted-foreground">Pending</p><p className="mt-1 text-base font-semibold">{d1Preview.pendingMigrations}</p></div>
+                <div><p className="text-muted-foreground">Recovery point</p><p className="mt-1 font-medium">{d1Preview.recoveryBookmarkAvailable?"Available":"Missing"}</p></div>
+              </div>
+              {d1Preview.destructiveUpgrade&&<p className="flex items-start gap-2 text-xs text-destructive">
+                <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Some migrations change existing schema or data. A maintenance window and explicit approval are mandatory.
+              </p>}
+              {d1Preview.pending.length>0&&<div className="max-h-56 space-y-2 overflow-y-auto">
+                {d1Preview.pending.map(item=><div key={item.name} className="flex items-start gap-3 border border-border/70 p-2.5 text-xs">
+                  <Badge variant={item.destructive?"destructive":"outline"}>{item.destructive?"Review":"Add"}</Badge>
+                  <div className="min-w-0"><code className="deploy-mono break-all">{item.name}</code>
+                    {item.warnings.map(w=><p key={w} className="mt-1 text-muted-foreground">{w}</p>)}
+                  </div>
+                </div>)}
+              </div>}
+              {d1Preview.blockers.map(blocker=><p key={blocker} className="flex items-start gap-2 text-xs text-muted-foreground">
+                <RiLockLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}
+              </p>)}
+              <p className="text-xs text-muted-foreground">No migration, restoration or Worker activation is performed by this preview.</p>
+            </div>}
           </CardContent>
         </Card>
 

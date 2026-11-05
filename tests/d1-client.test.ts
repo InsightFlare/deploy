@@ -89,3 +89,40 @@ describe("Cloudflare D1 user-account migration preflight (read-only)", () => {
     expect(http).not.toHaveBeenCalled();
   });
 });
+
+describe("Cloudflare D1 database inventory", () => {
+  it("lists account-owned D1 names without exposing application rows or secrets", async () => {
+    const calls: string[] = [];
+    const http = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(url);
+      expect(init?.method ?? "GET").toBe("GET");
+      if (url.endsWith("/accounts?per_page=50&page=1")) {
+        return ok([{ id: accountId, name: "Test" }]);
+      }
+      if (url.endsWith("/d1/database?per_page=100&page=1")) {
+        return ok([{ uuid: databaseId, name: "insightflare", version: "production" }]);
+      }
+      throw Error("Unexpected endpoint");
+    });
+    const client = new CloudflareClient("readonly-token", http as typeof fetch);
+    expect(await client.d1Databases(accountId)).toEqual([
+      { uuid: databaseId, name: "insightflare", version: "production" }
+    ]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("rejects invalid, duplicate or foreign-account identities", async () => {
+    const http = vi.fn(async (url: string) => {
+      if (url.endsWith("/accounts?per_page=50&page=1")) {
+        return ok([{ id: accountId, name: "Test" }]);
+      }
+      return ok([
+        { uuid: databaseId, name: "one" },
+        { uuid: databaseId, name: "two" }
+      ]);
+    });
+    const client = new CloudflareClient("readonly-token", http as typeof fetch);
+    await expect(client.d1Databases(accountId)).rejects.toThrow("duplicated");
+    await expect(client.d1Databases("not-valid")).rejects.toThrow("Invalid Cloudflare");
+  });
+});

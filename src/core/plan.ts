@@ -23,7 +23,7 @@ export interface Plan {
 }
 
 export function deploymentPlan(current: Deployment, source: MainCommit, intent: Intent): Plan {
-  const blockers: string[] = ["User-owned source builds have not passed validation; deployment execution is disabled."];
+  const blockers: string[] = ["Verified Nightly distribution is available, but user D1 migrations, staged uploads and production activation are not enabled."];
   if (current.kind === "conflict") blockers.push("Worker name is occupied by an unknown application. Automatic takeover is forbidden.");
   if (current.kind === "legacy-candidate") blockers.push("Existing legacy instance must complete an explicit adoption flow.");
   if (intent === "install" && current.kind !== "not-installed") blockers.push("An existing Worker must be reviewed before installation.");
@@ -39,7 +39,7 @@ export function deploymentPlan(current: Deployment, source: MainCommit, intent: 
     proposedSteps: [
       "Revalidate OAuth account and ownership",
       "Resolve and pin a single immutable source commit",
-      "Build the source in the user's own build environment",
+      "Download and verify the SHA-pinned official Nightly tar.gz",
       "Review and apply compatible forward-only D1 migrations",
       "Reconcile resources and upload Worker modules and assets",
       "Preserve all existing secrets, domain routes and user data",

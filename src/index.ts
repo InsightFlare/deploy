@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import type { Env } from "./types";
 import { DeployError } from "./types";
 import { resolveLatestMain } from "./core/source";
+import { resolveLatestPublicNightly, downloadVerifiedPublicRelease } from "./core/public-release";
+import { inspectD1MigrationPreview } from "./core/d1-preview";
 import { deploymentPlan, type Intent } from "./core/plan";
 import { planResourceReconciliation } from "./core/reconcile";
 import { CloudflareClient } from "./providers/cloudflare/client";
@@ -45,6 +47,55 @@ app.post("/api/v1/session/disconnect", signOut);
 app.get("/api/v1/providers/cloudflare/accounts", async c => {
   const client = new CloudflareClient(await userToken(c));
   return c.json({ accounts: await client.accounts() }, 200, { "Cache-Control": "no-store" });
+});
+
+/**
+ * User-account-scoped D1 discovery and verified Nightly migration preview.
+ * These endpoints are read-only even though SELECT uses Cloudflare's /query POST.
+ * No SQL payload is accepted from the browser.
+ */
+app.get("/api/v1/providers/cloudflare/accounts/:accountId/d1/databases", async c => {
+  const accountId = c.req.param("accountId");
+  if (!ACCOUNT.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+  const client = new CloudflareClient(await userToken(c));
+  try {
+    return c.json({ databases: await client.d1Databases(accountId) }, 200,
+      { "Cache-Control": "no-store" });
+  } catch (error) {
+    if (error instanceof DeployError && error.status === 403) {
+      throw new DeployError("UNAVAILABLE",
+        "D1 access denied. Reconnect Cloudflare with an OAuth grant that includes the D1 Read scope.", 403);
+    }
+    throw error;
+  }
+});
+
+app.get("/api/v1/providers/cloudflare/accounts/:accountId/d1/migration-preview", async c => {
+  const accountId = c.req.param("accountId");
+  const databaseId = c.req.query("databaseId");
+  if (!ACCOUNT.test(accountId) ||
+      !databaseId || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId)) {
+    throw new DeployError("INVALID_ACCOUNT", "Valid Cloudflare Account ID and D1 databaseId are required.");
+  }
+  const client = new CloudflareClient(await userToken(c));
+  try {
+    const [observed, databases] = await Promise.all([
+      discoverDeployment(client, accountId), client.d1Databases(accountId)
+    ]);
+    if (!databases.some(db => db.uuid === databaseId.toLowerCase())) {
+      throw new DeployError("UNAVAILABLE", "Selected D1 database is absent from the authorized account.", 409);
+    }
+    const release = await resolveLatestPublicNightly();
+    const verified = await downloadVerifiedPublicRelease(release);
+    const preview = await inspectD1MigrationPreview(client, observed, databaseId, verified);
+    return c.json({ preview }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    if (error instanceof DeployError && error.status === 403) {
+      throw new DeployError("UNAVAILABLE",
+        "D1 access denied. Reconnect Cloudflare with an OAuth grant that includes the D1 Read scope.", 403);
+    }
+    throw error;
+  }
 });
 
 app.get("/api/v1/providers/cloudflare/accounts/:accountId/deployment", async c => {
@@ -107,7 +158,7 @@ app.post("/api/v1/providers/cloudflare/accounts/:accountId/prepare", async c => 
   // Never prepare executable work unless the entire workflow has passed
   // user-owned build, migration and deployment safety validation.
   const blockers = [...new Set([...plan.blockers, ...resources.blockers,
-    "Cloudflare Builds source access, non-promoting uploads, migrations and final activation are not yet approved."])];
+    "Official Nightly is verified; user-owned D1 migration execution, staged Worker upload and final activation remain disabled pending safety approval."])];
   const run = await prepareAccountRun(c.env, {
     accountId, ownerId: sessionIdentity(c), intent: body.intent as Intent,
     pinnedSha: plan.sourceSha, currentSha: observed.deployedSha, blockers
