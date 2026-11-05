@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useDeployLocale, type Locale } from "./i18n";
 import {
   RiCloudLine, RiGitBranchLine, RiGithubLine, RiRefreshLine, RiLockLine,
   RiExternalLinkLine, RiLayoutGridLine, RiShieldCheckLine, RiCodeSSlashLine,
   RiServerLine, RiTerminalBoxLine, RiLogoutBoxRLine, RiInformationLine,
-  RiAlertLine, RiTimeLine
+  RiAlertLine, RiArrowLeftLine, RiArrowRightLine
 } from "@remixicon/react";
 import { Button } from "@insightflare/ui/button";
 import { Badge } from "@insightflare/ui/badge";
@@ -66,20 +67,6 @@ type ResourcePlan = {
   blockers: string[];
   actions: Array<{ binding: string; resourceType: string; disposition: "create" | "preserve" | "block" | "optional"; description: string }>;
 };
-const labels: Record<Kind, string> = {
-  "not-installed": "No installation", managed: "Managed",
-  "legacy-candidate": "Existing instance — adoption required", conflict: "Worker name conflict"
-};
-const nav = [
-  { title: "Overview", href: "#overview", Icon: RiLayoutGridLine },
-  { title: "Source", href: "#source", Icon: RiGitBranchLine },
-  { title: "Cloudflare account", href: "#account", Icon: RiCloudLine },
-  { title: "Build integration", href: "#build-readiness", Icon: RiCodeSSlashLine },
-  { title: "D1 migration preview", href: "#database", Icon: RiServerLine },
-  { title: "Worker versions", href: "#versions", Icon: RiCodeSSlashLine },
-  { title: "Deployment plan", href: "#plan", Icon: RiTerminalBoxLine }
-];
-
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const result = await fetch(path, { credentials: "same-origin", cache: "no-store", ...init });
   const data = await result.json().catch(() => null) as (T & { error?: { message?: string } }) | null;
@@ -91,20 +78,24 @@ function errorText(e: unknown): string { return e instanceof Error ? e.message :
 function Eyebrow({children}: {children: ReactNode}) {
   return <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-muted-foreground">{children}</p>;
 }
-function Metric({caption,value,note,Icon}: {
-  caption: string; value: string; note: string; Icon: typeof RiCloudLine
-}) {
-  return <Card className="deploy-card py-4"><CardContent className="space-y-2">
-    <div className="flex items-center justify-between"><Eyebrow>{caption}</Eyebrow><Icon className="size-4 text-muted-foreground"/></div>
-    <p className="text-lg font-semibold">{value}</p><p className="text-xs text-muted-foreground">{note}</p>
-  </CardContent></Card>;
+function Notice({icon,title,text}:{icon:ReactNode;title:string;text:string}) {
+  return <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/15 p-4">
+    <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
+    <div className="space-y-1"><p className="text-sm font-semibold">{title}</p><p className="text-xs leading-5 text-muted-foreground">{text}</p></div>
+  </div>;
 }
 
 export function App() {
+  const { locale, setLocale, t } = useDeployLocale();
+  const [step,setStep] = useState(()=>{ if(typeof window==="undefined") return 0; const saved=Number(window.sessionStorage.getItem("ifd:wizard:step")||"0"); return Number.isInteger(saved)&&saved>=0&&saved<=5?saved:0; });
+  const [migrationAppliedCount,setMigrationAppliedCount] = useState(0);
+  function goStep(next:number) { if(next>=0&&next<=5) setStep(next); }
+  useEffect(()=>{window.sessionStorage.setItem("ifd:wizard:step",String(step));},[step]);
   const [session,setSession]=useState<Session>({connected:false,oauthConfigured:false,expiresAt:null});
   const [source,setSource]=useState<Source|null>(null);
   const [accounts,setAccounts]=useState<Account[]>([]);
-  const [accountId,setAccountId]=useState("");
+  const [accountId,setAccountId]=useState(()=>typeof window==="undefined"?"":window.sessionStorage.getItem("ifd:wizard:account")||"");
+  useEffect(()=>{window.sessionStorage.setItem("ifd:wizard:account",accountId);},[accountId]);
   const [deployment,setDeployment]=useState<Deployment|null>(null);
   const [readiness,setReadiness]=useState<BuildReadiness|null>(null);
   const [readinessMessage,setReadinessMessage]=useState("");
@@ -130,7 +121,6 @@ export function App() {
   const [sourceWorking,setSourceWorking]=useState(false);
   const [message,setMessage]=useState("");
   const [accountMessage,setAccountMessage]=useState("");
-  const [active,setActive]=useState("#overview");
 
   async function reloadSource(){
     setSourceWorking(true);
@@ -140,7 +130,7 @@ export function App() {
   }
   useEffect(()=>{
     const code = new URLSearchParams(window.location.search).get("error");
-    if(code) setMessage("Cloudflare authorization failed: " + code);
+    if(code) setMessage(t("authFailed",{error:code}));
     void reloadSource();
     void api<Session>("/api/v1/session").then(setSession).catch(e=>setMessage(errorText(e)));
   },[]);
@@ -148,7 +138,7 @@ export function App() {
   useEffect(()=>{
     if(!session.connected) return;
     let cancelled=false;
-    setAccountMessage("Loading Cloudflare accounts…");
+    setAccountMessage(t("loading"));
     void api<{accounts:Account[]}>("/api/v1/providers/cloudflare/accounts")
       .then(v=>{if(!cancelled){setAccounts(v.accounts);setAccountMessage("");}})
       .catch(e=>{if(!cancelled)setAccountMessage(errorText(e));});
@@ -162,7 +152,7 @@ export function App() {
     if(!accountId){setDeployment(null);return;}
     let cancelled=false;
     setDeployment(null);
-    setAccountMessage("Discovering installation…");
+    setAccountMessage(t("discovering"));
     void api<{deployment:Deployment}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/deployment")
       .then(v=>{if(!cancelled){setDeployment(v.deployment);setIntent(v.deployment.kind==="not-installed"?"install":"update");setAccountMessage("");}})
       .catch(e=>{if(!cancelled)setAccountMessage(errorText(e));});
@@ -173,7 +163,7 @@ export function App() {
     setReadiness(null);
     if(!accountId){setReadinessMessage("");return;}
     let cancelled=false;
-    setReadinessMessage("Inspecting user-side build configuration…");
+    setReadinessMessage(t("working"));
     void api<{readiness:BuildReadiness}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/build-readiness")
       .then(v=>{if(!cancelled){setReadiness(v.readiness);setReadinessMessage("");}})
       .catch(e=>{if(!cancelled)setReadinessMessage(errorText(e));});
@@ -198,9 +188,9 @@ export function App() {
     setD1Databases([]);setDatabaseId("");setD1Preview(null);setD1Message("");
     if(!session.connected||!accountId) return;
     let cancelled=false;
-    setD1Message("Loading D1 databases from the selected account…");
+    setD1Message(t("loading"));
     void api<{databases:D1Database[]}>("/api/v1/providers/cloudflare/accounts/"+accountId+"/d1/databases")
-      .then(v=>{if(!cancelled){setD1Databases(v.databases);setD1Message(v.databases.length?"":"No D1 databases found in this account.");}})
+      .then(v=>{if(!cancelled){setD1Databases(v.databases);setD1Message(v.databases.length?"":t("missing"));}})
       .catch(e=>{if(!cancelled)setD1Message(errorText(e));});
     return ()=>{cancelled=true;};
   },[session.connected,accountId]);
@@ -209,9 +199,8 @@ export function App() {
     if(!accountId || !databaseId || !d1Preview || d1Applying ||
        !d1Preview.pendingMigrations || !d1Preview.migrationExecutionAvailable) return;
     const target = d1Databases.find(db=>db.uuid===databaseId)?.name ?? databaseId;
-    if(!window.confirm("Apply "+d1Preview.pendingMigrations+" official D1 migrations to "+
-      target+"? As with manual Wrangler deployment, the existing Worker continues serving during migrations.")) return;
-    setD1Applying(true);setD1Message("");
+    if(!window.confirm(t("actionConfirmD1",{count:d1Preview.pendingMigrations,target}))) return;
+    setD1Applying(true);setD1Message("");setMigrationAppliedCount(0);
     try {
       let digest=d1Preview.reviewedPlanDigest;
       let remaining=d1Preview.pendingMigrations;
@@ -232,9 +221,10 @@ export function App() {
           throw new Error("D1 migration progress was not confirmed. Refresh the preview.");
         }
         applied+=progress.applied.length;
+        setMigrationAppliedCount(applied);
         remaining=progress.remaining;
         digest=progress.nextReviewedPlanDigest;
-        setD1Message("Applied "+applied+" migration(s); "+remaining+" remaining.");
+        setD1Message(t("d1Progress",{applied,remaining}));
       }
       if(remaining>0) throw new Error("Migration process stopped; refresh the preview.");
       const updated=await api<{preview:D1Preview}>(
@@ -242,9 +232,9 @@ export function App() {
         "/d1/migration-preview?databaseId="+encodeURIComponent(databaseId)
       );
       setD1Preview(updated.preview);
-      setD1Message("All D1 migrations have been applied; Worker deployment is a separate step.");
+      setD1Message(t("d1Complete"));
     }catch(e){
-      setD1Message(errorText(e)+" Check the latest D1 migration history before continuing.");
+      setD1Message(errorText(e)+" "+t("d1ContinueHint"));
     }finally{setD1Applying(false);}
   }
   async function inspectWorkerVersions(){
@@ -255,7 +245,7 @@ export function App() {
       const {preview}=await api<{preview:VersionPreview}>(
         "/api/v1/providers/cloudflare/accounts/"+accountId+"/versions/preview");
       setVersionPreview(preview);
-      setVersionMessage("The active Worker will continue serving while a new version is staged.");
+      setVersionMessage(t("stageContinueHint"));
     }catch(e){setVersionMessage(errorText(e));}
     finally{setVersionWorking(false);}
   }
@@ -270,16 +260,15 @@ export function App() {
         item.artifactDigest===versionPreview.artifactDigest &&
         item.expectedActiveVersionId===versionPreview.expectedActiveVersionId));
       setVersionMessage(candidates.length?
-        "Verified previously uploaded candidates from Cloudflare Worker version history.":
-        "No compatible staged versions found. Upload the Nightly candidate first.");
+        t("stageRestored"):
+        t("stageRestoreEmpty"));
     }catch(e){setVersionMessage(errorText(e));}
     finally{setVersionWorking(false);}
   }
   async function stageWorkerVersion(){
     if(!accountId || !versionPreview || versionWorking ||
       (versionPreview.legacyAdoptionRequired && !legacyReviewed))return;
-    if(!window.confirm("Upload official source "+versionPreview.sourceSha.slice(0,12)+
-      " as an INACTIVE Worker version? No production traffic will be switched."))return;
+    if(!window.confirm(t("actionConfirmStage",{sha:versionPreview.sourceSha.slice(0,12)})))return;
     setVersionWorking(true);setVersionMessage("");setStagedVersion(null);
     try{
       const {staged}=await api<{staged:StagedVersion}>(
@@ -293,7 +282,7 @@ export function App() {
           })
         });
       setStagedVersion(staged);
-      setVersionMessage("Candidate uploaded and verified; existing Worker traffic is unchanged.");
+      setVersionMessage(t("stagedReady"));
     }catch(e){setVersionMessage(errorText(e)+" Inspect the current active Worker before retrying.");}
     finally{setVersionWorking(false);}
   }
@@ -301,8 +290,7 @@ export function App() {
     if(!accountId || !versionPreview || !stagedVersion || versionWorking ||
       !d1Preview || d1Preview.databaseId!==versionPreview.databaseId ||
       d1Preview.sourceSha!==versionPreview.sourceSha || d1Preview.pendingMigrations!==0)return;
-    if(!window.confirm("Deploy version "+stagedVersion.stagedVersionId+
-      " to 100% of InsightFlare traffic now? This changes the live Worker version."))return;
+    if(!window.confirm(t("actionConfirmActivate",{version:stagedVersion.stagedVersionId})))return;
     setVersionWorking(true);setVersionMessage("");
     try{
       const {activation}=await api<{activation:ActivatedVersion}>(
@@ -317,7 +305,7 @@ export function App() {
           })
         });
       setActivatedVersion(activation);setStagedVersion(null);setVersionPreview(null);
-      setVersionMessage("The new version is active. Cloudflare deployment ID: "+activation.deploymentId);
+      setVersionMessage(t("activationSuccess")+" · "+activation.deploymentId);
       const latest=await api<{deployment:Deployment}>(
         "/api/v1/providers/cloudflare/accounts/"+accountId+"/deployment");
       setDeployment(latest.deployment);
@@ -369,397 +357,374 @@ export function App() {
     }catch(e){setMessage(errorText(e));}
   }
 
-  return <div className="deploy-shell flex min-h-screen flex-col md:flex-row">
-    <aside className="deploy-sidebar flex w-full shrink-0 flex-col border-b border-sidebar-border px-5 py-6 md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
-      <a href="#overview" className="mb-5 flex items-center gap-3 md:mb-12">
-        <span className="deploy-mark flex size-9 items-center justify-center"><RiLayoutGridLine className="size-5"/></span>
-        <span className="font-semibold tracking-tight">InsightFlare <span className="font-normal text-muted-foreground">Deploy</span></span>
-      </a>
-      <div className="hidden px-3 pb-3 md:block"><Eyebrow>Workspace</Eyebrow></div>
-      <nav aria-label="Control plane" className="flex flex-wrap gap-1 md:flex-col">
-        {nav.map(({title,href,Icon})=>
-          <a key={href} href={href} data-active={active===href}
-            onClick={()=>setActive(href)}
-            className="deploy-nav flex min-h-9 items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground transition-colors">
-            <Icon className="size-4"/><span>{title}</span>
-          </a>)}
-      </nav>
-      <div className="mt-6 space-y-3 border-t border-sidebar-border pt-5 md:mt-auto">
-        <Badge variant="outline">Nightly · D1 migrations</Badge>
-        <p className="text-xs leading-relaxed text-muted-foreground">Official Nightly and D1 migrations are available. Worker upload and activation remain separate.</p>
-        <a className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          href="https://github.com/InsightFlare/deploy" target="_blank" rel="noopener noreferrer">
-          Source code <RiExternalLinkLine className="size-3.5"/>
+
+  const stepDetails = [
+    { title: t("stepConnect"), description: t("connectDesc"), icon: RiCloudLine },
+    { title: t("stepAccount"), description: t("accountDesc"), icon: RiServerLine },
+    { title: t("stepSource"), description: t("sourceDesc"), icon: RiGitBranchLine },
+    { title: t("stepD1"), description: t("d1Desc"), icon: RiShieldCheckLine },
+    { title: t("stepStage"), description: t("stageDesc"), icon: RiCodeSSlashLine },
+    { title: t("stepActivate"), description: t("activateDesc"), icon: RiRefreshLine }
+  ];
+  const installationSupported = deployment?.kind === "managed" || deployment?.kind === "legacy-candidate";
+  const d1Current = Boolean(
+    d1Preview && d1Preview.pendingMigrations === 0 &&
+    (!versionPreview || (d1Preview.databaseId === versionPreview.databaseId &&
+      d1Preview.sourceSha === versionPreview.sourceSha))
+  );
+  const stepCompleted = [
+    session.connected,
+    Boolean(session.connected && accountId && deployment),
+    Boolean(source && accountId && installationSupported),
+    d1Current,
+    Boolean(stagedVersion || activatedVersion),
+    Boolean(activatedVersion)
+  ];
+  const mayAdvance = [
+    session.connected, Boolean(accountId && deployment), Boolean(source && installationSupported),
+    d1Current, Boolean(stagedVersion), false
+  ];
+  const stageBusy = d1Working || d1Applying || versionWorking || working || preparing;
+  const selected = stepDetails[step] ?? stepDetails[0]!;
+  const finishedCount = stepCompleted.filter(Boolean).length;
+  const localizedStatus = (value: string) => value
+    .replace(/Request failed \(HTTP (\d+)\)/g, (_full, status: string) => t("httpError",{status}))
+    .replace(/Invalid API response/g, t("invalidResponse"))
+    .replace(/Unexpected error/g, t("unexpectedError"));
+
+  return <div className="deploy-shell min-h-screen">
+    <header className="deploy-topbar">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+        <a href="/" aria-label="InsightFlare Deploy" className="flex items-center gap-2.5">
+          <span className="deploy-mark flex size-9 items-center justify-center rounded-lg"><RiLayoutGridLine className="size-5"/></span>
+          <span className="text-sm font-semibold tracking-tight">{t("brand")}</span>
         </a>
+        <div className="flex items-center gap-2">
+          <Badge variant={session.connected ? "secondary" : "outline"} className="gap-1.5">
+            <span className={"size-1.5 rounded-full " + (session.connected ? "bg-emerald-500" : "bg-muted-foreground")}/>
+            {t(session.connected ? "connected" : "disconnected")}
+          </Badge>
+          <label className="sr-only" htmlFor="deploy-language">{t("language")}</label>
+          <Select value={locale} onValueChange={value=>setLocale(value as Locale)}>
+            <SelectTrigger id="deploy-language" className="h-9 w-[120px]" aria-label={t("language")}>
+              <SelectValue/>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="zh">简体中文</SelectItem>
+              <SelectItem value="zh-tw">繁體中文</SelectItem>
+              <SelectItem value="ja">日本語</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-    </aside>
-
-    <div className="deploy-main min-w-0 flex-1">
-      <header className="flex h-16 items-center justify-between border-b border-border px-5 sm:px-8 lg:px-12">
-        <div className="flex items-center gap-2 text-xs"><span className="text-muted-foreground">Control plane</span><span className="text-muted-foreground/50">/</span>Overview</div>
-        <div className="flex items-center gap-3"><span className="hidden text-[10px] font-semibold tracking-widest text-muted-foreground sm:inline">CLOUDFLARE</span>
-          <Badge variant={session.connected?"secondary":"outline"}>{session.connected?"Connected":"Not connected"}</Badge>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl space-y-6 px-5 py-10 sm:px-8 lg:px-12" id="overview">
-        <section className="space-y-5 pb-3">
-          <Badge variant="outline"><RiCloudLine className="mr-1 size-3"/>DEPLOYMENT CONTROL PLANE</Badge>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">Own the deployment.<br/><span className="text-primary">Own your analytics.</span></h1>
-          <p className="max-w-2xl text-sm leading-7 text-muted-foreground">Connect your Cloudflare account, inspect your InsightFlare instance, and preview updates pinned to the official upstream <code className="bg-muted px-1.5 text-foreground">main</code> commit.</p>
-          <div className="flex flex-wrap gap-3">
-            {session.connected ?
-              <Button size="lg" asChild><a href="#account"><RiCloudLine/>View Cloudflare account</a></Button> :
-              session.oauthConfigured ?
-                <Button size="lg" asChild><a href="/api/v1/auth/cloudflare/start"><RiCloudLine/>Connect Cloudflare</a></Button> :
-                <Button size="lg" disabled><RiLockLine/>Cloudflare OAuth not configured</Button>}
-            <Button size="lg" variant="outline" asChild><a href="https://github.com/RavelloH/InsightFlare" target="_blank" rel="noopener noreferrer"><RiGithubLine/>View InsightFlare<RiExternalLinkLine/></a></Button>
+    </header>
+    <main className="deploy-wizard mx-auto w-full max-w-5xl px-4 pb-12 pt-9 sm:px-6 sm:pt-14">
+      <div className="mx-auto max-w-3xl space-y-3 pb-7 text-center">
+        <Badge variant="outline" className="px-3 py-1"><RiCloudLine className="mr-1 size-3.5"/>{t("wizard")}</Badge>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("tagline")}</h1>
+        <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">{t("wizardHelp")}</p>
+      </div>
+      <div className="mx-auto max-w-[880px]">
+        <Card className="deploy-wizard-panel overflow-hidden gap-0 py-0 shadow-lg shadow-black/5">
+          <div className="border-b border-border/70 px-5 pb-5 pt-6 sm:px-9 sm:pt-8">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span className="font-medium tracking-wide">{t("stepCount",{current:step+1,total:stepDetails.length})}</span>
+              <span>{t("progress")} · {Math.round((finishedCount / stepDetails.length) * 100)}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar"
+              aria-label={t("progress")} aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={Math.round((finishedCount / stepDetails.length) * 100)}>
+              <div className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{width:(finishedCount / stepDetails.length) * 100 + "%"}}/>
+            </div>
+            <ol className="deploy-steps mt-5 grid grid-cols-6 gap-1" aria-label={t("wizard")}>
+              {stepDetails.map((item,i)=>{
+                const Icon=item.icon;
+                const done=stepCompleted[i];
+                return <li key={i} className="min-w-0">
+                  <button type="button" onClick={()=>goStep(i)} disabled={i>step && !stepCompleted.slice(0,i).every(Boolean)}
+                    aria-current={step===i ? "step" : undefined}
+                    className="deploy-step flex w-full flex-col items-center gap-1.5 rounded-lg px-0.5 py-2 text-center text-[10px] transition-colors sm:text-xs"
+                    data-active={step===i} data-complete={done}>
+                    <span className="deploy-step-circle flex size-8 items-center justify-center rounded-full border">
+                      {done && i !== step ? <RiShieldCheckLine className="size-4"/> : <Icon className="size-4"/>}
+                    </span>
+                    <span className="max-w-full truncate">{item.title}</span>
+                  </button>
+                </li>;
+              })}
+            </ol>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><RiShieldCheckLine className="size-4"/>No infrastructure changes are possible in this preview.</div>
-        </section>
-
-        {message&&<div role="alert" className="flex items-start justify-between gap-3 border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs">
-          <span className="flex items-center gap-2"><RiAlertLine className="size-4 shrink-0 text-destructive"/>{message}</span>
-          <Button size="xs" variant="ghost" onClick={()=>setMessage("")}>Dismiss</Button>
-        </div>}
-
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Status overview">
-          <Metric caption="Source branch" value="main" note="Official upstream repository" Icon={RiGitBranchLine}/>
-          <Metric caption="Build strategy" value="Official Nightly" note="Verified archive pinned to a main commit" Icon={RiCodeSSlashLine}/>
-          <Metric caption="Control plane" value="Upgrade-ready" note="D1 and Worker versions are separately controlled" Icon={RiShieldCheckLine}/>
-        </section>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card className="deploy-card min-w-0" id="source">
-            <CardHeader><div className="flex items-start justify-between gap-3">
-              <div className="space-y-1"><Eyebrow>Repository</Eyebrow><CardTitle>Upstream main</CardTitle><CardDescription>Source for new installs and updates</CardDescription></div>
-              <RiGitBranchLine className="size-5 text-primary"/>
-            </div></CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm font-medium">RavelloH <span className="text-muted-foreground">/</span> InsightFlare</p>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <code data-testid="source-sha" className="deploy-mono bg-secondary px-3 py-2 text-sm">{source?.shortSha??(sourceWorking?"Loading…":"Unavailable")}</code>
-                {source&&<a className="inline-flex items-center gap-1 text-xs text-primary hover:underline" href={source.url} target="_blank" rel="noopener noreferrer">View commit<RiExternalLinkLine className="size-3"/></a>}
+          <section className="min-h-[315px] px-5 py-7 sm:px-9 sm:py-9" aria-labelledby="wizard-step-title">
+            <div className="mb-6 space-y-2">
+              <Eyebrow>{t("stepCount",{current:step+1,total:stepDetails.length})}</Eyebrow>
+              <h2 id="wizard-step-title" className="text-xl font-semibold tracking-tight sm:text-2xl">
+                {[
+                  t("connectTitle"),t("accountTitle"),t("sourceTitle"),t("d1Title"),
+                  t("stageTitle"),t("activateTitle")
+                ][step]}
+              </h2>
+              <p className="text-sm leading-6 text-muted-foreground">{selected.description}</p>
+            </div>
+            {message && <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
+              <div className="flex min-w-0 items-start gap-2"><RiAlertLine className="size-4 shrink-0 text-destructive"/><span className="break-words">{localizedStatus(message)}</span></div>
+              <Button size="xs" variant="ghost" onClick={()=>setMessage("")}>{t("dismiss")}</Button>
+            </div>}
+            {step===0 && <div className="space-y-5">
+              <div className="deploy-feature flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 p-4">
+                <RiShieldCheckLine className="mt-0.5 size-5 shrink-0 text-primary"/>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("dataPromise")}</p>
+                  <p className="text-xs leading-5 text-muted-foreground">{session.connected ? t("connectedDesc") : t("connectDesc")}</p>
+                </div>
               </div>
-              <p className="min-h-8 text-xs leading-relaxed text-muted-foreground">{source?.message??"Read latest main commit from GitHub."}</p>
-              <Separator/>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-muted-foreground">{source?.committedAt?"Committed "+new Date(source.committedAt).toLocaleDateString():"Immutable source commit"}</span>
-                <Button variant="ghost" size="sm" disabled={sourceWorking} onClick={()=>void reloadSource()}><RiRefreshLine/>Refresh</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="deploy-card min-w-0" id="account">
-            <CardHeader><div className="flex items-start justify-between gap-3">
-              <div className="space-y-1"><Eyebrow>Cloudflare</Eyebrow><CardTitle>Managed account</CardTitle><CardDescription>Discover an instance from your own account</CardDescription></div>
-              <RiCloudLine className="size-5 text-primary"/>
-            </div></CardHeader>
-            <CardContent className="space-y-4">
-              {!session.connected ? <div className="flex min-h-40 flex-col justify-center gap-3">
-                <RiServerLine className="size-7 text-muted-foreground"/>
-                <p className="text-sm font-medium">No account connected</p>
-                <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">Connect Cloudflare to inspect an existing InsightFlare instance.</p>
-              </div> : <>
-                <label className="block text-xs font-medium" htmlFor="account-select">Cloudflare account</label>
-                <Select value={accountId} onValueChange={setAccountId}>
-                  <SelectTrigger className="w-full" id="account-select" disabled={!accounts.length}><SelectValue placeholder="Choose an account"/></SelectTrigger>
-                  <SelectContent>{accounts.map(account=><SelectItem value={account.id} key={account.id}>{account.name||account.id}</SelectItem>)}</SelectContent>
-                </Select>
-                {accountMessage&&<p role="status" className="text-xs text-muted-foreground">{accountMessage}</p>}
-                {deployment&&<div className="space-y-3 border border-border bg-muted/20 p-3 text-xs">
-                  <Badge variant={deployment.kind==="managed"?"secondary":"outline"}>{labels[deployment.kind]}</Badge>
-                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Worker</span><code>{deployment.workerName}</code></div>
-                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Deployed SHA</span><code>{deployment.deployedSha?.slice(0,8)||"Unknown"}</code></div>
-                  {deployment.issues.map(issue=><p className="text-muted-foreground" key={issue}>{issue}</p>)}
-                </div>}
-                <Button size="sm" variant="ghost" onClick={()=>void disconnect()}><RiLogoutBoxRLine/>Disconnect</Button>
-              </>}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="deploy-card" id="build-readiness">
-          <CardHeader><div className="flex items-start justify-between gap-3">
-            <div className="space-y-1"><Eyebrow>Source builds</Eyebrow><CardTitle>Build integration</CardTitle><CardDescription>Read-only inspection of Cloudflare Workers Builds settings</CardDescription></div>
-            <RiCodeSSlashLine className="size-5 text-primary"/>
-          </div></CardHeader>
-          <CardContent className="space-y-3">
-            {readiness ? <>
               <div className="flex flex-wrap items-center gap-3">
-                <Badge variant="outline">{readiness.state.replaceAll("-", " ")}</Badge>
-                <span className="text-xs text-muted-foreground">{readiness.candidateTriggerCount} upstream candidate(s) / {readiness.triggerCount} trigger(s)</span>
+                {session.connected ?
+                  <Badge variant="secondary" className="px-3 py-2">{t("connected")}</Badge> :
+                  session.oauthConfigured ?
+                    <Button size="lg" asChild><a href="/api/v1/auth/cloudflare/start"><RiCloudLine/>{t("connectButton")}</a></Button> :
+                    <Button size="lg" disabled><RiLockLine/>{t("oauthMissing")}</Button>}
+                {session.connected && <Button variant="outline" onClick={()=>void disconnect()}><RiLogoutBoxRLine/>{t("disconnect")}</Button>}
+                <Button variant="outline" asChild><a href="https://github.com/RavelloH/InsightFlare" target="_blank" rel="noopener noreferrer">
+                  <RiGithubLine/>{t("sourceGitHub")}<RiExternalLinkLine className="size-3.5"/></a></Button>
               </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">{readiness.message}</p>
-              {readiness.repoConnectedToUpstream && <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">Repo ID: {readiness.verifiedRepoIdentity?"Verified":"Unverified"}</Badge>
-                <Badge variant="outline">Stage only: {readiness.canStageWithoutPromotion?"Yes":"No"}</Badge>
-                {readiness.automaticPushBuildPossible && <Badge variant="outline">Upstream pushes may trigger builds</Badge>}
-              </div>}
-              {readiness.safetyBlockers?.map((blocker,i)=><p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><RiAlertLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}</p>)}
-              <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLockLine className="size-4"/>Nightly is built by official GitHub CI. No user-specific build runner or Docker installation is needed.</p>
-            </> : <p className="text-xs leading-relaxed text-muted-foreground">{readinessMessage || "Connect Cloudflare and select an account to inspect its build integration."}</p>}
-          </CardContent>
-        </Card>
-
-        <Card className="deploy-card" id="database">
-          <CardHeader><div className="flex items-start justify-between gap-3">
-            <div className="space-y-1"><Eyebrow>Database</Eyebrow><CardTitle>D1 migration readiness</CardTitle>
-              <CardDescription>Inspect the official Nightly migrations, then apply pending SQL like Wrangler. The existing Worker keeps serving.</CardDescription></div>
-            <RiServerLine className="size-5 text-primary"/>
-          </div></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="w-full space-y-2 sm:w-80">
-                <label htmlFor="d1-select" className="text-xs font-medium">D1 database</label>
-                <Select value={databaseId} onValueChange={v=>{setDatabaseId(v);setD1Preview(null);setD1Message("");}}>
-                  <SelectTrigger className="w-full" id="d1-select" disabled={!session.connected||!d1Databases.length}>
-                    <SelectValue placeholder="Choose a database"/>
+            </div>}
+            {step===1 && <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-xs font-medium" htmlFor="account-select">{t("accountLabel")}</label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger id="account-select" className="w-full" disabled={!session.connected || !accounts.length}>
+                    <SelectValue placeholder={t("accountPlaceholder")}/>
                   </SelectTrigger>
-                  <SelectContent>{d1Databases.map(db=><SelectItem key={db.uuid} value={db.uuid}>
-                    {db.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{accounts.map(a=><SelectItem key={a.id} value={a.id}>{a.name||a.id}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" disabled={!databaseId||d1Working||d1Applying} onClick={()=>void previewD1()}>
-                <RiShieldCheckLine/>{d1Working?"Verifying Nightly and D1…":"Inspect migrations"}
-              </Button>
-              <Badge variant="outline">Wrangler-compatible migrations</Badge>
-            </div>
-            {d1Message&&<p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground" role="status">
-              <RiInformationLine className="mt-0.5 size-4 shrink-0"/>{d1Message}
-            </p>}
-            {session.oauthConfigured&&d1Message.includes("D1 access denied")&&<div className="space-y-2 border border-border bg-muted/10 p-3">
-              <Button variant="outline" size="sm" asChild>
-                <a href="/api/v1/auth/cloudflare/start?capability=d1-read"><RiShieldCheckLine/>Authorize D1 Read</a>
-              </Button>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                This requires explicit Cloudflare consent. The OAuth client must also allow the <code>d1.read</code> scope; no D1 Write permission is requested for inspection.
-              </p>
+              {accountMessage && <p role="status" className="text-xs leading-5 text-muted-foreground">{localizedStatus(accountMessage)}</p>}
+              {deployment && <div className="space-y-3 rounded-xl border border-border bg-muted/15 p-4 text-xs" data-testid="deployment-discovery">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold">{t("worker")}</span>
+                  <Badge variant={deployment.kind==="managed"?"secondary":"outline"}>
+                    {t(deployment.kind==="managed"?"managed":deployment.kind==="not-installed"?"noInstallation":deployment.kind==="conflict"?"conflict":"legacy")}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">{t("worker")}</span><code>{deployment.workerName}</code></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">{t("deployedSha")}</span><code>{deployment.deployedSha?.slice(0,12)??t("unknown")}</code></div>
+                {deployment.issues.map(issue=><p className="leading-relaxed text-muted-foreground" key={issue}>{issue}</p>)}
+              </div>}
+              {deployment?.kind==="not-installed" && <Notice icon={<RiLockLine className="size-4"/>} title={t("installUnavailable")} text={t("installUnavailableHint")}/>}
             </div>}
-            {d1Preview&&<div className="space-y-3 border border-border p-4" data-testid="d1-preview">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Eyebrow>Verified source {d1Preview.sourceSha.slice(0,12)}</Eyebrow>
-                <Badge variant={d1Preview.pendingMigrations?"outline":"secondary"}>
-                  {d1Preview.pendingMigrations?d1Preview.pendingMigrations+" pending":"Schema current"}
-                </Badge>
+            {step===2 && <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/10 p-4">
+                <div className="min-w-0 space-y-1">
+                  <Eyebrow>{t("sourceCommit")}</Eyebrow>
+                  <code className="deploy-mono block text-base font-semibold">{source?.shortSha??(sourceWorking?t("loading"):t("sourceMissing"))}</code>
+                  {source && <p className="max-w-[620px] text-xs leading-5 text-muted-foreground">{source.message}</p>}
+                  {source?.committedAt && <p className="text-[11px] text-muted-foreground">
+                    {t("commitDate",{date:new Date(source.committedAt).toLocaleDateString(locale)})}</p>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" disabled={sourceWorking} onClick={()=>void reloadSource()}><RiRefreshLine/>{t("refresh")}</Button>
+                  {source && <Button variant="outline" size="sm" asChild><a href={source.url} target="_blank" rel="noopener noreferrer"><RiExternalLinkLine/>{t("viewCommit")}</a></Button>}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                <div><p className="text-muted-foreground">Official SQL files</p><p className="mt-1 text-base font-semibold">{d1Preview.totalMigrations}</p></div>
-                <div><p className="text-muted-foreground">Applied</p><p className="mt-1 text-base font-semibold">{d1Preview.appliedMigrations}</p></div>
-                <div><p className="text-muted-foreground">Pending</p><p className="mt-1 text-base font-semibold">{d1Preview.pendingMigrations}</p></div>
-                <div><p className="text-muted-foreground">Recovery point</p><p className="mt-1 font-medium">{d1Preview.recoveryBookmarkAvailable?"Available":"Missing"}</p></div>
+              <div className="space-y-2 rounded-xl border border-border/70 p-4">
+                <p className="text-sm font-semibold">{t("buildTitle")}</p>
+                <p className="text-xs leading-5 text-muted-foreground">{t("buildDesc")}</p>
+                {readiness && <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Badge variant="outline">{readiness.state.replaceAll("-"," ")}</Badge>
+                  <Badge variant="outline">{t("repoVerified")}: {t(readiness.verifiedRepoIdentity?"yes":"no")}</Badge>
+                </div>}
+                {readinessMessage && <p className="text-xs text-muted-foreground">{localizedStatus(readinessMessage)}</p>}
+                {readiness?.safetyBlockers?.map((blocker,i)=><p key={i} className="text-xs text-muted-foreground">{blocker}</p>)}
               </div>
-
-              {d1Preview.destructiveUpgrade&&<p className="flex items-start gap-2 text-xs text-destructive">
-                <RiAlertLine className="mt-0.5 size-4 shrink-0"/>Some migrations change existing schema or data. As with manual deployment, old Worker requests can continue during the change; verify compatibility before applying.
-              </p>}
-              {d1Preview.pending.length>0&&<div className="max-h-56 space-y-2 overflow-y-auto">
-                {d1Preview.pending.map(item=><div key={item.name} className="flex items-start gap-3 border border-border/70 p-2.5 text-xs">
-                  <Badge variant={item.destructive?"destructive":"outline"}>{item.destructive?"Review":"Add"}</Badge>
-                  <div className="min-w-0"><code className="deploy-mono break-all">{item.name}</code>
-                    {item.warnings.map(w=><p key={w} className="mt-1 text-muted-foreground">{w}</p>)}
+              <div className="space-y-4 rounded-xl border border-border/70 p-4">
+                <div><p className="text-sm font-semibold">{t("planTitle")}</p><p className="text-xs text-muted-foreground">{t("planDesc")}</p></div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="w-full space-y-1.5 sm:w-52">
+                    <label className="text-xs font-medium" htmlFor="intent-select">{t("operation")}</label>
+                    <Select value={intent} onValueChange={v=>{setIntent(v as Intent);setPlan(null);setResourcePlan(null);setPreparedRun(null);}}>
+                      <SelectTrigger id="intent-select" className="w-full"><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="install">{t("install")}</SelectItem>
+                        <SelectItem value="update">{t("update")}</SelectItem>
+                        <SelectItem value="repair">{t("repair")}</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>)}
-              </div>}
-              {d1Preview.blockers.map(blocker=><p key={blocker} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <RiLockLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}
-              </p>)}
-              {d1Preview.pendingMigrations>0&&<div className="flex flex-wrap items-center gap-3 pt-2">
-                <Button disabled={d1Applying||d1Working} onClick={()=>void applyD1Migrations()}>
-                  <RiShieldCheckLine/>{d1Applying?"Applying migrations…":"Apply pending D1 migrations"}
-                </Button>
-                {session.oauthConfigured&&<a href="/api/v1/auth/cloudflare/start?capability=d1-write"
-                  className="text-xs text-primary underline underline-offset-4">Authorize D1 Write</a>}
-              </div>}
-              <p className="text-xs text-muted-foreground">
-                Migration files are applied in Wrangler order without pausing the existing Worker.
-                Failed SQL stops at the failing file. Worker upload and activation are separate.
-              </p>
+                  <Button variant="outline" disabled={!accountId||working} onClick={()=>void preview()}><RiInformationLine/>{working?t("working"):t("previewPlan")}</Button>
+                  <Button variant="outline" disabled={!plan||preparing} onClick={()=>void freezeReviewedSha()}><RiGitBranchLine/>{preparing?t("working"):t("freezeSha")}</Button>
+                </div>
+                {plan ? <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+                  <div className="min-w-0 space-y-2">
+                    <Eyebrow>{t("sourceCommit")}</Eyebrow><code className="deploy-mono block text-xs">{plan.sourceSha}</code>
+                    <Eyebrow>{t("planBlockers")}</Eyebrow>
+                    {plan.blockers.length===0 && <Badge variant="secondary">{t("ready")}</Badge>}
+                    {plan.blockers.map(x=><p key={x} className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><RiAlertLine className="size-3.5 shrink-0"/>{x}</p>)}
+                  </div>
+                  <div className="space-y-2"><Eyebrow>{t("planSteps")}</Eyebrow>
+                    <ol className="space-y-2">{plan.proposedSteps.map((x,i)=><li className="flex gap-2 text-xs leading-5" key={i}><span className="text-primary">{i+1}.</span>{x}</li>)}</ol>
+                  </div>
+                </div> : <p className="text-xs text-muted-foreground">{t("noPlan")}</p>}
+                {preparedRun && <div className="space-y-2 rounded-lg bg-muted/30 p-3 text-xs">
+                  <p className="font-medium">{t("prepared")}</p>
+                  <p className="text-muted-foreground">{t("preparedUntil",{time:new Date(preparedRun.expiresAt).toLocaleTimeString(locale)})}</p>
+                  <code className="deploy-mono block">{preparedRun.pinnedSha}</code>
+                  <p className="text-muted-foreground">{t("preparedHint")}</p>
+                </div>}
+                {resourcePlan && <div className="space-y-3 border-t border-border pt-3">
+                  <p className="text-sm font-medium">{t("resourceActions")}</p>
+                  <Badge variant="outline">{t("resourceBlockers",{count:resourcePlan.actions.filter(a=>a.disposition==="block").length})}</Badge>
+                  {resourcePlan.blockers.map(x=><p key={x} className="text-xs text-destructive">{x}</p>)}
+                  <div className="grid gap-2 sm:grid-cols-2">{resourcePlan.actions.map(a=>
+                    <div className="min-w-0 rounded-lg border border-border/70 p-2.5 text-xs" key={a.binding}>
+                      <code className="deploy-mono font-semibold">{a.binding}</code>
+                      <p className="mt-1 text-muted-foreground">{a.description}</p>
+                    </div>)}</div>
+                </div>}
+              </div>
             </div>}
-          </CardContent>
-        </Card>
-
-        <Card className="deploy-card" id="versions">
-          <CardHeader>
-            <div className="flex justify-between gap-3">
-              <div className="space-y-1">
-                <Eyebrow>Worker versions</Eyebrow>
-                <CardTitle>Stage and activate</CardTitle>
-                <CardDescription>
-                  Upload the verified official Nightly as an inactive Worker version, then deploy it
-                  in a separate operation. No maintenance mode or extra runtime Durable Object.
-                </CardDescription>
+            {step===3 && <div className="space-y-5">
+              {!installationSupported ? <Notice icon={<RiLockLine className="size-4"/>} title={t("installUnavailable")} text={t("installUnavailableHint")}/> : <>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[220px] flex-1 space-y-2">
+                    <label htmlFor="d1-select" className="text-xs font-medium">{t("d1Label")}</label>
+                    <Select value={databaseId} onValueChange={v=>{setDatabaseId(v);setD1Preview(null);setD1Message("");}}>
+                      <SelectTrigger id="d1-select" className="w-full" disabled={!d1Databases.length}>
+                        <SelectValue placeholder={t("d1Placeholder")}/>
+                      </SelectTrigger>
+                      <SelectContent>{d1Databases.map(db=><SelectItem value={db.uuid} key={db.uuid}>{db.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <Button variant="outline" disabled={!databaseId||d1Working||d1Applying} onClick={()=>void previewD1()}>
+                    <RiShieldCheckLine/>{d1Working?t("verifyD1"):t("inspectMigrations")}
+                  </Button>
+                </div>
+                {d1Message && <p role="status" className="text-xs leading-5 text-muted-foreground">{localizedStatus(d1Message)}</p>}
+                {session.oauthConfigured && <div className="flex flex-wrap gap-3 text-xs">
+                  <a href="/api/v1/auth/cloudflare/start?capability=d1-read" className="text-primary underline underline-offset-4">{t("authD1Read")}</a>
+                  <a href="/api/v1/auth/cloudflare/start?capability=d1-write" className="text-primary underline underline-offset-4">{t("authD1Write")}</a>
+                </div>}
+                {d1Preview && <div className="space-y-4 rounded-xl border border-border/80 p-4" data-testid="d1-preview">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <code className="text-xs">{d1Preview.sourceSha.slice(0,12)}</code>
+                    <Badge variant={d1Preview.pendingMigrations?"outline":"secondary"}>
+                      {d1Preview.pendingMigrations ? d1Preview.pendingMigrations+" "+t("migrationPending") : t("schemaCurrent")}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      [t("migrationTotal"),d1Preview.totalMigrations],
+                      [t("migrationApplied"),d1Preview.appliedMigrations],
+                      [t("migrationPending"),d1Preview.pendingMigrations],
+                      [t("recoveryPoint"),t(d1Preview.recoveryBookmarkAvailable?"available":"missing")]
+                    ].map(([label,value])=><div key={label} className="space-y-1 rounded-lg bg-muted/25 p-3">
+                      <p className="text-[11px] text-muted-foreground">{label}</p><p className="text-lg font-semibold">{value}</p>
+                    </div>)}
+                  </div>
+                  {d1Preview.destructiveUpgrade && <Notice icon={<RiAlertLine className="size-4"/>} title={t("migrationReview")} text={t("migrationRisk")}/>}
+                  {d1Preview.pending.length>0 && <div className="max-h-56 space-y-1.5 overflow-y-auto">
+                    {d1Preview.pending.map(m=><div key={m.name} className="flex items-start gap-3 rounded-md border border-border/70 p-2.5 text-xs">
+                      <Badge variant={m.destructive?"destructive":"outline"}>{t(m.destructive?"migrationReview":"migrationAdd")}</Badge>
+                      <div className="min-w-0"><code className="deploy-mono block">{m.name}</code>
+                        {m.warnings.map(w=><p key={w} className="mt-1 text-muted-foreground">{w}</p>)}
+                      </div>
+                    </div>)}
+                  </div>}
+                  {d1Preview.blockers.map(b=><p key={b} className="text-xs text-destructive">{b}</p>)}
+                  {d1Applying && <div className="space-y-2" role="status">
+                    <p className="text-xs">{t("d1Progress",{applied:migrationAppliedCount,remaining:Math.max(0,d1Preview.pendingMigrations-migrationAppliedCount)})}</p>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuemin={0} aria-valuemax={d1Preview.pendingMigrations} aria-valuenow={migrationAppliedCount}>
+                      <div className="h-full bg-primary transition-all duration-300" style={{width:Math.round((migrationAppliedCount/d1Preview.pendingMigrations)*100)+"%"}}/>
+                    </div>
+                  </div>}
+                  {d1Preview.pendingMigrations>0 && <Button disabled={d1Applying||d1Working} onClick={()=>void applyD1Migrations()}>
+                    <RiShieldCheckLine/>{d1Applying?t("applyingMigrations"):t("applyMigrations")}
+                  </Button>}
+                  <p className="text-xs leading-5 text-muted-foreground">{t("d1ScopeHint")}</p>
+                </div>}
+              </>}
+            </div>}
+            {step===4 && <div className="space-y-5">
+              {versionWorking && <div role="status" className="space-y-2"><p className="text-xs text-muted-foreground">{t("working")}</p><div className="h-1.5 overflow-hidden rounded-full bg-secondary"><div className="deploy-indeterminate h-full w-1/3 rounded-full bg-primary"/></div></div>}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" disabled={!installationSupported||versionWorking} onClick={()=>void inspectWorkerVersions()}>
+                  <RiInformationLine/>{versionWorking?t("working"):t("inspectVersion")}
+                </Button>
+                {session.oauthConfigured && <Button variant="outline" asChild>
+                  <a href="/api/v1/auth/cloudflare/start?capability=deploy"><RiShieldCheckLine/>{t("authDeploy")}</a></Button>}
               </div>
-              <RiCodeSSlashLine className="size-5 text-primary"/>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" disabled={!accountId || versionWorking ||
-                !deployment || !["managed","legacy-candidate"].includes(deployment.kind)}
-                onClick={()=>void inspectWorkerVersions()}>
-                <RiInformationLine/>{versionWorking?"Working…":"Inspect Worker version"}
-              </Button>
-              {session.oauthConfigured&&
-                <a className="text-xs text-primary underline underline-offset-4"
-                  href="/api/v1/auth/cloudflare/start?capability=deploy">
-                  Authorize Workers Write + D1 access
-                </a>}
-            </div>
-            {versionMessage&&<p role="status" className="text-xs leading-relaxed text-muted-foreground">
-              {versionMessage}
-            </p>}
-            {versionPreview&&<div data-testid="worker-version-preview"
-              className="space-y-3 border border-border p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Eyebrow>Latest Nightly candidate</Eyebrow>
-                <Badge variant="outline">Not deployed</Badge>
-              </div>
-              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                <p>Source SHA <code className="break-all">{versionPreview.sourceSha}</code></p>
-                <p>Current version <code>{versionPreview.expectedActiveVersionId}</code></p>
-                <p>DO migration tag <code>{versionPreview.activeMigrationTag} → {versionPreview.targetMigrationTag}</code></p>
-                <p>Bindings to preserve: {versionPreview.existingBindingsPreserved}</p>
-              </div>
-              {versionPreview.legacyAdoptionRequired&&
-                <label className="flex cursor-pointer items-start gap-2 border border-border p-3 text-xs">
-                  <input type="checkbox" checked={legacyReviewed}
-                    onChange={event=>setLegacyReviewed(event.target.checked)}
-                    className="mt-0.5" />
-                  I have reviewed this existing, unmanaged InsightFlare Worker and approve adopting
-                  it without changing its current D1, KV or secrets.
+              {versionMessage && <p role="status" className="text-xs leading-5 text-muted-foreground">{localizedStatus(versionMessage)}</p>}
+              {versionPreview && <div className="space-y-4 rounded-xl border border-border p-4" data-testid="worker-version-preview">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">{t("nightlyCandidate")}</p><Badge variant="outline">{t("inactive")}</Badge>
+                </div>
+                <div className="grid gap-3 text-xs sm:grid-cols-2">
+                  <div className="min-w-0"><p className="text-muted-foreground">{t("sourceCommit")}</p><code className="deploy-mono">{versionPreview.sourceSha}</code></div>
+                  <div className="min-w-0"><p className="text-muted-foreground">{t("activeVersion")}</p><code className="deploy-mono">{versionPreview.expectedActiveVersionId}</code></div>
+                  <div className="sm:col-span-2"><p className="text-muted-foreground">{t("migrationTag")}</p><code className="deploy-mono">{versionPreview.activeMigrationTag} → {versionPreview.targetMigrationTag}</code></div>
+                </div>
+                <p className="text-xs text-muted-foreground">{t("bindingsPreserved",{count:versionPreview.existingBindingsPreserved})}</p>
+                {versionPreview.legacyAdoptionRequired && <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-xs leading-5">
+                  <input type="checkbox" checked={legacyReviewed} onChange={e=>setLegacyReviewed(e.target.checked)} className="mt-1"/>
+                  {t("legacyApprove")}
                 </label>}
-              <div className="flex flex-wrap items-center gap-2">
-                <Button disabled={versionWorking || !versionPreview.stageAvailable ||
-                  (versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
-                  onClick={()=>void stageWorkerVersion()}>
-                  <RiShieldCheckLine/>{versionWorking?"Uploading…":"Upload inactive version"}
-                </Button>
-                <Button variant="outline" disabled={versionWorking}
-                  onClick={()=>void findStagedVersions()}>
-                  <RiRefreshLine/>Find previous upload
-                </Button>
-                <p className="text-xs text-muted-foreground">Static assets and a Worker version are
-                  uploaded; the old version remains live.</p>
-              </div>
-            </div>}
-            {versionCandidates.length>0&&versionPreview&&
-              <div className="space-y-2 border border-border p-3">
-                <Eyebrow>Previously staged versions</Eyebrow>
-                {versionCandidates.map(item=>
-                  <div key={item.stagedVersionId} className="flex flex-wrap items-center gap-3 text-xs">
-                    <code className="break-all">{item.stagedVersionId}</code>
-                    <Button variant="outline" size="sm"
-                      disabled={versionWorking || (versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
-                      onClick={()=>setStagedVersion({
-                        stagedVersionId:item.stagedVersionId,
-                        sourceSha:item.sourceSha,artifactDigest:item.artifactDigest,
-                        activeVersionUnchanged:true,bindingsVerified:true,
-                        migrationTagVerified:true,canPromote:false
-                      })}>Use this version</Button>
-                  </div>)}
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={versionWorking || (versionPreview.legacyAdoptionRequired&&!legacyReviewed)} onClick={()=>void stageWorkerVersion()}>
+                    <RiShieldCheckLine/>{versionWorking?t("uploading"):t("uploadInactive")}
+                  </Button>
+                  <Button variant="outline" disabled={versionWorking} onClick={()=>void findStagedVersions()}>
+                    <RiRefreshLine/>{t("findPrevious")}
+                  </Button>
+                </div>
               </div>}
-            {stagedVersion&&versionPreview&&<div data-testid="worker-staged-version"
-              className="space-y-3 border border-border p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Eyebrow>Verified staged version</Eyebrow>
-                <Badge variant="secondary">Ready for activation</Badge>
-              </div>
-              <p className="break-all text-xs"><code>{stagedVersion.stagedVersionId}</code></p>
-              <p className="text-xs text-muted-foreground">
-                Existing D1/KV/DO and secrets are preserved. New Worker traffic
-                has not been enabled.
-              </p>
-              {(!d1Preview || d1Preview.pendingMigrations!==0 ||
-                d1Preview.sourceSha!==versionPreview.sourceSha ||
-                d1Preview.databaseId!==versionPreview.databaseId)&&
-                <p className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <RiAlertLine className="size-4 shrink-0"/>
-                  First inspect the matching D1 database and apply any pending Nightly SQL.
-                  This is the same order as the manual Wrangler deployment.
-                </p>}
-              <Button variant="destructive" disabled={versionWorking||
-                (versionPreview.legacyAdoptionRequired&&!legacyReviewed) ||
-                !d1Preview || d1Preview.pendingMigrations!==0 ||
-                d1Preview.sourceSha!==versionPreview.sourceSha ||
-                d1Preview.databaseId!==versionPreview.databaseId}
-                onClick={()=>void activateWorkerVersion()}>
-                <RiShieldCheckLine/>Activate version at 100% traffic
-              </Button>
-            </div>}
-            {activatedVersion&&<div role="status"
-              className="space-y-1 border border-border p-3 text-xs">
-              <p className="font-medium">Worker version activated</p>
-              <p className="break-all">Deployment ID: <code>{activatedVersion.deploymentId}</code></p>
-              <p className="break-all">Version ID: <code>{activatedVersion.activatedVersionId}</code></p>
-            </div>}
-            <p className="text-xs text-muted-foreground">
-              Initial installation and new D1/KV/DO provisioning are separate from this
-              existing-Worker upgrade flow. Cloudflare route and cron configuration
-              remain unchanged by a version activation.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="deploy-card" id="plan">
-          <CardHeader><div className="flex justify-between gap-3">
-            <div className="space-y-1"><Eyebrow>Deployment</Eyebrow><CardTitle>Deployment plan</CardTitle><CardDescription>Preview the exact steps without changing your infrastructure.</CardDescription></div>
-            <RiTerminalBoxLine className="size-5 text-primary"/>
-          </div></CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="w-full space-y-2 sm:w-52">
-                <label htmlFor="intent-select" className="text-xs font-medium">Operation</label>
-                <Select value={intent} onValueChange={v=>{setIntent(v as Intent);setPlan(null);setResourcePlan(null);setPreparedRun(null);}}>
-                  <SelectTrigger className="w-full" id="intent-select"><SelectValue/></SelectTrigger>
-                  <SelectContent><SelectItem value="install">Install from main</SelectItem><SelectItem value="update">Update to main</SelectItem><SelectItem value="repair">Repair current commit</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" disabled={!deployment||working} onClick={()=>void preview()}><RiInformationLine/>{working?"Preparing…":"Preview plan"}</Button>
-              <Button variant="outline" disabled={!plan||preparing} onClick={()=>void freezeReviewedSha()}><RiGitBranchLine/>{preparing?"Freezing…":"Freeze reviewed SHA"}</Button>
-              <Button disabled><RiLockLine/>New install workflow pending</Button>
-            </div>
-
-            {preparedRun && <div className="space-y-2 border border-border bg-muted/20 p-4" role="status">
-              <div className="flex items-center justify-between gap-2"><Eyebrow>Prepared operation · No deployment</Eyebrow><Badge variant="outline">Blocked</Badge></div>
-              <p className="text-xs text-muted-foreground">This SHA is frozen for the current session until {new Date(preparedRun.expiresAt).toLocaleTimeString()}.</p>
-              <code data-testid="prepared-sha" className="deploy-mono block text-xs text-foreground">{preparedRun.pinnedSha}</code>
-              <p className="text-xs text-muted-foreground">Preparation does not start a build, migrate a database or modify your Cloudflare resources.</p>
-            </div>}
-            {resourcePlan && <div className="space-y-3 border border-border bg-muted/10 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Eyebrow>Resource reconciliation · Preview only</Eyebrow>
-                <Badge variant="outline">{resourcePlan.actions.filter(x=>x.disposition==="block").length} resource blockers</Badge>
-              </div>
-              {resourcePlan.blockers.map(x=><p className="flex items-start gap-2 text-xs text-destructive" key={x}><RiAlertLine className="size-3.5 shrink-0"/>{x}</p>)}
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {resourcePlan.actions.map(action=><div key={action.binding} className="flex items-start gap-3 border border-border/70 p-2.5 text-xs">
-                  <Badge variant={action.disposition==="block"?"destructive":"outline"}>{action.disposition}</Badge>
-                  <div className="min-w-0 space-y-1"><code className="deploy-mono text-foreground">{action.binding}</code><p className="leading-relaxed text-muted-foreground">{action.description}</p></div>
+              {versionCandidates.length>0 && versionPreview && <div className="space-y-2 rounded-xl border border-border p-4">
+                <p className="text-sm font-semibold">{t("previousCandidates")}</p>
+                {versionCandidates.map(candidate=><div key={candidate.stagedVersionId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 p-2">
+                  <code className="deploy-mono max-w-full text-xs">{candidate.stagedVersionId}</code>
+                  <Button variant="outline" size="sm" disabled={versionWorking||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
+                    onClick={()=>setStagedVersion({stagedVersionId:candidate.stagedVersionId,sourceSha:candidate.sourceSha,
+                      artifactDigest:candidate.artifactDigest,activeVersionUnchanged:true,bindingsVerified:true,migrationTagVerified:true,canPromote:false})}>{t("useCandidate")}</Button>
                 </div>)}
-              </div>
+              </div>}
+              {stagedVersion && <Notice icon={<RiShieldCheckLine className="size-4"/>} title={t("stagedReady")} text={t("stageSafety")}/>}
+              <p className="text-xs text-muted-foreground">{t("stageContinueHint")}</p>
             </div>}
-            {plan ? <div className="grid grid-cols-1 gap-5 border border-border p-4 md:grid-cols-2">
-              <div className="space-y-3">
-                <Eyebrow>Target commit</Eyebrow>
-                <code className="deploy-mono block text-xs">{plan.sourceSha}</code>
-                <Badge variant="outline"><RiLockLine className="mr-1 size-3"/>Execution gated</Badge>
-                {plan.blockers.map(blocker=><p key={blocker} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><RiAlertLine className="mt-0.5 size-3.5 shrink-0"/>{blocker}</p>)}
-              </div><div className="space-y-3">
-                <Eyebrow>Planned steps</Eyebrow>
-                <ol className="space-y-2">{plan.proposedSteps.map((step,i)=><li key={step} className="flex gap-3 text-xs text-muted-foreground"><span className="text-primary">{String(i+1).padStart(2,"0")}</span>{step}</li>)}</ol>
-              </div>
-            </div> : <div className="flex min-h-28 items-center justify-center gap-3 border border-dashed border-border px-4 text-center text-xs text-muted-foreground">
-              <RiTimeLine className="size-5 shrink-0"/>{working?"Preparing read-only plan…":"Connect Cloudflare and select an account to preview the deployment plan."}
+            {step===5 && <div className="space-y-5">
+              {activatedVersion ? <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-5" role="status">
+                <div className="flex items-center gap-2 text-primary"><RiShieldCheckLine className="size-6"/><h3 className="text-lg font-semibold">{t("activationSuccess")}</h3></div>
+                <div className="space-y-1 text-xs"><p>{t("deploymentId")}: <code className="deploy-mono">{activatedVersion.deploymentId}</code></p>
+                  <p>{t("versionId")}: <code className="deploy-mono">{activatedVersion.activatedVersionId}</code></p></div>
+              </div> : <>
+                {!stagedVersion && <Notice icon={<RiInformationLine className="size-4"/>} title={t("activationNoCandidate")} text={t("stageContinueHint")}/>}
+                {stagedVersion && <div className="space-y-3 rounded-xl border border-border p-4" data-testid="worker-staged-version">
+                  <p className="text-sm font-semibold">{t("activationTarget")}</p>
+                  <code className="deploy-mono block text-xs">{stagedVersion.stagedVersionId}</code>
+                  <p className="text-xs text-muted-foreground">{t("stageSafety")}</p>
+                  {!d1Current && <Notice icon={<RiAlertLine className="size-4"/>} title={t("needsAttention")} text={t("activationNeedD1")}/>}
+                  <Button variant="destructive" disabled={versionWorking||!d1Current||!versionPreview||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
+                    onClick={()=>void activateWorkerVersion()}>
+                    <RiShieldCheckLine/>{versionWorking?t("working"):t("activate100")}
+                  </Button>
+                </div>}
+              </>}
+              {versionMessage && <p role="status" className="text-xs text-muted-foreground">{versionMessage}</p>}
+              <p className="text-xs text-muted-foreground">{t("activationNote")}</p>
             </div>}
-          </CardContent>
+          </section>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-muted/15 px-5 py-4 sm:px-9">
+            <Button variant="outline" onClick={()=>goStep(step-1)} disabled={step===0||stageBusy}>
+              <RiArrowLeftLine/>{t("previous")}
+            </Button>
+            {step<5 ? <Button onClick={()=>goStep(step+1)} disabled={!mayAdvance[step]||stageBusy}>
+              {t("next")}<RiArrowRightLine/>
+            </Button> : <Badge variant={activatedVersion?"secondary":"outline"}>{activatedVersion?t("stageFinish"):t("needsAttention")}</Badge>}
+          </div>
         </Card>
-
-        <footer className="flex flex-col justify-between gap-3 border-t border-border pt-5 text-xs text-muted-foreground sm:flex-row">
-          <span>InsightFlare Deploy · Independent control plane</span>
-          <span className="flex items-center gap-2"><RiShieldCheckLine className="size-4 text-primary"/>Your analytics data stays in your account</span>
+        <footer className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-xs text-muted-foreground">
+          <RiShieldCheckLine className="size-4 text-primary"/>{t("dataPromise")}
         </footer>
-      </main>
-    </div>
+      </div>
+    </main>
   </div>;
 }
