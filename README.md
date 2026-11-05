@@ -4,6 +4,25 @@ The independent Cloudflare deployment control plane for [InsightFlare](https://g
 
 **Development status:** The official Nightly channel, Cloudflare OAuth, D1 migrations and separate existing-Worker version staging/activation are implemented in the source code. Initial D1/KV/Worker provisioning and a single-step full installer remain unfinished. These new APIs have not been deployed or end-to-end tested through the public OAuth application, and the existing customer's infrastructure is not changed by this repository commit.
 
+## Production Cloudflare deployment (GitHub integration)
+
+Deploy is a public, independent control-plane service. **Host this Worker in the maintainer's primary Cloudflare account**, not in a customer's test account. A customer connects their own account with Cloudflare OAuth after visiting the public site. The existing InsightFlare test account is suitable for the first end-to-end upgrade trial, but is **not** where the Deploy control plane runs.
+
+1. In the **primary** Cloudflare account, open **Workers & Pages → Create application → GitHub**. Authorize the Cloudflare GitHub App for the `InsightFlare` GitHub organization, allowing access to the `InsightFlare/deploy` repository. Select that repository and the `main` branch. Use Worker name `insightflare-deploy` and repository root `/`. The Worker name must match `wrangler.jsonc`.
+2. Use **Build command** `pnpm build:web` and **Deploy command** `pnpm exec wrangler deploy --env=""` (explicitly selects the top-level production environment, never a named test environment). Cloudflare Workers Builds automatically installs dependencies; `package.json` pins `pnpm@11.1.3` for reproducible installation. Set `NODE_VERSION=24` if the build-image default differs. **Do not** select `pnpm build` as the only deployment command: the project's generic `build` script performs a Wrangler **dry-run**, not a deployment. A push to `main` subsequently builds and deploys the control plane automatically.
+3. Once the Worker exists, bind **Custom Domain** `deploy.insightflare.net` to **that Worker** in the primary account, under Workers & Pages → Worker → Settings → Domains & Routes (wording may vary). Verify that the hostname does not already route to an unrelated application before changing it. `wrangler.jsonc` already specifies `APP_ORIGIN=https://deploy.insightflare.net`; OAuth redirect and strict Origin validation depend on this exact HTTPS host. The Workers `workers.dev` address is not a substitute for the OAuth redirect.
+4. Create an **OAuth Client** in the primary account under **Manage Account → OAuth clients**. Use OAuth 2.0 authorization code flow, with PKCE S256, and a confidential client whose secret is sent in the token request body (`client_secret_post`). Register this exact redirect URL:
+   `https://deploy.insightflare.net/oauth/cloudflare/callback`.
+   Configure read scopes `workers-scripts.read`, `account-settings.read`, `zone.read` and make the following **optional**, not required by default: `d1.read`, `d1.write`, `workers-scripts.write`. The UI requests them explicitly for migrations or Worker upgrade actions. Test the actual OAuth client's allowed scopes and permission consent before inviting external users.
+5. In the **Deploy Worker runtime** Settings → Variables and Secrets, add **Secret** values:
+   - `CF_OAUTH_CLIENT_ID` — OAuth client ID.
+   - `CF_OAUTH_CLIENT_SECRET` — OAuth client secret.
+   - `SESSION_ENCRYPTION_KEY` — independent random 32-byte key encoded as Base64; **persist across redeployments**, because rotating it invalidates existing encrypted login sessions.
+   Do not commit or add these to GitHub, build logs, or plaintext `wrangler.jsonc`. These are Worker **runtime secrets**, not Workers Builds build-time variables.
+6. Check `https://deploy.insightflare.net/api/v1/health` and visit `https://deploy.insightflare.net`. Connect the **separate InsightFlare test Cloudflare account** via the official OAuth consent screen. Review D1 and version readiness before applying migrations. Existing Worker upgrade, Stage and Activate are separate actions; perform the first actual test with non-production data.
+
+The Deploy Worker's own `SESSIONS` and `RUNS` Durable Objects are configured in `wrangler.jsonc` and exist only inside the **control plane**. They are not new DOs added to customer InsightFlare traffic. The actual account-scoped D1 migration and Worker Version APIs run only after user consent. GitHub integration deployment of Deploy itself never automatically upgrades a customer's InsightFlare.
+
 ## Local development
 
 Requires Node.js 22+ and pnpm.
