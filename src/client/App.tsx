@@ -430,7 +430,7 @@ export function App() {
           <Badge variant={session.connected?"secondary":"outline"}>{t(session.connected?"connected":"disconnected")}</Badge>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" aria-label={t("theme")}>
+              <Button variant="outline" aria-label={t("theme")}>
                 <ThemeIcon data-icon="inline-start" className="size-4"/>{t("theme")}
                 <RiArrowDownSLine data-icon="inline-end" className="size-3.5"/>
               </Button>
@@ -448,7 +448,7 @@ export function App() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" aria-label={t("language")}>
+              <Button variant="outline" aria-label={t("language")}>
                 <RiGlobalLine data-icon="inline-start" className="size-4"/>{t("language")}
                 <RiArrowDownSLine data-icon="inline-end" className="size-3.5"/>
               </Button>
@@ -515,7 +515,7 @@ export function App() {
             </div>
             {message && <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-none border border-destructive/30 bg-destructive/5 p-3 text-xs">
               <div className="flex min-w-0 items-start gap-2"><RiAlertLine className="size-4 shrink-0 text-destructive"/><span className="break-words">{localizedStatus(message)}</span></div>
-              <Button size="xs" variant="ghost" onClick={()=>setMessage("")}>{t("dismiss")}</Button>
+              <Button variant="ghost" onClick={()=>setMessage("")}>{t("dismiss")}</Button>
             </div>}
             {step===0 && <div className="space-y-5">
               <div className="flex items-start gap-3 rounded-none border border-border/70 bg-muted/20 p-4">
@@ -527,10 +527,10 @@ export function App() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {session.connected ?
-                  <Badge variant="secondary" className="px-3 py-2">{t("connected")}</Badge> :
+                  <Badge variant="secondary">{t("connected")}</Badge> :
                   session.oauthConfigured ?
-                    <Button size="lg" asChild><a href="/api/v1/auth/cloudflare/start"><RiCloudLine/>{t("connectButton")}</a></Button> :
-                    <Button size="lg" disabled><RiLockLine/>{t("oauthMissing")}</Button>}
+                    <Button asChild><a href="/api/v1/auth/cloudflare/start"><RiCloudLine/>{t("connectButton")}</a></Button> :
+                    <Button disabled><RiLockLine/>{t("oauthMissing")}</Button>}
                 {session.connected && <Button variant="outline" onClick={()=>void disconnect()}><RiLogoutBoxRLine/>{t("disconnect")}</Button>}
                 <Button variant="outline" asChild><a href="https://github.com/RavelloH/InsightFlare" target="_blank" rel="noopener noreferrer">
                   <RiGithubLine/>{t("sourceGitHub")}<RiExternalLinkLine className="size-3.5"/></a></Button>
@@ -570,8 +570,8 @@ export function App() {
                     {t("commitDate",{date:new Date(source.committedAt).toLocaleDateString(locale)})}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" disabled={sourceWorking} onClick={()=>void reloadSource()}><RiRefreshLine/>{t("refresh")}</Button>
-                  {source && <Button variant="outline" size="sm" asChild><a href={source.url} target="_blank" rel="noopener noreferrer"><RiExternalLinkLine/>{t("viewCommit")}</a></Button>}
+                  <Button variant="outline" disabled={sourceWorking} onClick={()=>void reloadSource()}><RiRefreshLine/>{t("refresh")}</Button>
+                  {source && <Button variant="outline" asChild><a href={source.url} target="_blank" rel="noopener noreferrer"><RiExternalLinkLine/>{t("viewCommit")}</a></Button>}
                 </div>
               </div>
               <div className="space-y-2 rounded-none border border-border/70 p-4">
@@ -740,7 +740,7 @@ export function App() {
                 <p className="text-sm font-semibold">{t("previousCandidates")}</p>
                 {versionCandidates.map(candidate=><div key={candidate.stagedVersionId} className="flex flex-wrap items-center justify-between gap-2 rounded-none border border-border/50 p-2">
                   <code className="deploy-mono max-w-full text-xs">{candidate.stagedVersionId}</code>
-                  <Button variant="outline" size="sm" disabled={versionWorking||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
+                  <Button variant="outline" disabled={versionWorking||(versionPreview.legacyAdoptionRequired&&!legacyReviewed)}
                     onClick={()=>setStagedVersion({stagedVersionId:candidate.stagedVersionId,sourceSha:candidate.sourceSha,
                       artifactDigest:candidate.artifactDigest,activeVersionUnchanged:true,bindingsVerified:true,migrationTagVerified:true,canPromote:false})}>{t("useCandidate")}</Button>
                 </div>)}
