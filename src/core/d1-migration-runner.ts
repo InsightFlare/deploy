@@ -26,9 +26,10 @@ export interface D1ExclusiveLease {
 }
 
 /**
- * This is deliberately an injectable interface. A real D1 /query batch
- * adapter is NOT wired to any public endpoint until Cloudflare's SQL
- * transaction/PRAGMA behavior has passed disposable database validation.
+ * This remains an injectable, private interface. Cloudflare REST D1 batch
+ * behavior and all 43 canonical migrations passed isolated remote D1 tests;
+ * production writes are still disabled until maintenance-mode enforcement,
+ * durable operation tracking, approval UI and concurrent-write safety exist.
  */
 export interface D1MigrationTransport {
   snapshot(accountId: string, databaseId: string): Promise<D1MigrationSnapshot>;
