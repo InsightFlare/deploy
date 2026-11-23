@@ -57,6 +57,8 @@ export interface PipelineRun {
   sourceSha: string;
   artifactDigest: string;
   legacyAdoptionApproved: boolean;
+  /** The user chose the administrator password, so it is never shown back. */
+  customAdminPassword?: boolean;
   createdAt: number;
   updatedAt: number;
   phase: PipelinePhase;
@@ -108,7 +110,7 @@ export async function installDatabaseReusable(
 
 export function createRun(input: {
   id: string; intent: PipelineIntent; accountId: string; sourceSha: string;
-  artifactDigest: string; legacyAdoptionApproved: boolean; now: number;
+  artifactDigest: string; legacyAdoptionApproved: boolean; now: number; customAdminPassword?: boolean;
 }): PipelineRun {
   if (!/^[a-f0-9]{32}$/.test(input.accountId) || !/^[a-f0-9]{40}$/.test(input.sourceSha) ||
       !/^[a-f0-9]{64}$/.test(input.artifactDigest)) {
@@ -119,6 +121,7 @@ export function createRun(input: {
     id: input.id, intent: input.intent, accountId: input.accountId,
     sourceSha: input.sourceSha, artifactDigest: input.artifactDigest,
     legacyAdoptionApproved: input.legacyAdoptionApproved,
+    ...(input.intent === "install" && input.customAdminPassword ? { customAdminPassword: true } : {}),
     createdAt: input.now, updatedAt: input.now, phase: "running",
     steps: ids.map(id => ({ id, status: "pending" })), state: {}
   };

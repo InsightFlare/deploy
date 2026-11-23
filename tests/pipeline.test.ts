@@ -308,3 +308,21 @@ describe("fresh install plan", () => {
     expect(password).not.toMatch(/[0O1lI]/);
   });
 });
+
+describe("administrator password", () => {
+  it("accepts 8 to 128 printable characters", async () => {
+    const { validAdminPassword } = await import("../src/routes/pipeline");
+    expect(validAdminPassword("12345678")).toBe(true);
+    expect(validAdminPassword("密码也可以是中文字符")).toBe(true);
+    expect(validAdminPassword("short")).toBe(false);
+    expect(validAdminPassword("x".repeat(129))).toBe(false);
+    expect(validAdminPassword("tab\tinside")).toBe(false);
+    expect(validAdminPassword(12345678)).toBe(false);
+  });
+
+  it("marks only install runs as using a chosen password", () => {
+    const base = { id: "r", accountId: "a".repeat(32), sourceSha: "d".repeat(40), artifactDigest: "e".repeat(64), legacyAdoptionApproved: false, now: 0, customAdminPassword: true };
+    expect(createRun({ ...base, intent: "install" }).customAdminPassword).toBe(true);
+    expect(createRun({ ...base, intent: "update" }).customAdminPassword).toBeUndefined();
+  });
+});

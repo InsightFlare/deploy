@@ -8,6 +8,9 @@ import { Badge } from "@insightflare/ui/badge";
 import { Checkbox } from "@insightflare/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@insightflare/ui/select";
 import { Separator } from "@insightflare/ui/separator";
+import { Input } from "@insightflare/ui/input";
+import { Label } from "@insightflare/ui/label";
+import { RadioGroup, RadioGroupItem } from "@insightflare/ui/radio-group";
 import type { Account, AccountOverview, PipelineRun, PipelineStep, RunView, Session } from "./api";
 import { ANALYTICS_ENGINE_URL, CLOUDFLARE_WORKER_URL, CONNECT_URL } from "./api";
 import { ConfirmOperation, CopyValue, Eyebrow, Notice, shortSha, type Translate } from "./ui";
@@ -80,9 +83,16 @@ function PlanList({ items }: { items: Array<string | null | false> }) {
 
 export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart }: {
   t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountName: string; starting: boolean;
-  onStart: (legacyAdoptionApproved: boolean) => void;
+  onStart: (legacyAdoptionApproved: boolean, adminPassword?: string) => void;
 }) {
   const [adopt, setAdopt] = useState(false);
+  const [passwordMode, setPasswordMode] = useState<"generate" | "custom">("generate");
+  const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const custom = passwordMode === "custom";
+  const passwordProblem = !custom ? null
+    : password.length < 8 || password.length > 128 ? "adminPasswordTooShort" as const
+    : password !== repeat ? "adminPasswordMismatch" as const : null;
   const install = overview.install;
   const update = overview.update;
   const blocked = overview.blockers.length > 0 || !overview.release || overview.upToDate;
@@ -120,6 +130,26 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
       ]} />
       {!install.workersDevSubdomain ? <Notice tone="warning">{t("planNoWorkersDev")}</Notice> : null}
       {install.analyticsDatasets.length ? <Notice>{t("planAnalyticsNote")}</Notice> : null}
+      <div className="space-y-3 border border-border p-4">
+        <Eyebrow>{t("adminPasswordTitle")}</Eyebrow>
+        <RadioGroup value={passwordMode} onValueChange={value => setPasswordMode(value === "custom" ? "custom" : "generate")} className="gap-2">
+          <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="generate" />{t("adminPasswordGenerate")}</label>
+          <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="custom" />{t("adminPasswordCustom")}</label>
+        </RadioGroup>
+        {custom ? <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-password">{t("adminPasswordLabel")}</Label>
+            <Input id="admin-password" type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-password-repeat">{t("adminPasswordRepeat")}</Label>
+            <Input id="admin-password-repeat" type="password" autoComplete="new-password" value={repeat} onChange={event => setRepeat(event.target.value)} />
+          </div>
+          <p className={"text-xs sm:col-span-2 " + (passwordProblem && (password || repeat) ? "text-destructive" : "text-muted-foreground")}>
+            {passwordProblem && (password || repeat) ? t(passwordProblem) : t("adminPasswordHint")}
+          </p>
+        </div> : null}
+      </div>
     </div> : null}
 
     {update ? <div className="space-y-3">
@@ -142,8 +172,8 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
       <ConfirmOperation
         title={t(install ? "confirmInstallTitle" : "confirmUpdateTitle")}
         description={install ? t("confirmInstallDesc", { account: accountName }) : t("confirmUpdateDesc")}
-        confirmText={t("confirm")} cancelText={t("cancel")} onConfirm={() => onStart(adopt)}>
-        <Button disabled={blocked || starting || (needsAdoption && !adopt)}>
+        confirmText={t("confirm")} cancelText={t("cancel")} onConfirm={() => onStart(adopt, install && custom ? password : undefined)}>
+        <Button disabled={blocked || starting || (needsAdoption && !adopt) || Boolean(install && passwordProblem)}>
           {starting ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiArrowRightLine data-icon="inline-start" />}
           {t(install ? "installButton" : "updateButton")}
         </Button>
@@ -241,9 +271,12 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
     {run.intent === "install" ? <div className="space-y-4 border border-border p-4">
       <div className="space-y-1">
         <p className="text-sm font-semibold">{t("adminTitle")}</p>
-        <p className="text-xs leading-5 text-muted-foreground">{admin ? t("adminDesc") : t("passwordForgotten")}</p>
+        <p className="text-xs leading-5 text-muted-foreground">
+          {admin?.password ? t("adminDesc") : run.customAdminPassword ? t("adminCustomDesc") : t("passwordForgotten")}
+        </p>
       </div>
-      {admin ? <>
+      {run.customAdminPassword ? <CopyValue label={t("username")} value="admin" t={t} /> : null}
+      {admin?.password ? <>
         <CopyValue label={t("username")} value={admin.username} t={t} />
         <CopyValue label={t("password")} value={admin.password} t={t} />
         <Button variant="outline" onClick={onPasswordSaved} disabled={savingPassword}>
@@ -261,6 +294,6 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
     </div> : null}
 
     <Separator />
-    <Button variant="outline" onClick={onFinish} disabled={Boolean(admin)}>{t("finish")}</Button>
+    <Button variant="outline" onClick={onFinish} disabled={Boolean(admin?.password)}>{t("finish")}</Button>
   </div>;
 }

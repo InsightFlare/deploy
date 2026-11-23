@@ -140,13 +140,14 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.id, run?.phase, step, reconnect, accountId]);
 
-  async function startRun(legacyAdoptionApproved: boolean) {
+  async function startRun(legacyAdoptionApproved: boolean, adminPassword?: string) {
     if (!overview?.release || !overview.intent) return;
     setWorking(true); setRunError("");
     try {
       const view = await api.startRun(accountId, {
         intent: overview.intent, sourceSha: overview.release.sha,
-        artifactDigest: overview.release.artifactDigest, legacyAdoptionApproved
+        artifactDigest: overview.release.artifactDigest, legacyAdoptionApproved,
+        ...(adminPassword ? { adminPassword } : {})
       });
       setRunView(view);
       setStep(3);
@@ -292,7 +293,7 @@ export function App() {
               : step === 1 ? <AccountStep t={t} accounts={accounts} accountId={accountId} onSelect={setAccountId}
                   overview={overview} loading={overviewLoading} runView={runView} />
               : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountName={accountName}
-                  starting={working} onStart={legacy => void startRun(legacy)} />
+                  starting={working} onStart={(legacy, password) => void startRun(legacy, password)} />
               : step === 3 && run ? <DeployStep t={t} tMaybe={tMaybe} run={run} otherTab={otherTab} reconnect={reconnect}
                   working={working} error={runError}
                   onRetry={() => void act(() => api.retry(accountId, run.id))}

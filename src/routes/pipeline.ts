@@ -55,17 +55,27 @@ async function checkHealth(url: string): Promise<boolean> {
   }
 }
 
-/** The bootstrap password is shown only once the installation has finished. */
+/** 8–128 printable characters, matching InsightFlare's own minimum. */
+export function validAdminPassword(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 8 && value.length <= 128 && Array.from(value).every(ch => ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) !== 127);
+}
+
+/**
+ * A generated bootstrap password is shown only once the installation has
+ * finished; a password the user chose is never sent back.
+ */
 async function publicRun(env: Env, stored: StoredRun) {
   let adminPassword: string | null = null;
-  if (stored.run?.intent === "install" && stored.run.phase === "succeeded" && stored.adminPassword && env.SESSION_ENCRYPTION_KEY) {
+  const custom = stored.run?.customAdminPassword === true;
+  if (stored.run?.intent === "install" && stored.run.phase === "succeeded" && !custom && stored.adminPassword && env.SESSION_ENCRYPTION_KEY) {
     try { adminPassword = await unsealToken(stored.adminPassword, env.SESSION_ENCRYPTION_KEY); }
     catch { adminPassword = null; }
   }
   return {
     run: stored.run,
     busy: stored.busy,
-    admin: adminPassword ? { username: "admin", password: adminPassword } : null
+    admin: adminPassword ? { username: "admin", password: adminPassword }
+      : custom && stored.run?.phase === "succeeded" ? { username: "admin", password: null } : null
   };
 }
 
@@ -93,10 +103,14 @@ pipelineRoutes.post("/:accountId/run", async c => {
   assertSameOrigin(c);
   const accountId = accountParam(c.req.param("accountId"));
   const body = await c.req.json().catch(() => null) as {
-    intent?: string; sourceSha?: string; artifactDigest?: string; legacyAdoptionApproved?: boolean;
+    intent?: string; sourceSha?: string; artifactDigest?: string; legacyAdoptionApproved?: boolean; adminPassword?: unknown;
   } | null;
   if (!body || (body.intent !== "install" && body.intent !== "update")) {
     throw new DeployError("INVALID_SOURCE", "Intent must be install or update.");
+  }
+  const chosenPassword = body.adminPassword === undefined || body.adminPassword === "" ? null : body.adminPassword;
+  if (chosenPassword !== null && !validAdminPassword(chosenPassword)) {
+    throw new DeployError("INVALID_SOURCE", "The administrator password must be 8 to 128 printable characters.");
   }
   const client = await authorizedClient(c, accountId);
   const observed = await discoverDeployment(client, accountId);
@@ -114,12 +128,13 @@ pipelineRoutes.post("/:accountId/run", async c => {
   const run = createRun({
     id: crypto.randomUUID(), intent: body.intent, accountId,
     sourceSha: pointer.sha, artifactDigest: pointer.artifactDigest,
-    legacyAdoptionApproved: body.legacyAdoptionApproved === true, now
+    legacyAdoptionApproved: body.legacyAdoptionApproved === true, now,
+    customAdminPassword: chosenPassword !== null
   });
   let sealed;
   if (run.intent === "install") {
     if (!c.env.SESSION_ENCRYPTION_KEY) throw new DeployError("MISCONFIGURED", "Session encryption is not configured.", 503);
-    sealed = await sealToken(generatePassword(), c.env.SESSION_ENCRYPTION_KEY, now + RUN_RETENTION_MS);
+    sealed = await sealToken(chosenPassword ?? generatePassword(), c.env.SESSION_ENCRYPTION_KEY, now + RUN_RETENTION_MS);
   }
   return c.json(await publicRun(c.env, await runStore.create(c.env, accountId, run, sealed)), 200, NO_STORE);
 });
@@ -152,7 +167,12 @@ pipelineRoutes.post("/:accountId/run/advance", async c => {
     await runStore.commit(c.env, accountId, leaseId, run);
     throw error;
   }
-  return c.json(await publicRun(c.env, await runStore.commit(c.env, accountId, leaseId, next)), 200, NO_STORE);
+  let stored = await runStore.commit(c.env, accountId, leaseId, next);
+  // A password the user chose is never shown again, so there is no reason to keep it.
+  if (next.phase === "succeeded" && next.customAdminPassword && stored.adminPassword) {
+    stored = await runStore.forgetPassword(c.env, accountId, next.id);
+  }
+  return c.json(await publicRun(c.env, stored), 200, NO_STORE);
 });
 
 pipelineRoutes.post("/:accountId/run/retry", async c => {

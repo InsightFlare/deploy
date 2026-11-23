@@ -9,7 +9,8 @@ export interface Account { id: string; name: string }
 export interface RunView {
   run: PipelineRun | null;
   busy: boolean;
-  admin: { username: string; password: string } | null;
+  /** password is null when the user chose it during setup (it is never sent back). */
+  admin: { username: string; password: string | null } | null;
 }
 
 export class ApiError extends Error {
@@ -49,7 +50,7 @@ export const api = {
   accounts: () => request<{ accounts: Account[] }>("/api/v1/providers/cloudflare/accounts"),
   overview: (id: string) => request<{ overview: AccountOverview }>(account(id) + "/overview"),
   run: (id: string) => request<RunView>(account(id) + "/run"),
-  startRun: (id: string, body: { intent: "install" | "update"; sourceSha: string; artifactDigest: string; legacyAdoptionApproved: boolean }) =>
+  startRun: (id: string, body: { intent: "install" | "update"; sourceSha: string; artifactDigest: string; legacyAdoptionApproved: boolean; adminPassword?: string }) =>
     post<RunView>(account(id) + "/run", body),
   advance: (id: string, runId: string) => post<RunView>(account(id) + "/run/advance", { runId }),
   retry: (id: string, runId: string) => post<RunView>(account(id) + "/run/retry", { runId }),

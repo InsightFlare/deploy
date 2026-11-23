@@ -86,6 +86,15 @@ export interface AppMessages {
     "blocker_RELEASE_UNAVAILABLE": string;
     "blocker_DATABASE_TAKEN": string;
     "blocker_UPDATE_BLOCKED": string;
+    "adminPasswordTitle": string;
+    "adminPasswordGenerate": string;
+    "adminPasswordCustom": string;
+    "adminPasswordLabel": string;
+    "adminPasswordRepeat": string;
+    "adminPasswordHint": string;
+    "adminPasswordTooShort": string;
+    "adminPasswordMismatch": string;
+    "adminCustomDesc": string;
     "installButton": string;
     "updateButton": string;
     "confirmInstallTitle": string;
@@ -220,7 +229,7 @@ const enMessages: AppMessages = {
     "planCrons": "Scheduled task {list}",
     "planUrl": "Public address {url}",
     "planNoWorkersDev": "This account has no workers.dev subdomain yet. InsightFlare will be installed, but you need to add a domain or register workers.dev afterwards.",
-    "planSecrets": "A random root secret and an administrator password, generated for you",
+    "planSecrets": "A random root secret, generated for you",
     "planAnalytics": "Analytics Engine datasets, if Analytics Engine is enabled on the account, plus a read-only token for them",
     "planAnalyticsNote": "Analytics Engine must be enabled once per account in the Cloudflare dashboard. If it is not, InsightFlare installs without it and you can enable it later.",
     "enableAnalyticsEngine": "Open Analytics Engine",
@@ -240,6 +249,15 @@ const enMessages: AppMessages = {
     "blocker_RELEASE_UNAVAILABLE": "The official build could not be downloaded or verified.",
     "blocker_DATABASE_TAKEN": "A D1 database named insightflare already contains data. Delete or rename it before installing.",
     "blocker_UPDATE_BLOCKED": "This installation cannot be updated automatically.",
+    "adminPasswordTitle": "Administrator password",
+    "adminPasswordGenerate": "Generate one for me (shown once when the installation finishes)",
+    "adminPasswordCustom": "Set my own",
+    "adminPasswordLabel": "Password",
+    "adminPasswordRepeat": "Repeat password",
+    "adminPasswordHint": "8 to 128 characters. Sign in as admin with it, and you can change it later.",
+    "adminPasswordTooShort": "Use 8 to 128 characters.",
+    "adminPasswordMismatch": "The two passwords do not match.",
+    "adminCustomDesc": "Sign in as admin with the password you chose during setup.",
     "installButton": "Install InsightFlare",
     "updateButton": "Update InsightFlare",
     "confirmInstallTitle": "Install InsightFlare now?",
@@ -374,7 +392,7 @@ const zhMessages: AppMessages = {
     "planCrons": "定时任务 {list}",
     "planUrl": "访问地址 {url}",
     "planNoWorkersDev": "这个账号还没有 workers.dev 子域名。InsightFlare 仍会安装，但之后需要绑定域名或注册 workers.dev。",
-    "planSecrets": "随机生成的根密钥和管理员密码",
+    "planSecrets": "随机生成的根密钥",
     "planAnalytics": "Analytics Engine 数据集（账号已开启 Analytics Engine 时），以及一个只读 token",
     "planAnalyticsNote": "Analytics Engine 需要在 Cloudflare 控制台为每个账号手动开启一次。如果还没开启，InsightFlare 会先不带它安装，之后可以再开启。",
     "enableAnalyticsEngine": "打开 Analytics Engine",
@@ -394,6 +412,15 @@ const zhMessages: AppMessages = {
     "blocker_RELEASE_UNAVAILABLE": "无法下载或校验官方构建。",
     "blocker_DATABASE_TAKEN": "已经有一个名为 insightflare 且包含数据的 D1 数据库。请先删除或重命名它再安装。",
     "blocker_UPDATE_BLOCKED": "这个实例无法自动更新。",
+    "adminPasswordTitle": "管理员密码",
+    "adminPasswordGenerate": "自动生成（安装完成时显示一次）",
+    "adminPasswordCustom": "自己设置",
+    "adminPasswordLabel": "密码",
+    "adminPasswordRepeat": "再次输入密码",
+    "adminPasswordHint": "8 到 128 个字符。用它以 admin 登录，之后可以修改。",
+    "adminPasswordTooShort": "请输入 8 到 128 个字符。",
+    "adminPasswordMismatch": "两次输入的密码不一致。",
+    "adminCustomDesc": "使用你在安装时设置的密码，以 admin 身份登录。",
     "installButton": "安装 InsightFlare",
     "updateButton": "更新 InsightFlare",
     "confirmInstallTitle": "现在安装 InsightFlare？",
@@ -528,7 +555,7 @@ const zh_twMessages: AppMessages = {
     "planCrons": "排程任務 {list}",
     "planUrl": "存取網址 {url}",
     "planNoWorkersDev": "這個帳號還沒有 workers.dev 子網域。InsightFlare 仍會安裝，但之後需要綁定網域或註冊 workers.dev。",
-    "planSecrets": "隨機產生的根密鑰和管理員密碼",
+    "planSecrets": "隨機產生的根密鑰",
     "planAnalytics": "Analytics Engine 資料集（帳號已開啟 Analytics Engine 時），以及一個唯讀 token",
     "planAnalyticsNote": "Analytics Engine 需要在 Cloudflare 控制台為每個帳號手動開啟一次。如果還沒開啟，InsightFlare 會先不帶它安裝，之後可以再開啟。",
     "enableAnalyticsEngine": "開啟 Analytics Engine",
@@ -548,6 +575,15 @@ const zh_twMessages: AppMessages = {
     "blocker_RELEASE_UNAVAILABLE": "無法下載或驗證官方建置。",
     "blocker_DATABASE_TAKEN": "已經有一個名為 insightflare 且包含資料的 D1 資料庫。請先刪除或重新命名它再安裝。",
     "blocker_UPDATE_BLOCKED": "這個實例無法自動更新。",
+    "adminPasswordTitle": "管理員密碼",
+    "adminPasswordGenerate": "自動產生（安裝完成時顯示一次）",
+    "adminPasswordCustom": "自己設定",
+    "adminPasswordLabel": "密碼",
+    "adminPasswordRepeat": "再次輸入密碼",
+    "adminPasswordHint": "8 到 128 個字元。用它以 admin 登入，之後可以修改。",
+    "adminPasswordTooShort": "請輸入 8 到 128 個字元。",
+    "adminPasswordMismatch": "兩次輸入的密碼不一致。",
+    "adminCustomDesc": "使用你在安裝時設定的密碼，以 admin 身分登入。",
     "installButton": "安裝 InsightFlare",
     "updateButton": "更新 InsightFlare",
     "confirmInstallTitle": "現在安裝 InsightFlare？",
@@ -682,7 +718,7 @@ const jaMessages: AppMessages = {
     "planCrons": "スケジュールタスク {list}",
     "planUrl": "公開アドレス {url}",
     "planNoWorkersDev": "このアカウントにはまだ workers.dev サブドメインがありません。インストールは行われますが、後でドメインを追加するか workers.dev を登録する必要があります。",
-    "planSecrets": "ランダムに生成されるルートシークレットと管理者パスワード",
+    "planSecrets": "ランダムに生成されるルートシークレット",
     "planAnalytics": "Analytics Engine データセット（アカウントで有効な場合）と読み取り専用トークン",
     "planAnalyticsNote": "Analytics Engine はアカウントごとに一度 Cloudflare ダッシュボードで有効化する必要があります。未有効の場合は Analytics Engine なしでインストールされ、後から有効化できます。",
     "enableAnalyticsEngine": "Analytics Engine を開く",
@@ -702,6 +738,15 @@ const jaMessages: AppMessages = {
     "blocker_RELEASE_UNAVAILABLE": "公式ビルドをダウンロードまたは検証できませんでした。",
     "blocker_DATABASE_TAKEN": "insightflare という D1 データベースに既にデータがあります。インストール前に削除するか名前を変更してください。",
     "blocker_UPDATE_BLOCKED": "このインスタンスは自動更新できません。",
+    "adminPasswordTitle": "管理者パスワード",
+    "adminPasswordGenerate": "自動生成する（インストール完了時に一度だけ表示）",
+    "adminPasswordCustom": "自分で設定する",
+    "adminPasswordLabel": "パスワード",
+    "adminPasswordRepeat": "パスワード（確認）",
+    "adminPasswordHint": "8〜128 文字。admin としてサインインでき、後から変更できます。",
+    "adminPasswordTooShort": "8〜128 文字で入力してください。",
+    "adminPasswordMismatch": "パスワードが一致しません。",
+    "adminCustomDesc": "セットアップ時に設定したパスワードで admin としてサインインしてください。",
     "installButton": "InsightFlare をインストール",
     "updateButton": "InsightFlare を更新",
     "confirmInstallTitle": "今すぐ InsightFlare をインストールしますか？",
