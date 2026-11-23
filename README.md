@@ -1,27 +1,66 @@
 # InsightFlare Deploy
 
-The independent Cloudflare deployment control plane for [InsightFlare](https://github.com/RavelloH/InsightFlare).
+One-click installation and updates of [InsightFlare](https://github.com/RavelloH/InsightFlare) into a user's own Cloudflare account, authorized with Cloudflare OAuth.
 
-**Development status:** The official Nightly channel, Cloudflare OAuth, D1 migrations and separate existing-Worker version staging/activation are implemented in the source code. Initial D1/KV/Worker provisioning and a single-step full installer remain unfinished. These new APIs have not been deployed or end-to-end tested through the public OAuth application, and the existing customer's infrastructure is not changed by this repository commit.
+Users never fork, compile or run Wrangler. They sign in with Cloudflare, pick an account, review a plan and press **Install** or **Update**. The control plane then provisions resources, applies D1 migrations, uploads the official build and verifies it — using only the user's short-lived OAuth authorization. It also covers what the Cloudflare "Deploy to Workers" button cannot: Analytics Engine bindings (with a fallback when the account has not enabled Analytics Engine) and an Analytics Engine read token for request observation.
 
-## Production Cloudflare deployment (GitHub integration)
+**Status:** install and update both completed end to end against a real Cloudflare account (official build, 43 migrations, Analytics Engine token, workers.dev, health check, administrator sign-in, staged update and activation), driven by an API token through the same client and pipeline. The one remaining check is signing in through the production OAuth client.
 
-Deploy is a public, independent control-plane service. **Host this Worker in the maintainer's primary Cloudflare account**, not in a customer's test account. A customer connects their own account with Cloudflare OAuth after visiting the public site. The existing InsightFlare test account is suitable for the first end-to-end upgrade trial, but is **not** where the Deploy control plane runs.
+## How a deployment works
 
-1. In the **primary** Cloudflare account, open **Workers & Pages → Create application → GitHub**. Authorize the Cloudflare GitHub App for the `InsightFlare` GitHub organization, allowing access to the `InsightFlare/deploy` repository. Select that repository and the `main` branch. Use Worker name `insightflare-deploy` and repository root `/`. The Worker name must match `wrangler.jsonc`.
-2. Use **Build command** `pnpm build:web` and **Deploy command** `pnpm exec wrangler deploy --env=""` (explicitly selects the top-level production environment, never a named test environment). Cloudflare Workers Builds automatically installs dependencies; `package.json` pins `pnpm@11.1.3` for reproducible installation. Set `NODE_VERSION=24` if the build-image default differs. **Do not** select `pnpm build` as the only deployment command: the project's generic `build` script performs a Wrangler **dry-run**, not a deployment. A push to `main` subsequently builds and deploys the control plane automatically.
-3. Once the Worker exists, bind **Custom Domain** `deploy.insightflare.net` to **that Worker** in the primary account, under Workers & Pages → Worker → Settings → Domains & Routes (wording may vary). Verify that the hostname does not already route to an unrelated application before changing it. `wrangler.jsonc` already specifies `APP_ORIGIN=https://deploy.insightflare.net`; OAuth redirect and strict Origin validation depend on this exact HTTPS host. The Workers `workers.dev` address is not a substitute for the OAuth redirect.
-4. Create an **OAuth Client** in the primary account under **Manage Account → OAuth clients**. Use OAuth 2.0 authorization code flow, with PKCE S256, and a confidential client whose secret is sent in the token request body (`client_secret_post`). Register this exact redirect URL:
-   `https://deploy.insightflare.net/oauth/cloudflare/callback`.
-   Configure read scopes `workers-scripts.read`, `account-settings.read`, `zone.read` and make the following **optional**, not required by default: `d1.read`, `d1.write`, `workers-scripts.write`. The UI requests them explicitly for migrations or Worker upgrade actions. Test the actual OAuth client's allowed scopes and permission consent before inviting external users.
-5. In the **Deploy Worker runtime** Settings → Variables and Secrets, add **Secret** values:
-   - `CF_OAUTH_CLIENT_ID` — OAuth client ID.
-   - `CF_OAUTH_CLIENT_SECRET` — OAuth client secret.
-   - `SESSION_ENCRYPTION_KEY` — independent random 32-byte key encoded as Base64; **persist across redeployments**, because rotating it invalidates existing encrypted login sessions.
-   Do not commit or add these to GitHub, build logs, or plaintext `wrangler.jsonc`. These are Worker **runtime secrets**, not Workers Builds build-time variables.
-6. Check `https://deploy.insightflare.net/api/v1/health` and visit `https://deploy.insightflare.net`. Connect the **separate InsightFlare test Cloudflare account** via the official OAuth consent screen. Review D1 and version readiness before applying migrations. Existing Worker upgrade, Stage and Activate are separate actions; perform the first actual test with non-production data.
+Every run is pinned to one official build: the latest `main` commit published to the rolling `nightly` prerelease of `RavelloH/InsightFlare` (see *Official build artifacts* below). The browser starts a run, then calls `advance` repeatedly; each call executes exactly one idempotent step on the server and checkpoints its result in the account's `RUNS` Durable Object. Closing the tab, an expired authorization or a failed request never loses progress: reconnect and the run continues where it stopped. A short lease stops two tabs from advancing the same run.
 
-The Deploy Worker's own `SESSIONS` and `RUNS` Durable Objects are configured in `wrangler.jsonc` and exist only inside the **control plane**. They are not new DOs added to customer InsightFlare traffic. The actual account-scoped D1 migration and Worker Version APIs run only after user consent. GitHub integration deployment of Deploy itself never automatically upgrades a customer's InsightFlare.
+**Install** (account has no `insightflare` Worker):
+
+1. `verify` — download and verify the pinned build; refuse if a D1 database named `insightflare` already holds data.
+2. `database` — create D1 `insightflare` (or adopt an existing *empty* one).
+3. `kv` — create KV namespace `insightflare-site-settings` (or reuse it).
+4. `migrate` — apply the official SQL migrations, up to four per request, with the same `d1_migrations` ledger as `wrangler d1 migrations apply`.
+5. `worker` — upload Worker `insightflare` with all bindings from the release manifest, Durable Object migrations, static assets, a deployment marker, and freshly generated `MAIN_SECRET` and `BOOTSTRAP_ADMIN_PASSWORD`. If Cloudflare answers `10089` (Analytics Engine not enabled on the account), it re-uploads without Analytics Engine bindings and sets `INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED=1`, exactly like the main repository's deploy script.
+6. `schedules` — set the release's Cron triggers.
+7. `subdomain` — enable `insightflare.<account>.workers.dev` (warns if the account never registered a workers.dev subdomain).
+8. `analytics` — when Analytics Engine is on, create an account API token limited to *Account Analytics Read* and store it as the `INSIGHTFLARE_AE_API_TOKEN` Worker secret (`INSIGHTFLARE_AE_ACCOUNT_ID` is set as a variable). InsightFlare then reads Analytics Engine without any manual setup. If the token cannot be created, the run finishes with a warning and the user can add a token in InsightFlare's settings.
+9. `health` — wait for `GET /healthz` to answer as InsightFlare.
+
+The generated root secret is sent once to Cloudflare and never stored. The administrator password is stored sealed (AES-GCM with `SESSION_ENCRYPTION_KEY`) only until the run finishes, shown once on the done page, and deleted when the user confirms they saved it (or after 24 hours).
+
+**Update** (managed installation, or a legacy one the user explicitly agrees to adopt):
+
+1. `verify` — stops early if the installation already runs the pinned commit.
+2. `migrate` — apply pending D1 migrations while the current version keeps serving.
+3. `stage` — upload an *inactive* Worker version that inherits every existing binding and secret by version reference. If the installation was set up without Analytics Engine and the account has enabled it since, the new version adds the Analytics Engine bindings.
+4. `activate` — after rechecking the ledger, the active version and the staged bindings, switch 100% of traffic.
+5. `analytics` — create the read token when Analytics Engine was just enabled.
+6. `health` — if the new version never becomes healthy, the previous version is redeployed automatically. D1 migrations are forward-only, as with manual deployments.
+
+## API
+
+All account routes require a connected session and re-check that the user's own authorization can reach the account. Mutating routes require a same-origin `Origin` header.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/v1/providers/cloudflare/accounts/:id/overview` | Read-only plan: what exists, what would be created or updated, blockers |
+| `GET  …/:id/run` | Current run (the admin password is included only after a successful install) |
+| `POST …/:id/run` | Start a run for the reviewed `sourceSha` / `artifactDigest` |
+| `POST …/:id/run/advance` | Execute the next step once |
+| `POST …/:id/run/retry` | Resume a failed run from the failed step |
+| `POST …/:id/run/dismiss` | Forget a finished or failed run |
+| `POST …/:id/run/password-saved` | Delete the stored administrator password |
+
+## Production setup (Cloudflare GitHub integration)
+
+Host this Worker in the maintainer's **primary** Cloudflare account; customers connect their own accounts through OAuth.
+
+1. **Workers & Pages → Create application → GitHub**, repository `InsightFlare/deploy`, branch `main`, Worker name `insightflare-deploy` (must match `wrangler.jsonc`), root `/`.
+2. Build command `pnpm build:web`, deploy command `pnpm exec wrangler deploy --env=""`. Set `NODE_VERSION=24` if needed. Do not use `pnpm build` (it is a dry run).
+3. Bind the custom domain `deploy.insightflare.net` to the Worker. `APP_ORIGIN` in `wrangler.jsonc` must match it; OAuth redirects and the origin check depend on it.
+4. Create an **OAuth client** (Manage Account → OAuth clients): authorization code with PKCE S256, confidential client (`client_secret_post`), redirect URL `https://deploy.insightflare.net/oauth/cloudflare/callback`.
+   - Required scopes: `workers-scripts.read`, `account-settings.read`, `zone.read`.
+   - Optional scopes, requested by the deploy flow (`capability=deploy`): `d1.read`, `d1.write`, `workers-scripts.write`, `workers-kv-storage.read`, `workers-kv-storage.write`, `account-analytics.read`, `account-api-tokens.write`. Every one of them must be allowed on the client, otherwise Cloudflare rejects the authorization request. An OAuth-created API token can only carry permissions that were granted here, which is why `account-analytics.read` is needed.
+5. Runtime secrets (Settings → Variables and Secrets): `CF_OAUTH_CLIENT_ID`, `CF_OAUTH_CLIENT_SECRET`, `SESSION_ENCRYPTION_KEY` (32 random bytes, Base64; keep it stable across deployments).
+6. Check `https://deploy.insightflare.net/api/v1/health`, then run an install into a separate test account before inviting users.
+
+The `SESSIONS` and `RUNS` Durable Objects exist only in this control plane; nothing is added to customers' InsightFlare traffic. Deploying the control plane never touches any customer installation.
 
 ## Local development
 
@@ -29,129 +68,25 @@ Requires Node.js 22+ and pnpm.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev          # full app through local Wrangler on http://localhost:8787
+pnpm dev:web      # Vite hot reload on :5173 (proxying /api to Wrangler)
+pnpm check        # typecheck, i18n check, tests, build and Wrangler dry run
 ```
 
-Visit `http://localhost:8787`. Without Cloudflare OAuth credentials, the interface remains in read-only source-inspection mode.
-
-For local OAuth tests, configure Worker secrets using an untracked `.dev.vars` file and register a matching redirect URL in your own Cloudflare OAuth application. For production, register `https://deploy.insightflare.net/oauth/cloudflare/callback`.
-
-```bash
-pnpm check
-```
+Without OAuth credentials the UI stays on the connect step. For local OAuth, put the secrets in an untracked `.dev.vars` and register a matching redirect URL on your own OAuth client.
 
 ## UI and internationalization
 
-Deploy reuses **InsightFlare UI** components and conventions rather than its own visual theme:
-- `@insightflare/ui/styles.css` and its tokens; Card, Button, Select, Badge, DropdownMenu, Checkbox, and AlertDialog all come from the published `@insightflare/ui` package. The wizard is a Card with progressive steps, not a custom rounded or gradient shell.
-- The same JetBrains Mono variable font and `insightflare-theme` preference (`light`, `dark`, `system`). The theme provider logic is reused from InsightFlare; no hard-coded default dark class.
-- `src/i18n/{en,zh,zh-tw,ja}.yaml` stores nested `deploy` messages; `pnpm i18n:generate` generates `src/lib/i18n/messages.ts` with typed `AppMessages` and `getMessages(locale)`, and `pnpm i18n:check` verifies locale structure and interpolation placeholders. Locale constants, native names, and template formatter use the same interfaces as InsightFlare.
-- Language is **path-based**, as in InsightFlare: `/en`, `/zh`, `/zh-tw`, `/ja`. The homepage redirects with InsightFlare's Accept-Language / `if_locale` preference; the worker serves the SPA at each locale path and writes the same locale cookie. API and OAuth endpoints remain outside the locale prefix. Changing language reloads the correct URL and restores in-progress non-sensitive wizard navigation from sessionStorage.
-- D1 migrations, inactive version uploads, and activation are separate, explicitly confirmed actions using the shared AlertDialog component; advancing a step never performs a write.
+The wizard is a single card with step progress, built from the published `@insightflare/ui` components, the JetBrains Mono font and InsightFlare's `insightflare-theme` preference. Steps: connect → account → review → deploy → done.
 
-The control plane consumes the published `@insightflare/ui` package; no local InsightFlare checkout is required to build Deploy. When changing the look and feel, update the shared UI library instead of adding a second palette, font or component design.
+Translations live in `src/i18n/{en,zh,zh-tw,ja}.yaml` under `deploy`; `pnpm i18n:generate` produces the typed `src/lib/i18n/messages.ts` and `pnpm i18n:check` validates structure and placeholders. Step notes from the server are machine codes (`note_<CODE>`) localized in the browser. Language is path based (`/en`, `/zh`, `/zh-tw`, `/ja`), as in InsightFlare.
 
-`pnpm dev` serves the complete app through local Wrangler. For Vite hot reload, run `pnpm dev:web` alongside the Wrangler backend and open port 5173. Use `pnpm check` for typechecks, translations, tests, Vite and Wrangler dry-run.
+## Official build artifacts
 
-## Deployment model
+The main repository's `publish-nightly-artifact.yml` compiles every `main` commit with `--skip-prebuild` (no credentials, no remote database access) and publishes one SHA-addressed `insightflare-deploy-<sha>.tar.gz` to the rolling `nightly` prerelease. The archive contains Worker modules, static assets, the ordered D1 migration SQL and a `manifest.json` with per-file SHA256 hashes, bindings, variables, Cron triggers and Durable Object migrations. The prerelease notes carry the current SHA and aggregate digest.
 
-The latest upstream `main` commit is used as the source of truth. Each operation pins one full commit SHA. The default build comes from the official, public, SHA-verified rolling `nightly` GitHub Release; users do not need to fork or compile InsightFlare.
+`src/core/public-release.ts` resolves `main`, requires `nightly` to advertise exactly that SHA (never falling back to an older build), checks GitHub's asset digest, parses the archive strictly and recomputes the complete artifact digest before anything is uploaded.
 
-The deployment plan also previews a conservative resource reconciliation: it identifies D1, KV, Durable Objects, MAIN_SECRET, optional Analytics Engine datasets and R2 archives, and marks each as create, preserve, optional or blocked. Existing database, KV, Durable Object and secret bindings are never silently replaced, and raw resource identifiers or secret values are not exposed to browsers.
+`node scripts/pack-build.mjs <checkout> <sha>` verifies an independently built checkout the same way. An experimental isolated Docker builder (`builder/`, `scripts/isolated-builder.mjs`, manual workflow `isolated-builder-smoke.yml`) is kept for research; it is not used by the deploy flow.
 
-The control plane can inspect existing Workers Builds triggers **read-only** using the system-generated Worker tag, verify whether a trigger appears to reference the official `RavelloH/InsightFlare` repository, and report missing permissions or mismatched connections. This is exposed through `GET /api/v1/providers/cloudflare/accounts/:accountId/build-readiness` after OAuth authorization. It never creates or triggers a build.
-
-The build readiness check rejects triggers with a mismatched GitHub repository ID or a production deploy command that could directly activate new code after an upstream push. The proposed safe flow stages a Worker version without promoting it. Build configuration caveats are available at `GET /api/v1/source/build-contract`.
-
-After reviewing a read-only plan, an authenticated user may submit its exact source SHA to `POST /api/v1/providers/cloudflare/accounts/:accountId/prepare`. The control plane re-checks upstream `main`, refuses stale plans (HTTP 409), then stores a **blocked**, session-scoped, 15-minute operation in an account-scoped Durable Object. `GET /api/v1/providers/cloudflare/accounts/:accountId/prepared-run` restores that record after reconnecting. Neither endpoint triggers a Cloudflare build, migration, or deployment.
-
-Cloudflare's GitHub App currently cannot connect an ordinary user account to the official upstream public repository without an approved integration; the existing test account remains linked to an older fork. A pinned, independent compilation of the upstream source using `--skip-prebuild` **has** been validated in a credential-free, isolated worktree, with no remote D1 operations. This independent compilation path is no longer needed for the default GitHub Nightly distribution. The D1 migration and existing-Worker version upload/activation endpoints now exist; fresh-install provisioning remains unfinished.
-
-### Independent build artifact verification
-
-From this repository, inspect an already-built, isolated checkout of the official upstream main commit:
-
-```bash
-node scripts/pack-build.mjs <path-to-isolated-source-checkout> <full-40-character-commit-sha>
-```
-
-The command checks Git provenance, the generated Cloudflare worker configuration, Worker ESM module dependencies, D1/KV/DO binding declarations, Durable Object migration history and static asset types/hashes. It prints a deterministic artifact summary without persisting build binaries or uploading anything. It excludes server source maps and non-deployable files. Both the Node artifact tests and Vitest tests run under `pnpm check`.
-
-**Version staging:** Cloudflare officially documents `wrangler versions upload` as a **non-deploying** upload. `wrangler deploy` and `wrangler versions deploy` can activate live traffic. The Beta Worker Versions API with `deploy=false` is another staging-only option.
-
-The control plane implements a **staging coordinator** (`src/core/stage-artifact.ts`): it receives the SHA-verified official Nightly build; recomputes the complete binary artifact digest; requires explicit legacy adoption review; inherits all existing Worker Secrets/D1/KV/DO/resource bindings from an exact active Worker version; plans forward-only DO migrations; uploads only assets and an inactive version; then verifies the active deployment is unchanged and the new bindings, resources, migration tag and source marker match. The coordinator never enables traffic, triggers D1 migrations or changes DNS. It is now exposed through explicitly authorized, separately confirmed existing-Worker version staging and activation routes. Initial Worker creation/resource provisioning is still separate.
-
-For an opt-in **offline** integration test using an existing independently compiled source checkout (no credentials or Cloudflare network writes), set `INSIGHTFLARE_SOURCE_BUILD` to that checkout's absolute path and `INSIGHTFLARE_SOURCE_SHA` to its 40-character commit hash, then run `pnpm exec vitest run tests/real-build-stage.integration.test.ts`. CI skips this environment-dependent test. The test loads the real 318 Worker modules and 309 Assets from the validated snapshot, verifies every byte, and simulates a staged legacy upgrade.
-
-Existing Worker secrets, bindings, routes and production data must not be altered as part of artifact inspection. The new existing-Worker upgrade workflow is available in source, but deployment of this updated control plane and real OAuth end-to-end verification are separate steps.
-
-MIT license. Project maintained by [InsightFlare](https://github.com/InsightFlare).
-
-
-### Optional experimental per-run isolated build runner (not the default)
-
-**The public GitHub Nightly artifact path above is the preferred distribution model; users will not need Docker.** This section preserves an alternative reference builder, not an installer requirement.
-
-The former GitHub-App/no-fork connection blocker is now separated from compilation itself: a dedicated Linux runner can fetch the public official `RavelloH/InsightFlare` repository at one **exact** 40-character Git commit, build it with `--skip-prebuild`, and return a private, short-lived artifact receipt. This does **not** require a GitHub installation or a fork in the user's Cloudflare account.
-
-The implementation comprises `src/core/isolated-build.ts` (tenant/run/SHA/TTL receipt contracts), `builder/Dockerfile`, `builder/entrypoint.sh`, and `scripts/isolated-builder.mjs` (Linux Docker reference adapter). Each job uses its own locked-down source directory, immutable Docker image ID, non-root uid, no inherited API credentials, read-only container root filesystem, dropped capabilities, bounded CPU/memory/PIDs and a time limit. The upstream builder requires the supported `WORKERS_CI=1` environment marker to permit a Cloudflare-target build outside Cloudflare Builds; the marker is set only around compilation, with `--skip-prebuild` preventing remote database migrations. Source and `dist` are verified **after** the container exits, consumed inside a scoped callback and removed even if the build or consumer fails. No build artifact is shared across tenants or published to a public URL. `pnpm check` tests the Docker command and cleanup with offline mock execution; **mock tests are not a real container validation**.
-
-To inspect the Docker arguments without launching a container:
-
-```bash
-node scripts/isolated-builder.mjs --inspect sha256:<64-hex-local-image-id> <full-40-char-commit> /absolute/private/scratch/job
-```
-
-A deliberately **manual-only** GitHub Actions workflow, `Manual isolated builder integration` (`.github/workflows/isolated-builder-smoke.yml`), performs the expensive real Linux Docker build of the official pinned commit, verifies the complete Worker/Assets build, reports only a digest/count receipt and deletes everything. It uses no Cloudflare token or deployment permissions; it does not stage or activate a Worker. It is not part of push CI to avoid needless resource usage.
-
-**Not production-ready:** The Windows workstation has no running Docker daemon. The earlier VPS environment inspected by DeskBeacon exposed a small container without Docker, not an approved dedicated builder host. The Docker adapter requires a dedicated Linux runner with Docker access, an immutable builder image and sufficient memory/disk; do **not** run it inside an existing production app container or expose the Docker socket to tenants. Git/npm dependency installation uses outbound network access and should receive network egress controls and disk quotas before hosting untrusted user builds. The Dockerfile's Node base should also be pinned to a base image digest before production. If using Cloudflare Containers, deploy the builder image **directly** as an ephemeral Cloudflare Container; do not assume a Docker daemon is present inside the Container. Its container lifecycle and per-user artifact transport still need a separate adapter and real-account validation. No web API route starts isolated builds today.
-
-
-### Default distribution: one rolling official `nightly` prerelease (active)
-
-The installer is changing from per-user isolated compilation to **official GitHub CI build artifacts**. Every upstream `main` commit is the deployable version identifier. Formal `vX.Y.Z` Releases remain milestone announcements, never installation or update targets.
-
-The official `RavelloH/InsightFlare` main branch now includes `publish-nightly-artifact.yml` (merged in commit `328b733b54cc39acf4cb0249f56e7c144d969ac7`). The workflow:
-
-1. Compile the exact `GITHUB_SHA` with frozen dependencies and `--skip-prebuild` (no customer credentials, no remote D1 mutations).
-2. Create a small content-addressed archive of Worker modules, client Assets and D1 migration SQL with a manifest. It strips account-specific Wrangler resource IDs and includes per-file SHA256 hashes.
-3. Uploads one SHA-addressed `.tar.gz` archive to the single rolling GitHub prerelease tagged `nightly`; `manifest.json` and all verified SQL files live inside the archive. No additional `.json` asset, versioned Release per commit, external OSS or customer-build Docker is required.
-4. After checking GitHub's archive SHA256 digest, updates the machine-readable current source SHA and aggregate content digest in the prerelease notes. Never uses `gh release upload --clobber`.
-5. Serializes publication, refuses to roll the pointer back when main advances, and deletes old SHA archives only after publishing and verifying the new pointer. A transient two-asset window is permissible during upload; the successful final state has exactly one `.tar.gz`.
-
-`src/core/public-release.ts` implements a **read-only** verifier: it first resolves official `main` HEAD, requires `nightly` to advertise precisely that SHA, validates the unique current archive name and GitHub SHA256 digest, downloads the single `.tar.gz`, parses its strict TAR/GZIP contents and internal `manifest.json`, checks each source file and migration SQL digest, and recomputes the original complete build digest. An old formal release or an older nightly build is never substituted when the latest main commit is not ready.
-
-The `nightly` Git tag is a stable *channel identifier*, not an authoritative source-commit pointer. Only the validated prerelease notes marker represents the current compiled commit. The public `nightly` prerelease is live and uses **mutable prerelease assets**; repository-wide Immutable Releases must remain disabled for this rolling channel. GitHub release assets and manifest metadata have been verified for the initial `328b733b...` build; the full binary payload is also tested locally. **D1 migrations and existing-Worker staged activation routes are implemented, but need deployed OAuth end-to-end acceptance testing before general use.**
-
-The old Docker experiment remains available for internal research but is not required to install or update InsightFlare. Deploy users only need their Cloudflare account; they need neither Fork, Docker, GitHub authentication, VPS, nor any custom OSS/R2 endpoint.
-
-
-### User-owned D1 migrations: same behavior as manual Wrangler deploy
-
-The official `main` Nightly build is compiled with `--skip-prebuild`, so it does not access any customer's database. Its single public `tar.gz` embeds the official ordered migration SQL files with per-file SHA256 digests. The upstream manual Cloudflare prebuild performs `wrangler d1 migrations apply DB --remote` **before building and deploying the new Worker**. Deploy follows the same sequence without changing the runtime behavior of the currently serving Worker:
-
-1. Resolve and verify the latest official `main` commit and the matching GitHub Nightly archive, including the embedded manifest and all SQL hashes.
-2. Select the customer's D1 database in their authorized Cloudflare account, inspect `d1_migrations` and identify unapplied **filenames**, in source filename order. No "database must be empty", mandatory prefix history, Time Travel bookmark, maintenance window or writer-quiescence requirement is introduced.
-3. On an explicit user action, request Cloudflare OAuth `d1.read` + `d1.write` (only if not already granted). For each SQL file, use D1 REST `/query` `batch` to execute the SQL and append the same migration filename to the standard Wrangler ledger. Stop immediately on a SQL error, just like Wrangler.
-4. The browser submits at most four migrations per HTTP request, rereading the live ledger after each file. If the user closes the tab or a request fails, they can refresh the preview and continue from already-applied filenames. A mismatch with the currently published Nightly SHA stops the operation and requires a new preview.
-5. Deploy **does not pause existing HTTP requests, ingestion Durable Objects, scheduled tasks or the serving Worker**. Code/SQL compatibility before a new Worker version is published remains the same concern as with manual deployments. Static asset upload, Worker Version staging and production activation are separate explicitly authorized workflow steps.
-
-The normal migration flow calls `src/core/d1-manual.ts` and `CloudflareClient.d1ApplyVerifiedMigration`; it does **not** call a per-database Durable Object lease, a maintenance coordinator or a durable migration state machine. The existing RUNS DO remains for account-scoped prepared *deployment* plans and is not invoked by these D1 SQL requests. There is no new InsightFlare end-user runtime DO or regular-request overhead.
-
-**Verified behavior:** The real single-file Nightly artifact passed download, per-file SHA256 and manifest checks. On a disposable remote test-account D1, all 43 official SQL migration files successfully applied through the REST batch mechanism, with correct `d1_migrations` entries and 82 resulting SQLite schema objects matching the native Wrangler local baseline. The test D1 was deleted after verification; original test/production resources were not modified. This baseline verifies a clean installation, not every possible existing populated schema. As with manual deployment, an incompatible SQL migration will fail when applied, and already-applied earlier files remain recorded.
-
-**OAuth and production activation:** The default OAuth scopes remain minimal; users may opt in to `d1-read`, `d1-write`, `workers-write`, or `deploy` (the latter grants D1 Read/Write + Workers Scripts Write). The Cloudflare OAuth client registration must permit these scopes; otherwise the API returns an authorization error. Deploy's code offers separate existing-Worker inactive version upload and 100% activation operations. Deployment of this updated control-plane Worker and OAuth end-to-end testing remain separate steps. Existing production Cloudflare resources are not changed by committing this source code.
-
-This approach intentionally rejects the earlier global maintenance-mode proposal. The temporary migration lease/journal proof-of-concept has been removed: it is not needed to reproduce the established manual deployment model, and would add unnecessary design and runtime complexity.
-
-
-### Existing Worker version upgrade workflow
-
-The existing-installation workflow is now exposed as three deliberately separate user actions, with a read-only recovery helper:
-
-1. `GET /api/v1/providers/cloudflare/accounts/:accountId/versions/preview`: read the currently active 100% Worker version and verify official Nightly archive, DO migration tag and inherited resource bindings. A legacy, previously unmanaged InsightFlare installation needs explicit adoption confirmation.
-2. `POST /api/v1/providers/cloudflare/accounts/:accountId/versions/stage`: upload the official SHA-addressed build's static assets and a new *inactive* Worker version via the Beta Versions API. The previous version remains active. This is distinct from the D1 SQL migration step and must not be mistaken for a production deployment.
-3. `GET /api/v1/providers/cloudflare/accounts/:accountId/versions/candidates`: recover matching prior inactive uploaded versions from Cloudflare's own version history after a browser refresh. It re-verifies the commit marker, build digest annotation, DO migration tag and inherited resource bindings without another persistent Deploy job database.
-4. `POST /api/v1/providers/cloudflare/accounts/:accountId/versions/activate`: after D1 SQL migration history is current, recheck that the active version and staged resource bindings still match the reviewed values and explicitly deploy the new version at **100% of traffic**. A Cloudflare deployment response records the activated version and deployment ID. No global write freeze, quiescence proof, clone migration test, extra customer-side Durable Object or maintenance window is added.
-
-These routes operate on an **existing, identified** `insightflare` Worker; new-install D1/KV/DO provisioning, bootstrap secrets and Cron/route setup remain future work. Cloudflare Worker's existing routes and cron triggers are not rewritten by these Version API calls; changes to schedule or routes need a separate trigger deployment implementation. A live, authenticated OAuth + full Nightly update of a populated real customer Worker has **not** yet been run. An isolated real Cloudflare test-account smoke validated create → assets upload → inactive version → zero deployments → delete, while the full 318-module/309-asset official build was checked through offline staging integration tests.
+MIT license. Maintained by [InsightFlare](https://github.com/InsightFlare).

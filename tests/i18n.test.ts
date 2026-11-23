@@ -19,8 +19,8 @@ describe("InsightFlare-compatible Deploy internationalization", () => {
   it("builds fully typed message dictionaries and uses shared template formatting", () => {
     const keys=Object.keys(getMessages("en").deploy);
     for (const locale of SUPPORTED_LOCALES) expect(Object.keys(getMessages(locale).deploy)).toEqual(keys);
-    expect(formatI18nTemplate(getMessages("zh").deploy.d1Progress,{applied:3,remaining:2})).toContain("3");
-    expect(formatI18nTemplate(getMessages("ja").deploy.stepCount,{current:2,total:6})).toContain("6");
+    expect(formatI18nTemplate(getMessages("zh").deploy.note_MIGRATIONS,{applied:3,total:43})).toBe("已执行 3 / 43");
+    expect(formatI18nTemplate(getMessages("ja").deploy.stepCount,{current:2,total:5})).toContain("5");
   });
   it("keeps language in the path and uses InsightFlare middleware cookie preference", () => {
     expect(localeFromPath("/zh-tw")).toBe("zh-tw");

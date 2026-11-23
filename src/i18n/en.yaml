@@ -1,208 +1,152 @@
-# InsightFlare AppMessages-compatible nested catalog
+# InsightFlare AppMessages-compatible nested catalog (generated from one table)
 deploy:
-  brand: InsightFlare Deploy
-  tagline: Your analytics, your Cloudflare account.
-  wizard: Deployment assistant
-  wizardHelp: One step at a time. Your existing Worker keeps running until you approve activation.
-  language: Language
-  connected: Connected
-  disconnected: Not connected
-  next: Continue
-  back: Back
-  close: Close
-  refresh: Refresh
-  viewCommit: View commit
-  sourceGitHub: View project on GitHub
-  previous: Previous step
-  stepCount: Step {current} of {total}
-  progress: Setup progress
-  completed: Completed
-  current: Current
-  upcoming: Upcoming
-  needsAttention: Requires attention
-  working: Working…
-  loading: Loading…
-  unavailable: Unavailable
-  unknown: Unknown
-  yes: Yes
-  no: No
-  available: Available
-  missing: Missing
-  ready: Ready
-  pending: Pending
-  dismiss: Dismiss
-  stepConnect: Connect
-  stepAccount: Account
-  stepSource: Review
-  stepD1: Database
-  stepStage: Stage
-  stepActivate: Activate
-  connectTitle: Connect your Cloudflare account
-  connectDesc: Sign in with Cloudflare to discover your existing InsightFlare installation. We request
-    additional permissions only when needed.
-  connectButton: Connect with Cloudflare
-  oauthMissing: OAuth is not configured for this service.
-  connectedDesc: Your Cloudflare session is active. Continue to select the account to manage.
-  disconnect: Disconnect
-  dataPromise: Your analytics data stays inside your Cloudflare account.
-  accountTitle: Choose the account to manage
-  accountDesc: We detect an InsightFlare Worker directly from the selected Cloudflare account.
-  accountLabel: Cloudflare account
-  accountPlaceholder: Select an account
-  discovering: Discovering existing installation…
-  noInstallation: Not installed
-  managed: Managed installation
-  legacy: Existing instance · approval required
-  conflict: Worker name conflict
-  worker: Worker
-  deployedSha: Deployed source
-  sourceTitle: Review the official Nightly
-  sourceDesc: Every operation is pinned to the current official main commit. Inspect the plan before
-    changing infrastructure.
-  sourceBranch: Source branch
-  sourceCommit: Official commit
-  sourceLoading: Retrieving latest commit…
-  sourceMissing: Source commit unavailable
-  commitDate: Committed {date}
-  buildTitle: Build integration
-  buildDesc: The official Nightly artifact is built on GitHub; no user-side Docker or compilation is required.
-  repoVerified: Repository identity
-  planTitle: Review deployment plan
-  planDesc: A read-only preview. Preparing a run does not install or update anything.
-  operation: Operation
-  install: Install from main
-  update: Update to main
-  repair: Repair current commit
-  previewPlan: Preview plan
-  freezeSha: Freeze reviewed SHA
-  planSteps: Planned steps
-  planBlockers: Plan limitations
-  noPlan: Select an account to preview a deployment plan.
-  resourceActions: Resource reconciliation
-  resourceBlockers: "{count} resource blockers"
-  prepared: Prepared operation · not deployed
-  preparedUntil: Pinned SHA expires at {time}
-  preparedHint: Preparing does not modify Cloudflare resources.
-  d1Title: Review D1 migrations
-  d1Desc: Inspect the official SQL files, then apply pending migrations separately. The existing
-    Worker stays online.
-  d1Label: D1 database
-  d1Placeholder: Choose a database
-  inspectMigrations: Inspect migrations
-  verifyD1: Verifying Nightly and D1…
-  schemaCurrent: Schema is current
-  migrationApplied: Applied
-  migrationPending: Pending
-  migrationTotal: Official SQL files
-  recoveryPoint: Recovery bookmark
-  migrationRisk: Some migrations alter existing schema or data. Confirm compatibility before applying;
-    the existing Worker continues serving.
-  migrationReview: Review
-  migrationAdd: Add
-  applyMigrations: Apply pending D1 migrations
-  applyingMigrations: Applying migrations…
-  authD1Read: Authorize D1 Read
-  authD1Write: Authorize D1 Write
-  d1ScopeHint: This requires explicit Cloudflare consent. Read-only inspection does not request D1 Write.
-  d1Progress: Applied {applied}, {remaining} remaining
-  d1Complete: D1 migrations are complete. Worker activation is separate.
-  d1ContinueHint: Refresh the D1 preview after an interrupted migration before proceeding.
-  stageTitle: Stage a Worker version
-  stageDesc: Upload and verify the Nightly Worker without sending any traffic to it.
-  inspectVersion: Inspect Worker version
-  authDeploy: Authorize Workers Write + D1
-  nightlyCandidate: Official Nightly candidate
-  inactive: Not active
-  activeVersion: Active Worker version
-  migrationTag: DO migration tag
-  bindingsPreserved: "Existing bindings preserved: {count}"
-  legacyApprove: I reviewed this existing unmanaged Worker and approve adopting it without replacing
-    its D1, KV, DO or Secrets.
-  uploadInactive: Upload inactive version
-  uploading: Uploading…
-  findPrevious: Find previous upload
-  previousCandidates: Staged versions
-  useCandidate: Select version
-  stagedReady: Version staged · ready for review
-  stageSafety: D1, KV, DO and Secrets remain unchanged. No new Worker traffic is enabled.
-  stageRestoreEmpty: No compatible staged versions found. Upload the Nightly candidate first.
-  stageRestored: Compatible candidates recovered from Cloudflare version history.
-  stageContinueHint: The current Worker remains live until you explicitly activate the new version.
-  activateTitle: Review and activate
-  activateDesc: Final checkpoint. Check the target version and database before switching 100% of Worker traffic.
-  activationTarget: Candidate version
-  activationNeedD1: Inspect the matching D1 database and apply pending Nightly SQL before activating.
-  activate100: Activate at 100% traffic
-  activationSuccess: Worker version successfully activated
-  deploymentId: Deployment ID
-  versionId: Version ID
-  activationNote: Activation does not update Cloudflare Cron triggers or custom routes.
-  installUnavailable: New installation is not enabled yet
-  installUnavailableHint: Creating D1, KV and other resources for a fresh installation is still under
-    development. Existing installations can use the upgrade flow.
-  actionConfirmD1: Apply {count} migrations to {target}? The existing Worker will continue serving.
-  actionConfirmStage: Upload official source {sha} as an inactive Worker version? Existing bindings are preserved.
-  actionConfirmActivate: Activate version {version} at 100% traffic? This switches the live Worker deployment.
-  activationNoCandidate: A staged candidate is required before activation.
-  authFailed: "Cloudflare authorization failed: {error}"
-  unexpectedError: Unexpected error
-  httpError: Request failed (HTTP {status})
-  invalidResponse: Invalid API response
-  requestFailed: The operation failed; review details and retry.
-  showTechnical: Technical details
-  stageFinish: You're up to date
-  stepBlocked: Complete the current step before continuing.
-  theme: Theme
-  lightTheme: Light
-  darkTheme: Dark
-  systemTheme: System
-  cancel: Cancel
-  confirm: Confirm
-  confirmStageTitle: Upload inactive Worker version
-  confirmD1Title: Confirm D1 migrations
-  confirmActivateTitle: Activate the Worker version
-  languageSelect: Language
-  confirmActionHint: This is a separate operation that requires your approval.
-  sourceTitleShort: InsightFlare Deploy
-  stateNotInstalled: Not installed
-  stateMissingWorkerTag: Missing Worker tag
-  statePermissionRequired: Permission required
-  stateNotConfigured: Not configured
-  stateRepositoryMismatch: Repository mismatch
-  stateUnsafeTrigger: Unsafe build trigger
-  stateCandidate: Candidate
-  apiPlan1: Revalidate OAuth account and ownership
-  apiPlan2: Resolve and pin a single immutable source commit
-  apiPlan3: Download and verify the SHA-pinned official Nightly tar.gz
-  apiPlan4: Review and apply compatible forward-only D1 migrations
-  apiPlan5: Reconcile resources and upload Worker modules and assets
-  apiPlan6: Preserve all existing secrets, domain routes and user data
-  apiPlan7: Verify health and record the deployed commit SHA
-  apiBlocker1: Existing Worker upgrades are available through the D1 migration and Worker Versions
-    panels; new-install resource provisioning and one-click full deployment plans are not enabled.
-  apiBlocker2: Worker name is occupied by an unknown application. Automatic takeover is forbidden.
-  apiBlocker3: Existing legacy instance must complete an explicit adoption flow.
-  apiBlocker4: An existing Worker must be reviewed before installation.
-  apiBlocker5: Nothing is installed in this account.
-  apiBlocker6: Repair requires a known managed deployment SHA.
-  apiIssue1: Worker identity or deployment marker cannot be verified. Refusing automatic takeover.
-  apiIssue2: Existing InsightFlare Worker has no managed deployment SHA; a safe adoption process is required.
-  apiIssue3: No standard Worker was returned by Cloudflare. Check that the authorization can list
-    Workers before starting a new installation.
-  resourceCreate: Create
-  resourcePreserve: Preserve
-  resourceBlock: Block
-  resourceOptional: Optional
-  resourceUnknownOwnership: Worker ownership must be established before handling this resource.
-  resourceUnexpectedBinding: This binding has an unexpected type, identifier, or duplicate name. Manual review required.
-  resourceExistingRequired: Existing instance lacks this required binding; automatic replacement is forbidden.
-  resourceKeepSecret: Preserve existing secret metadata without reading, replacing or rotating its value.
-  resourceCreateD1: Create an isolated D1 database and apply reviewed schema migrations.
-  resourceKeepD1: Retain this exact D1 database ID and its existing contents.
-  resourceCreateKv: Create a KV namespace for site settings.
-  resourceKeepKv: Retain this exact KV namespace and all stored site settings.
-  resourceCreateDo: Create the IngestDurableObject SQLite namespace using the reviewed Worker migration.
-  resourceKeepDo: Preserve the existing Durable Object namespace and all actor state.
-  resourceCreateSecret: Generate a new cryptographically random secret; never send it to the browser.
-  resourceKeepRootSecret: Keep the existing secret binding without retrieving or rotating its value.
-  requiredBindingMissing: Required binding {name} is missing; cannot safely update.
+  brand: "InsightFlare Deploy"
+  tagline: "Your analytics, your Cloudflare account."
+  wizard: "Deployment assistant"
+  wizardHelp: "Install or update InsightFlare in your own Cloudflare account with one click. Everything runs with your authorization and can be resumed if interrupted."
+  language: "Language"
+  theme: "Theme"
+  lightTheme: "Light"
+  darkTheme: "Dark"
+  systemTheme: "System"
+  connected: "Connected"
+  disconnected: "Not connected"
+  stepCount: "Step {current} of {total}"
+  progress: "Progress"
+  back: "Back"
+  next: "Continue"
+  dismiss: "Dismiss"
+  loading: "Loading…"
+  refresh: "Refresh"
+  copy: "Copy"
+  copied: "Copied"
+  details: "Details"
+  unexpectedError: "Something went wrong. Please retry."
+  httpError: "Request failed (HTTP {status})."
+  stepConnect: "Connect"
+  stepAccount: "Account"
+  stepReview: "Review"
+  stepDeploy: "Deploy"
+  stepDone: "Done"
+  connectTitle: "Connect your Cloudflare account"
+  connectDesc: "Sign in with Cloudflare and approve the permissions InsightFlare needs to install itself into your account."
+  connectButton: "Connect with Cloudflare"
+  oauthMissing: "Cloudflare sign-in is not configured for this service yet."
+  connectedDesc: "Your Cloudflare authorization is active until {time}."
+  disconnect: "Disconnect"
+  dataPromise: "Your analytics data never leaves your Cloudflare account."
+  permissionsTitle: "What this authorization allows"
+  permissionsBody: "Create and update the insightflare Worker, its D1 database and KV namespace, and create one read-only Analytics Engine token. The authorization expires within an hour and is never stored in plain text."
+  authFailed: "Cloudflare sign-in did not complete ({error}). Please try again."
+  accountTitle: "Choose an account"
+  accountDesc: "We look for an existing InsightFlare installation in the account you pick."
+  accountLabel: "Cloudflare account"
+  accountPlaceholder: "Select an account"
+  discovering: "Checking the account…"
+  kindNotInstalled: "Not installed yet"
+  kindManaged: "Installed"
+  kindLegacy: "Installed (set up before Deploy)"
+  kindConflict: "Name conflict"
+  deployedCommit: "Running commit {sha}"
+  resumeRun: "A deployment for this account is in progress or waiting for you. Continue to see it."
+  reviewTitle: "Review the plan"
+  reviewDesc: "Nothing changes until you confirm. The plan is pinned to the official build shown below."
+  sourceCommit: "Official build"
+  viewCommit: "View commit"
+  installPlanTitle: "We will create"
+  planWorker: "Worker {name}, with its Durable Object and static assets"
+  planDatabaseCreate: "D1 database {name}"
+  planDatabaseReuse: "Use the existing empty D1 database {name}"
+  planKvCreate: "KV namespace {name}"
+  planKvReuse: "Use the existing KV namespace {name}"
+  planMigrations: "{count} database migrations"
+  planCrons: "Scheduled task {list}"
+  planUrl: "Public address {url}"
+  planNoWorkersDev: "This account has no workers.dev subdomain yet. InsightFlare will be installed, but you need to add a domain or register workers.dev afterwards."
+  planSecrets: "A random root secret and an administrator password, generated for you"
+  planAnalytics: "Analytics Engine datasets, if Analytics Engine is enabled on the account, plus a read-only token for them"
+  planAnalyticsNote: "Analytics Engine must be enabled once per account in the Cloudflare dashboard. If it is not, InsightFlare installs without it and you can enable it later."
+  enableAnalyticsEngine: "Open Analytics Engine"
+  updatePlanTitle: "We will update"
+  updateFromTo: "From {from} to {to}"
+  unknownVersion: "an unrecorded version"
+  updatePendingMigrations: "{count} database migrations to apply"
+  updateNoMigrations: "No database migrations needed"
+  updateDestructive: "Some migrations change or remove existing tables. Make sure you have a recent backup."
+  updateDoMigration: "Includes a Durable Object migration"
+  updateSafety: "The new version is uploaded first and only switched on after the database is ready. If it fails its health check, the previous version is restored automatically."
+  legacyAdopt: "This installation was set up before InsightFlare Deploy. I agree to let Deploy manage it from now on; its data, secrets and bindings are kept."
+  upToDate: "This installation already runs the latest official build."
+  blockersTitle: "This cannot continue yet"
+  blocker_WORKER_CONFLICT: "A Worker named insightflare already exists but is not an InsightFlare installation. Rename or remove it first."
+  blocker_NIGHTLY_PENDING: "The newest official build is still being published. Try again in a few minutes."
+  blocker_RELEASE_UNAVAILABLE: "The official build could not be downloaded or verified."
+  blocker_DATABASE_TAKEN: "A D1 database named insightflare already contains data. Delete or rename it before installing."
+  blocker_UPDATE_BLOCKED: "This installation cannot be updated automatically."
+  installButton: "Install InsightFlare"
+  updateButton: "Update InsightFlare"
+  confirmInstallTitle: "Install InsightFlare now?"
+  confirmInstallDesc: "The resources listed above will be created in {account}. This usually takes a few minutes."
+  confirmUpdateTitle: "Update InsightFlare now?"
+  confirmUpdateDesc: "Database migrations cannot be undone automatically. The Worker keeps serving traffic during the update."
+  confirm: "Confirm"
+  cancel: "Cancel"
+  deployTitle: "Deploying"
+  deployDesc: "Keep this page open. If you close it, come back and the deployment continues where it stopped."
+  runStep_verify: "Verify the official build and the account"
+  runStep_database: "Prepare the D1 database"
+  runStep_kv: "Prepare the KV namespace"
+  runStep_migrate: "Apply database migrations"
+  runStep_worker: "Upload the Worker"
+  runStep_schedules: "Set up scheduled tasks"
+  runStep_subdomain: "Enable the workers.dev address"
+  runStep_analytics: "Connect Analytics Engine reading"
+  runStep_health: "Check that InsightFlare responds"
+  runStep_stage: "Upload the new version (not live yet)"
+  runStep_activate: "Switch traffic to the new version"
+  statusPending: "Waiting"
+  statusRunning: "In progress"
+  statusDone: "Done"
+  statusSkipped: "Skipped"
+  statusWarning: "Needs attention"
+  statusFailed: "Failed"
+  note_CREATED: "Created {name}"
+  note_REUSED: "Using the existing one"
+  note_MIGRATIONS: "{applied} of {total} applied"
+  note_CRONS: "{count} schedule set"
+  note_URL: "Available at {url}"
+  note_AE_NOT_ENABLED: "Analytics Engine is not enabled on this account, so it was left out"
+  note_AE_ENABLED: "Analytics Engine is now enabled for this installation"
+  note_AE_READER_CONFIGURED: "Read-only token created and stored as a Worker secret"
+  note_AE_READER_MANUAL: "Could not create the token automatically; add it in InsightFlare's settings"
+  note_WORKERS_DEV_MISSING: "No workers.dev subdomain on this account"
+  note_NO_PUBLIC_URL: "No public address to check"
+  note_HEALTHY: "InsightFlare is responding"
+  note_WAITING: "Waiting for the address to come online ({attempt}/{total})"
+  note_HEALTH_TIMEOUT: "Not responding yet; a new address can take a few minutes"
+  note_ALREADY_CURRENT: "Already up to date"
+  note_ROLLED_BACK: "Health check failed; the previous version was restored"
+  runFailedTitle: "The deployment stopped"
+  runFailedDesc: "Everything finished so far is kept. Fix the problem if needed, then retry from this step."
+  rolledBackDesc: "The new version did not pass its health check, so the previous version is serving traffic again. Database migrations that already ran are kept."
+  retry: "Retry"
+  startOver: "Start over"
+  otherTab: "This deployment is being processed in another tab. This page will follow along."
+  reconnectNeeded: "Your Cloudflare authorization expired. Connect again to continue; nothing is lost."
+  doneInstallTitle: "InsightFlare is installed"
+  doneUpdateTitle: "InsightFlare is up to date"
+  doneDesc: "Running official build {sha}."
+  openDashboard: "Open InsightFlare"
+  adminTitle: "Administrator sign-in"
+  adminDesc: "Shown only here. Save the password now and change it after your first sign-in."
+  username: "Username"
+  password: "Password"
+  passwordSaved: "I have saved the password"
+  passwordForgotten: "The password is no longer shown. If you lost it, reset it with the ops:admin:reset-password command."
+  followUpTitle: "Things to finish"
+  followAeEnable: "Enable Analytics Engine in Cloudflare, then run an update here to turn on request observation and the related analytics."
+  followAeReader: "Add an API token with Account Analytics Read under Settings → Analytics Engine in InsightFlare."
+  followWorkersDev: "Add a custom domain to the insightflare Worker, or register a workers.dev subdomain, in the Cloudflare dashboard."
+  followHealth: "The address did not respond yet. Give it a few minutes, then open it."
+  openCloudflare: "Open Cloudflare dashboard"
+  finish: "Finish"

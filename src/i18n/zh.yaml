@@ -1,200 +1,152 @@
-# InsightFlare AppMessages-compatible nested catalog
+# InsightFlare AppMessages-compatible nested catalog (generated from one table)
 deploy:
-  brand: InsightFlare 部署
-  tagline: 你的分析系统，部署在自己的 Cloudflare 账户。
-  wizard: 部署向导
-  wizardHelp: 逐步完成部署。确认激活之前，现有 Worker 会继续运行。
-  language: 语言
-  connected: 已连接
-  disconnected: 未连接
-  next: 继续
-  back: 上一步
-  close: 关闭
-  refresh: 刷新
-  viewCommit: 查看提交
-  sourceGitHub: 在 GitHub 查看项目
-  previous: 上一步
-  stepCount: 第 {current} 步，共 {total} 步
-  progress: 部署进度
-  completed: 已完成
-  current: 当前
-  upcoming: 未开始
-  needsAttention: 需要处理
-  working: 处理中…
-  loading: 加载中…
-  unavailable: 不可用
-  unknown: 未知
-  yes: 是
-  no: 否
-  available: 可用
-  missing: 缺失
-  ready: 就绪
-  pending: 待处理
-  dismiss: 关闭提示
-  stepConnect: 连接
-  stepAccount: 账户
-  stepSource: 检查
-  stepD1: 数据库
-  stepStage: 暂存
-  stepActivate: 激活
-  connectTitle: 连接 Cloudflare 账户
-  connectDesc: 使用 Cloudflare 授权来发现已有的 InsightFlare 实例。额外权限只在需要时请求。
-  connectButton: 使用 Cloudflare 连接
-  oauthMissing: 此服务尚未配置 OAuth。
-  connectedDesc: Cloudflare 会话已连接。继续选择要管理的账户。
-  disconnect: 断开连接
-  dataPromise: 分析数据始终保存在你自己的 Cloudflare 账户中。
-  accountTitle: 选择要管理的账户
-  accountDesc: 从所选 Cloudflare 账户直接发现 InsightFlare Worker。
-  accountLabel: Cloudflare 账户
-  accountPlaceholder: 选择账户
-  discovering: 正在检查已有实例…
-  noInstallation: 尚未安装
-  managed: 已托管实例
-  legacy: 已有实例 · 需要确认接管
-  conflict: Worker 名称冲突
-  worker: Worker
-  deployedSha: 当前已部署版本
-  sourceTitle: 检查官方 Nightly
-  sourceDesc: 所有操作固定到官方 main 的最新提交。修改基础设施前可先检查计划。
-  sourceBranch: 源码分支
-  sourceCommit: 官方提交
-  sourceLoading: 获取最新提交中…
-  sourceMissing: 无法获取源版本
-  commitDate: 提交于 {date}
-  buildTitle: 构建集成
-  buildDesc: Nightly 由 GitHub 官方工作流构建，无需用户安装 Docker 或自行编译。
-  repoVerified: 仓库身份
-  planTitle: 检查部署计划
-  planDesc: 这是只读预览。准备运行记录不会安装或升级任何资源。
-  operation: 操作类型
-  install: 从 main 安装
-  update: 更新到 main
-  repair: 修复当前版本
-  previewPlan: 预览计划
-  freezeSha: 固定已检查的 SHA
-  planSteps: 计划步骤
-  planBlockers: 计划限制
-  noPlan: 选择账户后即可预览部署计划。
-  resourceActions: 资源核对
-  resourceBlockers: "{count} 项资源限制"
-  prepared: 已准备操作 · 尚未部署
-  preparedUntil: 固定的 SHA 于 {time} 过期
-  preparedHint: 准备操作不会修改 Cloudflare 资源。
-  d1Title: 检查 D1 数据库迁移
-  d1Desc: 先检查官方 SQL 文件，再单独执行待处理迁移。现有 Worker 继续运行。
-  d1Label: D1 数据库
-  d1Placeholder: 选择数据库
-  inspectMigrations: 检查迁移
-  verifyD1: 正在验证 Nightly 和 D1…
-  schemaCurrent: 数据库结构已是最新
-  migrationApplied: 已应用
-  migrationPending: 待执行
-  migrationTotal: 官方 SQL 文件
-  recoveryPoint: 恢复书签
-  migrationRisk: 部分迁移会更改现有结构或数据。请在执行前确认兼容性；旧 Worker 不会停止服务。
-  migrationReview: 检查
-  migrationAdd: 新增
-  applyMigrations: 执行待处理 D1 迁移
-  applyingMigrations: 正在执行迁移…
-  authD1Read: 授权 D1 读取
-  authD1Write: 授权 D1 写入
-  d1ScopeHint: 需要额外的 Cloudflare 明确授权。只读检查不会申请 D1 写入权限。
-  d1Progress: 已完成 {applied} 项，还剩 {remaining} 项
-  d1Complete: D1 迁移已完成。Worker 激活需要单独执行。
-  d1ContinueHint: 迁移中断后，请重新检查 D1 迁移记录再继续。
-  stageTitle: 暂存 Worker 新版本
-  stageDesc: 上传并验证 Nightly Worker，但暂不将任何流量切换过去。
-  inspectVersion: 检查 Worker 版本
-  authDeploy: 授权 Worker 写入与 D1
-  nightlyCandidate: 官方 Nightly 候选版本
-  inactive: 未激活
-  activeVersion: 当前活动版本
-  migrationTag: DO 迁移标记
-  bindingsPreserved: 保留已有绑定：{count} 个
-  legacyApprove: 我已检查现有非托管 Worker，并同意接管，且不替换其 D1、KV、DO 或密钥。
-  uploadInactive: 上传未激活版本
-  uploading: 上传中…
-  findPrevious: 找回之前暂存的版本
-  previousCandidates: 已暂存版本
-  useCandidate: 选择此版本
-  stagedReady: 版本暂存完成 · 可继续检查
-  stageSafety: D1、KV、DO 和密钥保持不变。尚未启用新版本流量。
-  stageRestoreEmpty: 没有兼容的暂存版本。请先上传 Nightly 候选版本。
-  stageRestored: 已从 Cloudflare 版本历史找回兼容候选版本。
-  stageContinueHint: 确认激活之前，当前 Worker 会继续正常服务。
-  activateTitle: 确认并激活版本
-  activateDesc: 最后一步：确认版本和数据库状态，再将 100% Worker 流量切换至新版本。
-  activationTarget: 待激活版本
-  activationNeedD1: 激活前需要检查对应 D1 数据库，并执行所有待处理 Nightly SQL。
-  activate100: 将 100% 流量切换至新版本
-  activationSuccess: Worker 新版本已激活
-  deploymentId: 部署 ID
-  versionId: 版本 ID
-  activationNote: 激活操作不会更新 Cloudflare 定时触发器或自定义路由。
-  installUnavailable: 首次安装尚未开放
-  installUnavailableHint: 全新安装所需的 D1、KV 等资源创建仍在开发中。已有实例可以使用升级流程。
-  actionConfirmD1: 确定向 {target} 执行 {count} 个迁移吗？现有 Worker 将继续服务。
-  actionConfirmStage: 将官方提交 {sha} 上传为未激活版本吗？已有绑定将被保留。
-  actionConfirmActivate: 确认把版本 {version} 激活为 100% 流量吗？这将切换线上 Worker。
-  activationNoCandidate: 激活前需要先暂存并选择候选版本。
-  authFailed: Cloudflare 授权失败：{error}
-  unexpectedError: 发生未知错误
-  httpError: 请求失败（HTTP {status}）
-  invalidResponse: API 响应无效
-  requestFailed: 操作失败，请检查详情后重试。
-  showTechnical: 技术详情
-  stageFinish: 已完成升级
-  stepBlocked: 请先完成当前步骤再继续。
-  theme: 主题
-  lightTheme: 亮色
-  darkTheme: 暗色
-  systemTheme: 跟随系统
-  cancel: 取消
-  confirm: 确认
-  confirmStageTitle: 确认上传未激活 Worker 版本
-  confirmD1Title: 确认执行 D1 迁移
-  confirmActivateTitle: 确认激活 Worker 版本
-  languageSelect: 语言
-  confirmActionHint: 此操作需要单独确认，继续步骤并不会自动执行。
-  sourceTitleShort: InsightFlare 部署
-  stateNotInstalled: 尚未安装
-  stateMissingWorkerTag: 缺少 Worker 标记
-  statePermissionRequired: 需要授权
-  stateNotConfigured: 尚未配置
-  stateRepositoryMismatch: 仓库不匹配
-  stateUnsafeTrigger: 构建触发器存在风险
-  stateCandidate: 待检查的候选配置
-  apiPlan1: 重新验证 OAuth 账户及所有权
-  apiPlan2: 确定并固定不可变的源码提交
-  apiPlan3: 下载并校验固定 SHA 的官方 Nightly 包
-  apiPlan4: 检查并执行仅向前的 D1 迁移
-  apiPlan5: 检查资源绑定并上传 Worker 模块与静态资源
-  apiPlan6: 保留原有密钥、域名路由和用户数据
-  apiPlan7: 验证服务并记录已部署的 SHA
-  apiBlocker1: 已有实例可以使用 D1 迁移和 Worker 版本升级；首次安装资源创建与一键部署仍未开放。
-  apiBlocker2: Worker 名称已被未知应用占用，禁止自动接管。
-  apiBlocker3: 旧版实例必须先明确确认接管。
-  apiBlocker4: 安装前必须先检查已有 Worker。
-  apiBlocker5: 此账户尚未安装 InsightFlare。
-  apiBlocker6: 修复需要已知的托管版本 SHA。
-  apiIssue1: 无法验证 Worker 身份或部署标记，已阻止自动接管。
-  apiIssue2: 已有 InsightFlare Worker 没有受管理的 SHA，需要确认接管。
-  apiIssue3: Cloudflare 未返回标准 Worker。首次安装前请检查授权是否允许列出 Worker。
-  resourceCreate: 创建
-  resourcePreserve: 保留
-  resourceBlock: 阻止
-  resourceOptional: 可选
-  resourceUnknownOwnership: 需要先验证 Worker 所有权才能操作资源。
-  resourceUnexpectedBinding: 该绑定类型、标识或名称异常，需要人工检查。
-  resourceExistingRequired: 现有实例缺少必要绑定，禁止自动替换。
-  resourceKeepSecret: 保留已有密钥元数据，不读取、不替换、不轮换其内容。
-  resourceCreateD1: 创建独立 D1 数据库并应用已审核迁移。
-  resourceKeepD1: 保留当前 D1 数据库 ID 和所有已有内容。
-  resourceCreateKv: 为网站设置创建 KV 命名空间。
-  resourceKeepKv: 保留当前 KV 命名空间和站点设置。
-  resourceCreateDo: 通过已审核 Worker 迁移创建摄取 DO SQLite 命名空间。
-  resourceKeepDo: 保留原有 Durable Object 命名空间与状态。
-  resourceCreateSecret: 生成新的安全随机密钥，不向浏览器发送其内容。
-  resourceKeepRootSecret: 保留已有密钥绑定，不读取或轮换密钥。
-  requiredBindingMissing: 缺少必要绑定 {name}，无法安全更新。
+  brand: "InsightFlare Deploy"
+  tagline: "你的分析数据，留在你自己的 Cloudflare 账号里。"
+  wizard: "部署向导"
+  wizardHelp: "一键把 InsightFlare 安装或更新到你自己的 Cloudflare 账号。所有操作都使用你的授权执行，中途中断也可以继续。"
+  language: "语言"
+  theme: "主题"
+  lightTheme: "浅色"
+  darkTheme: "深色"
+  systemTheme: "跟随系统"
+  connected: "已连接"
+  disconnected: "未连接"
+  stepCount: "第 {current} 步，共 {total} 步"
+  progress: "进度"
+  back: "上一步"
+  next: "继续"
+  dismiss: "关闭"
+  loading: "加载中…"
+  refresh: "刷新"
+  copy: "复制"
+  copied: "已复制"
+  details: "详细信息"
+  unexpectedError: "出了点问题，请重试。"
+  httpError: "请求失败（HTTP {status}）。"
+  stepConnect: "连接"
+  stepAccount: "账号"
+  stepReview: "确认方案"
+  stepDeploy: "执行"
+  stepDone: "完成"
+  connectTitle: "连接你的 Cloudflare 账号"
+  connectDesc: "使用 Cloudflare 登录，并同意 InsightFlare 安装到你账号所需的权限。"
+  connectButton: "使用 Cloudflare 连接"
+  oauthMissing: "本服务尚未配置 Cloudflare 登录。"
+  connectedDesc: "你的 Cloudflare 授权有效至 {time}。"
+  disconnect: "断开连接"
+  dataPromise: "你的分析数据始终留在你自己的 Cloudflare 账号中。"
+  permissionsTitle: "这次授权可以做什么"
+  permissionsBody: "创建和更新名为 insightflare 的 Worker 及其 D1 数据库、KV 命名空间，并创建一个只能读取 Analytics Engine 的 token。授权一小时内过期，且不会以明文保存。"
+  authFailed: "Cloudflare 登录未完成（{error}），请重试。"
+  accountTitle: "选择账号"
+  accountDesc: "我们会在你选择的账号中查找已有的 InsightFlare。"
+  accountLabel: "Cloudflare 账号"
+  accountPlaceholder: "选择一个账号"
+  discovering: "正在检查账号…"
+  kindNotInstalled: "尚未安装"
+  kindManaged: "已安装"
+  kindLegacy: "已安装（早于本工具部署）"
+  kindConflict: "名称冲突"
+  deployedCommit: "当前运行版本 {sha}"
+  resumeRun: "这个账号有一次部署正在进行或等待处理，继续即可查看。"
+  reviewTitle: "确认部署方案"
+  reviewDesc: "确认之前不会做任何改动。方案固定使用下面这个官方构建。"
+  sourceCommit: "官方构建"
+  viewCommit: "查看提交"
+  installPlanTitle: "将会创建"
+  planWorker: "Worker {name}，以及它的 Durable Object 和静态资源"
+  planDatabaseCreate: "D1 数据库 {name}"
+  planDatabaseReuse: "使用已有的空 D1 数据库 {name}"
+  planKvCreate: "KV 命名空间 {name}"
+  planKvReuse: "使用已有的 KV 命名空间 {name}"
+  planMigrations: "{count} 个数据库迁移"
+  planCrons: "定时任务 {list}"
+  planUrl: "访问地址 {url}"
+  planNoWorkersDev: "这个账号还没有 workers.dev 子域名。InsightFlare 仍会安装，但之后需要绑定域名或注册 workers.dev。"
+  planSecrets: "随机生成的根密钥和管理员密码"
+  planAnalytics: "Analytics Engine 数据集（账号已开启 Analytics Engine 时），以及一个只读 token"
+  planAnalyticsNote: "Analytics Engine 需要在 Cloudflare 控制台为每个账号手动开启一次。如果还没开启，InsightFlare 会先不带它安装，之后可以再开启。"
+  enableAnalyticsEngine: "打开 Analytics Engine"
+  updatePlanTitle: "将会更新"
+  updateFromTo: "从 {from} 更新到 {to}"
+  unknownVersion: "未记录的版本"
+  updatePendingMigrations: "需要执行 {count} 个数据库迁移"
+  updateNoMigrations: "无需数据库迁移"
+  updateDestructive: "部分迁移会修改或删除现有表，请确认有近期备份。"
+  updateDoMigration: "包含 Durable Object 迁移"
+  updateSafety: "新版本会先上传，数据库就绪后才切换。如果健康检查失败，会自动恢复到之前的版本。"
+  legacyAdopt: "这个实例早于 InsightFlare Deploy 部署。我同意之后由 Deploy 管理它；数据、secret 和绑定都会保留。"
+  upToDate: "这个实例已经是最新的官方构建。"
+  blockersTitle: "暂时无法继续"
+  blocker_WORKER_CONFLICT: "已经有一个名为 insightflare 的 Worker，但它不是 InsightFlare。请先重命名或删除它。"
+  blocker_NIGHTLY_PENDING: "最新的官方构建还在发布中，请几分钟后再试。"
+  blocker_RELEASE_UNAVAILABLE: "无法下载或校验官方构建。"
+  blocker_DATABASE_TAKEN: "已经有一个名为 insightflare 且包含数据的 D1 数据库。请先删除或重命名它再安装。"
+  blocker_UPDATE_BLOCKED: "这个实例无法自动更新。"
+  installButton: "安装 InsightFlare"
+  updateButton: "更新 InsightFlare"
+  confirmInstallTitle: "现在安装 InsightFlare？"
+  confirmInstallDesc: "将在 {account} 中创建上面列出的资源，通常需要几分钟。"
+  confirmUpdateTitle: "现在更新 InsightFlare？"
+  confirmUpdateDesc: "数据库迁移无法自动撤销。更新期间 Worker 会继续正常提供服务。"
+  confirm: "确认"
+  cancel: "取消"
+  deployTitle: "正在部署"
+  deployDesc: "请保持页面打开。如果关闭了，回来后会从中断的地方继续。"
+  runStep_verify: "校验官方构建和账号"
+  runStep_database: "准备 D1 数据库"
+  runStep_kv: "准备 KV 命名空间"
+  runStep_migrate: "执行数据库迁移"
+  runStep_worker: "上传 Worker"
+  runStep_schedules: "设置定时任务"
+  runStep_subdomain: "开启 workers.dev 地址"
+  runStep_analytics: "配置 Analytics Engine 读取"
+  runStep_health: "检查 InsightFlare 是否正常响应"
+  runStep_stage: "上传新版本（尚未生效）"
+  runStep_activate: "将流量切换到新版本"
+  statusPending: "等待中"
+  statusRunning: "进行中"
+  statusDone: "完成"
+  statusSkipped: "已跳过"
+  statusWarning: "需要留意"
+  statusFailed: "失败"
+  note_CREATED: "已创建 {name}"
+  note_REUSED: "使用已有的资源"
+  note_MIGRATIONS: "已执行 {applied} / {total}"
+  note_CRONS: "已设置 {count} 个定时任务"
+  note_URL: "地址：{url}"
+  note_AE_NOT_ENABLED: "账号尚未开启 Analytics Engine，已先跳过"
+  note_AE_ENABLED: "已为这个实例启用 Analytics Engine"
+  note_AE_READER_CONFIGURED: "已创建只读 token 并保存为 Worker secret"
+  note_AE_READER_MANUAL: "无法自动创建 token，请在 InsightFlare 设置中手动填写"
+  note_WORKERS_DEV_MISSING: "账号没有 workers.dev 子域名"
+  note_NO_PUBLIC_URL: "没有可检查的公开地址"
+  note_HEALTHY: "InsightFlare 响应正常"
+  note_WAITING: "等待地址生效（{attempt}/{total}）"
+  note_HEALTH_TIMEOUT: "暂时还没有响应，新地址可能需要几分钟才生效"
+  note_ALREADY_CURRENT: "已经是最新"
+  note_ROLLED_BACK: "健康检查失败，已恢复到之前的版本"
+  runFailedTitle: "部署已停止"
+  runFailedDesc: "已完成的部分都会保留。必要时先处理问题，然后从这一步重试。"
+  rolledBackDesc: "新版本未通过健康检查，之前的版本已重新接管流量。已经执行的数据库迁移会保留。"
+  retry: "重试"
+  startOver: "重新开始"
+  otherTab: "这次部署正在另一个标签页中执行，本页面会同步显示进度。"
+  reconnectNeeded: "Cloudflare 授权已过期。重新连接即可继续，进度不会丢失。"
+  doneInstallTitle: "InsightFlare 已安装"
+  doneUpdateTitle: "InsightFlare 已更新"
+  doneDesc: "当前运行官方构建 {sha}。"
+  openDashboard: "打开 InsightFlare"
+  adminTitle: "管理员登录信息"
+  adminDesc: "只会在这里显示一次。请现在保存密码，并在首次登录后修改。"
+  username: "用户名"
+  password: "密码"
+  passwordSaved: "我已保存密码"
+  passwordForgotten: "密码已不再显示。如果遗失，可以用 ops:admin:reset-password 命令重置。"
+  followUpTitle: "还需要处理"
+  followAeEnable: "在 Cloudflare 中开启 Analytics Engine，然后回到这里执行一次更新，即可启用请求观测等相关分析。"
+  followAeReader: "在 InsightFlare 的“设置 → 分析引擎”中填写一个带 Account Analytics Read 权限的 API Token。"
+  followWorkersDev: "在 Cloudflare 控制台为 insightflare Worker 绑定自定义域名，或注册 workers.dev 子域名。"
+  followHealth: "地址暂时还没有响应，请过几分钟再打开。"
+  openCloudflare: "打开 Cloudflare 控制台"
+  finish: "完成"

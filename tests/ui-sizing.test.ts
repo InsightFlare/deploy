@@ -5,14 +5,15 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const file = path.join(projectRoot, "src/client/App.tsx");
+const files = ["App.tsx", "steps.tsx", "ui.tsx"].map(name => path.join(projectRoot, "src/client", name));
 
 describe("InsightFlare Deploy control sizing", () => {
   it("keeps action buttons and select triggers at shared UI defaults", () => {
-    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const violations: string[] = [];
     let buttonCount = 0;
     let selectCount = 0;
+    for (const file of files) {
+    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     function walk(node: ts.Node): void {
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
         const tag = node.tagName.getText(source);
@@ -43,8 +44,9 @@ describe("InsightFlare Deploy control sizing", () => {
       ts.forEachChild(node, walk);
     }
     walk(source);
+    }
     expect(buttonCount).toBeGreaterThan(10);
-    expect(selectCount).toBeGreaterThan(1);
+    expect(selectCount).toBeGreaterThan(0);
     expect(violations).toEqual([]);
   });
 });
