@@ -34,6 +34,10 @@ function cookie(c: AppContext): string | null {
 function cookieOptions(c: AppContext) {
   return { httpOnly: true as const, secure: origin(c).startsWith("https:"), sameSite: "Lax" as const, path: "/", maxAge: 3600 };
 }
+/** __Host- cookies may only be set or cleared with Secure and Path=/ (Hono enforces this). */
+function clearSessionCookie(c: AppContext): void {
+  deleteCookie(c, cookieName(c), { path: "/", secure: origin(c).startsWith("https:") });
+}
 function callbackUri(c: AppContext): string {
   return origin(c) + "/oauth/cloudflare/callback";
 }
@@ -106,7 +110,7 @@ export async function finishOAuth(c: AppContext): Promise<Response> {
   if (!session?.oauth || !nonce || nonce !== session.oauth.state || !code ||
     Date.now() - session.oauth.startedAt > OAUTH_TIMEOUT_MS) {
     await clearSession(c.env, id);
-    deleteCookie(c, cookieName(c), { path: "/" });
+    clearSessionCookie(c);
     return c.redirect("/?error=oauth_invalid", 302);
   }
   if (!oauthConfigured(c.env)) throw new DeployError("MISCONFIGURED", "Cloudflare OAuth has not been configured.", 503);
@@ -154,6 +158,6 @@ export async function signOut(c: AppContext): Promise<Response> {
   assertSameOrigin(c);
   const id = cookie(c);
   if (id) await clearSession(c.env, id);
-  deleteCookie(c, cookieName(c), { path: "/" });
+  clearSessionCookie(c);
   return c.json({ ok: true }, 200, { "Cache-Control": "no-store" });
 }
