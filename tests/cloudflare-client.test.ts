@@ -303,3 +303,19 @@ describe("Cloudflare Beta Worker Versions API", () => {
     });
   });
 });
+
+describe("Workers runtime fetch binding", () => {
+  it("calls the global fetch without rebinding `this` (Workers throws Illegal invocation)", async () => {
+    const original = globalThis.fetch;
+    const strict = function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(Response.json({ success: true, result: [{ id: accountId, name: "Personal" }] }));
+    } as unknown as typeof fetch;
+    globalThis.fetch = strict;
+    try {
+      await expect(new CloudflareClient("token").accounts()).resolves.toHaveLength(1);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

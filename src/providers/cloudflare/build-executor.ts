@@ -92,7 +92,7 @@ async function requestBuildApi(http: typeof fetch, token: string, path: string, 
  * until we validate per-user upstream access, authorization and DB safety.
  */
 export class CloudflareBuildExecutor {
-  constructor(private readonly token: string, private readonly http: typeof fetch = fetch) {}
+  constructor(private readonly token: string, private readonly http: typeof fetch = (input, init) => fetch(input, init)) {}
 
   async startPinnedBuild(accountId: string, triggerId: string, sourceSha: string, gate: BuildExecutionGate): Promise<SubmittedBuild> {
     assertAuthorized(gate, sourceSha);

@@ -191,7 +191,9 @@ export interface WorkerVersionUpload {
 type CfPayload<T> = { success?: boolean; result?: T; errors?: { code?: number; message?: string }[] };
 
 export class CloudflareClient {
-  constructor(private readonly token: string, private readonly http: typeof fetch = fetch) {}
+  // Workers' fetch throws "Illegal invocation" when called as a method of another object,
+  // so the default must not be the bare global stored on `this`.
+  constructor(private readonly token: string, private readonly http: typeof fetch = (input, init) => fetch(input, init)) {}
 
   private async request<T>(path: string, init: RequestInit, timeoutMs = 9000, bearerToken = this.token): Promise<T> {
     const headers = new Headers(init.headers);
