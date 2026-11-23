@@ -431,6 +431,18 @@ export class CloudflareClient {
     return scripts.filter((s): s is WorkerScript => Boolean(s && typeof s.id === "string"));
   }
 
+  /** Direct lookup by name; the script list can briefly omit a Worker right after it changed. */
+  async workerExists(accountId: string, scriptName: string): Promise<boolean> {
+    assertWorkerTarget(accountId, scriptName);
+    try {
+      await this.get(`/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/settings`);
+      return true;
+    } catch (error) {
+      if (error instanceof DeployError && error.cloudflareCode === 10007) return false;
+      throw error;
+    }
+  }
+
   async workerNames(accountId: string): Promise<string[]> {
     return (await this.workerScripts(accountId)).map(s => s.id);
   }
@@ -487,13 +499,14 @@ export class CloudflareClient {
       throw new DeployError("INVALID_SOURCE", "The Worker build must contain a valid static asset set.");
     }
     const manifest: Record<string, { hash: string; size: number }> = {};
-    const byHash = new Map<string, { base64: string; size: number; contentType: string }>();
+    // Keep raw bytes only; base64 is produced per upload batch to stay well inside Worker memory.
+    const byHash = new Map<string, { content: WorkerAssetFile["content"]; size: number; contentType: string }>();
     let totalBytes = 0;
     for (const file of files) {
       if (!file || !safeAssetPath(file.path) || Object.hasOwn(manifest, "/" + file.path)) {
         throw new DeployError("INVALID_SOURCE", "The Worker build contains an invalid or duplicate asset path.");
       }
-      const bytes = await toBytes(file.content);
+      const bytes = file.content instanceof Uint8Array ? file.content : await toBytes(file.content);
       if (bytes.byteLength > 25 * 1024 * 1024) {
         throw new DeployError("INVALID_SOURCE", "A static asset exceeds the safe upload size limit.");
       }
@@ -501,16 +514,15 @@ export class CloudflareClient {
       if (totalBytes > 100 * 1024 * 1024) {
         throw new DeployError("INVALID_SOURCE", "The total static asset upload exceeds the safe size limit.");
       }
-      const base64 = bytesToBase64(bytes);
       const dot = file.path.lastIndexOf(".");
       const extension = dot < 0 ? "" : file.path.slice(dot + 1);
-      const hash = await assetHash(base64, extension);
+      const hash = await assetHash(bytesToBase64(bytes), extension);
       manifest["/" + file.path] = { hash, size: bytes.byteLength };
       const existing = byHash.get(hash);
-      if (existing && (existing.base64 !== base64 || existing.contentType !== file.contentType)) {
+      if (existing && (existing.size !== bytes.byteLength || existing.contentType !== file.contentType)) {
         throw new DeployError("INVALID_SOURCE", "A static asset hash collision was detected.");
       }
-      byHash.set(hash, { base64, size: bytes.byteLength, contentType: file.contentType });
+      byHash.set(hash, { content: file.content, size: bytes.byteLength, contentType: file.contentType });
     }
 
     const session = await this.postJson<{ jwt?: string; buckets?: string[][] }>(
@@ -537,7 +549,7 @@ export class CloudflareClient {
         seen.add(hash);
         // Cloudflare expects one multipart part per hash; the part's body is
         // the base64-encoded content and its MIME type controls asset serving.
-        form.append(hash, new Blob([asset.base64], { type: asset.contentType }), hash);
+        form.append(hash, new Blob([bytesToBase64(await toBytes(asset.content))], { type: asset.contentType }), hash);
       }
       const uploaded = await this.postForm<{ jwt?: string }>(
         `/accounts/${accountId}/workers/assets/upload?base64=true`,

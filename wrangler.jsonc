@@ -5,6 +5,8 @@
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 120000 },
   "vars": {
     "APP_ORIGIN": "https://deploy.insightflare.net",
     "SOURCE_REPOSITORY": "RavelloH/InsightFlare",

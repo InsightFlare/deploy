@@ -58,6 +58,7 @@ Host this Worker in the maintainer's **primary** Cloudflare account; customers c
    - Required scopes: `workers-scripts.read`, `account-settings.read`, `zone.read`.
    - Optional scopes, requested by the deploy flow (`capability=deploy`): `d1.read`, `d1.write`, `workers-scripts.write`, `workers-kv-storage.read`, `workers-kv-storage.write`, `account-analytics.read`, `account-api-tokens.write`. Every one of them must be allowed on the client, otherwise Cloudflare rejects the authorization request. An OAuth-created API token can only carry permissions that were granted here, which is why `account-analytics.read` is needed.
 5. Runtime secrets (Settings → Variables and Secrets): `CF_OAUTH_CLIENT_ID`, `CF_OAUTH_CLIENT_SECRET`, `SESSION_ENCRYPTION_KEY` (32 random bytes, Base64; keep it stable across deployments).
+   Recommended: `GITHUB_TOKEN`, a fine-grained GitHub token with read-only access to public repositories and no other permissions. Unauthenticated GitHub API calls share a 60-per-hour limit per IP, which Workers egress addresses exhaust; with a token the limit is 5,000 per hour. It is only sent to `api.github.com`.
 6. Check `https://deploy.insightflare.net/api/v1/health`, then run an install into a separate test account before inviting users.
 
 The `SESSIONS` and `RUNS` Durable Objects exist only in this control plane; nothing is added to customers' InsightFlare traffic. Deploying the control plane never touches any customer installation.

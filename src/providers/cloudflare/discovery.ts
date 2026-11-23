@@ -32,11 +32,11 @@ export function interpretBindings(accountId: string, bindings: WorkerBinding[]):
 }
 
 export async function discoverDeployment(
-  client: Pick<CloudflareClient, "requireAccount" | "workerNames" | "settings">, accountId: string
+  client: Pick<CloudflareClient, "requireAccount" | "workerNames" | "settings" | "workerExists">, accountId: string
 ): Promise<Deployment> {
   await client.requireAccount(accountId);
   const scripts = await client.workerNames(accountId);
-  if (!scripts.includes(DEFAULT_WORKER)) {
+  if (!scripts.includes(DEFAULT_WORKER) && !(await client.workerExists(accountId, DEFAULT_WORKER))) {
     return {
       kind: "not-installed", accountId, workerName: DEFAULT_WORKER,
       deployedSha: null, bindings: { database: false, kv: false, ingest: false },

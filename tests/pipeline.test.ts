@@ -71,6 +71,7 @@ function fakeAccount(options: { analyticsEngineEnabled?: boolean; subdomain?: st
   const client = {
     requireAccount: vi.fn(async () => ({ id: accountId, name: "Test" })),
     workerNames: vi.fn(async () => [...workers.keys()]),
+    workerExists: vi.fn(async (_a: string, name: string) => workers.has(name)),
     settings: vi.fn(async (_a: string, name: string) => workers.get(name) ?? []),
     d1Databases: vi.fn(async () => databases.map(({ uuid, name }) => ({ uuid, name }))),
     d1MigrationSnapshot: vi.fn(async (_a: string, id: string) => {
@@ -140,7 +141,8 @@ function deps(client: PipelineClient, artifact: ReleaseArtifact, healthy = true)
     loadRelease: vi.fn(async () => artifact),
     adminPassword: async () => "Admin-Password-123",
     checkHealth: vi.fn(async () => healthy),
-    now: () => 1_000
+    now: () => 1_000,
+    retryDelayMs: 0
   };
 }
 
@@ -324,5 +326,24 @@ describe("administrator password", () => {
     const base = { id: "r", accountId: "a".repeat(32), sourceSha: "d".repeat(40), artifactDigest: "e".repeat(64), legacyAdoptionApproved: false, now: 0, customAdminPassword: true };
     expect(createRun({ ...base, intent: "install" }).customAdminPassword).toBe(true);
     expect(createRun({ ...base, intent: "update" }).customAdminPassword).toBeUndefined();
+  });
+});
+
+describe("eventually consistent Worker listing", () => {
+  it("confirms a Worker missing from the list by looking it up directly", async () => {
+    const { discoverDeployment } = await import("../src/providers/cloudflare/discovery");
+    const bindings = [
+      { name: "DB", type: "d1" }, { name: "SITE_SETTINGS_KV", type: "kv_namespace" },
+      { name: "INGEST_DO", type: "durable_object_namespace", class_name: "IngestDurableObject" },
+      { name: "INSIGHTFLARE_DEPLOYMENT_SHA", type: "plain_text", text: sourceSha }
+    ];
+    const client = {
+      requireAccount: async () => ({ id: accountId, name: "x" }),
+      workerNames: async () => ["something-else"],
+      workerExists: async () => true,
+      settings: async () => bindings
+    };
+    expect((await discoverDeployment(client, accountId)).kind).toBe("managed");
+    expect((await discoverDeployment({ ...client, workerExists: async () => false }, accountId)).kind).toBe("not-installed");
   });
 });

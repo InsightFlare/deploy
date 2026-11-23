@@ -4,6 +4,7 @@ import { DeployError } from "../types";
 import { CloudflareClient } from "../providers/cloudflare/client";
 import { discoverDeployment } from "../providers/cloudflare/discovery";
 import { resolveLatestMain } from "../core/source";
+import { githubFetcher } from "../core/github";
 import {
   resolveLatestPublicNightly, resolvePublicDeployRelease, downloadVerifiedPublicRelease, type ReleaseArtifact
 } from "../core/public-release";
@@ -34,12 +35,12 @@ async function authorizedClient(c: { env: Env } & Parameters<typeof userToken>[0
 }
 
 /** Verified archive for exactly this SHA/digest (fails if nightly has moved on). */
-async function loadPinnedRelease(sha: string, artifactDigest: string): Promise<ReleaseArtifact> {
-  const pointer = await resolvePublicDeployRelease(sha);
+async function loadPinnedRelease(github: typeof fetch, sha: string, artifactDigest: string): Promise<ReleaseArtifact> {
+  const pointer = await resolvePublicDeployRelease(sha, github);
   if (pointer.artifactDigest !== artifactDigest) {
     throw new DeployError("SOURCE_MOVED", "The official build for this commit changed. Start the deployment again.", 409);
   }
-  return downloadVerifiedPublicRelease(pointer);
+  return downloadVerifiedPublicRelease(pointer, github);
 }
 
 async function checkHealth(url: string): Promise<boolean> {
@@ -84,11 +85,14 @@ pipelineRoutes.get("/:accountId/overview", async c => {
   const client = await authorizedClient(c, accountId);
   const [observed, source] = await Promise.all([
     discoverDeployment(client, accountId),
-    resolveLatestMain().catch(() => null)
+    resolveLatestMain(githubFetcher(c.env.GITHUB_TOKEN)).catch(() => null)
   ]);
   const overview = await accountOverview({
     client, accountId, observed, source,
-    loadLatestRelease: async () => downloadVerifiedPublicRelease(await resolveLatestPublicNightly())
+    loadLatestRelease: async () => {
+      const github = githubFetcher(c.env.GITHUB_TOKEN);
+      return downloadVerifiedPublicRelease(await resolveLatestPublicNightly(github), github);
+    }
   });
   return c.json({ overview }, 200, NO_STORE);
 });
@@ -120,7 +124,7 @@ pipelineRoutes.post("/:accountId/run", async c => {
     throw new DeployError("SOURCE_MOVED", "The account changed since the review. Refresh and review again.", 409);
   }
   // The reviewed commit must still be what the official nightly channel serves.
-  const pointer = await resolveLatestPublicNightly();
+  const pointer = await resolveLatestPublicNightly(githubFetcher(c.env.GITHUB_TOKEN));
   if (pointer.sha !== body.sourceSha || pointer.artifactDigest !== body.artifactDigest) {
     throw new DeployError("SOURCE_MOVED", "A newer official build was published. Review the plan again.", 409);
   }
@@ -151,7 +155,7 @@ pipelineRoutes.post("/:accountId/run/advance", async c => {
   try {
     next = await advanceRun(run, {
       client,
-      loadRelease: loadPinnedRelease,
+      loadRelease: (sha, digest) => loadPinnedRelease(githubFetcher(c.env.GITHUB_TOKEN), sha, digest),
       adminPassword: async () => {
         const stored = await runStore.read(c.env, accountId);
         if (!stored.adminPassword || !c.env.SESSION_ENCRYPTION_KEY) {

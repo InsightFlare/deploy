@@ -72,7 +72,7 @@ export const UPDATE_STEPS: UpdateStepId[] = ["verify", "migrate", "stage", "acti
 export const HEALTH_ATTEMPTS = 8;
 
 export type PipelineClient = Pick<CloudflareClient,
-  | "requireAccount" | "workerNames" | "settings" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1TableHasRows"
+  | "requireAccount" | "workerNames" | "settings" | "workerExists" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1TableHasRows"
   | "createD1Database" | "kvNamespaces" | "createKvNamespace" | "uploadWorkerAssets" | "uploadNewWorkerScript"
   | "putWorkerSchedules" | "workersSubdomain" | "enableWorkerSubdomain" | "putWorkerSecret"
   | "accountTokenPermissionGroups" | "createAccountToken" | "workerInfo" | "workerDeployments"
@@ -87,6 +87,8 @@ export interface PipelineDeps {
   /** true when GET {url}/healthz answers as InsightFlare. */
   checkHealth(url: string): Promise<boolean>;
   now(): number;
+  /** Pause before re-checking eventually consistent Cloudflare metadata (tests use 0). */
+  retryDelayMs?: number;
 }
 
 /**
@@ -349,7 +351,12 @@ class StepContext {
 
   private async verifyUpdate(): Promise<StepResult> {
     const release = await this.loadRelease();
-    const observed = await discoverDeployment(this.client, this.account);
+    let observed = await discoverDeployment(this.client, this.account);
+    // Cloudflare's metadata can briefly lose a Worker right after it changed; look again.
+    for (let attempt = 0; attempt < 2 && observed.kind === "not-installed"; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, this.deps.retryDelayMs ?? 3000));
+      observed = await discoverDeployment(this.client, this.account);
+    }
     if (observed.kind !== "managed" && observed.kind !== "legacy-candidate") {
       throw new DeployError("UNAVAILABLE", "No InsightFlare installation that can be updated was found.", 409);
     }

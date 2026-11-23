@@ -9,6 +9,8 @@ export interface Env {
   CF_OAUTH_CLIENT_ID?: string;
   CF_OAUTH_CLIENT_SECRET?: string;
   SESSION_ENCRYPTION_KEY?: string;
+  /** Optional GitHub token; lifts the shared per-IP API limit (public read only, no extra permissions). */
+  GITHUB_TOKEN?: string;
 }
 
 export type ApiErrorCode =
