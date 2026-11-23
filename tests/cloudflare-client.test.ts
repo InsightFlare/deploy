@@ -272,9 +272,19 @@ describe("Cloudflare Beta Worker Versions API", () => {
   });
 
   it("blocks deployment if Cloudflare does not confirm a full 100% deployment", async () => {
-    const mock = vi.fn(async () => Response.json({ success: true, result: { id: deploymentId, strategy: "percentage", versions: [{ version_id: versionId, percentage: 50 }] } }));
+    const half = { id: deploymentId, strategy: "percentage", versions: [{ version_id: versionId, percentage: 50 }] };
+    const mock = vi.fn(async (_url: string, init?: RequestInit) => Response.json({ success: true,
+      result: init?.method === "POST" ? half : { deployments: [half] } }));
     const client = new CloudflareClient("short-lived-token", mock as typeof fetch);
     await expect(client.createWorkerDeployment(accountId, "insightflare", versionId, "Promote validated version")).rejects.toThrow("unexpected Worker deployment");
+  });
+
+  it("confirms the deployment from the live list when the creation response is partial", async () => {
+    const full = { id: deploymentId, strategy: "percentage", versions: [{ version_id: versionId, percentage: 100 }] };
+    const mock = vi.fn(async (_url: string, init?: RequestInit) => Response.json({ success: true,
+      result: init?.method === "POST" ? { id: deploymentId } : { deployments: [full] } }));
+    const client = new CloudflareClient("short-lived-token", mock as typeof fetch);
+    await expect(client.createWorkerDeployment(accountId, "insightflare", versionId, "Promote validated version")).resolves.toMatchObject(full);
   });
 
   it("creates an explicit 100% deployment without force override", async () => {
@@ -289,7 +299,7 @@ describe("Cloudflare Beta Worker Versions API", () => {
     expect(body).toEqual({
       strategy: "percentage",
       versions: [{ version_id: versionId, percentage: 100 }],
-      annotations: { "workers/message": "Promote validated version", "workers/triggered_by": "insightflare-deploy" }
+      annotations: { "workers/message": "Promote validated version" }
     });
   });
 });

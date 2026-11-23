@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { planStagedUpgrade, stageReviewedUpgrade, type PinnedArtifact, type ReviewedStaging } from "../src/core/stage-artifact";
+import { planStagedUpgrade, stageReviewedUpgrade, verifyUploadedCandidate, type PinnedArtifact, type ReviewedStaging } from "../src/core/stage-artifact";
 import type { WorkerVersion, WorkerVersionUpload, WorkerBinding } from "../src/providers/cloudflare/client";
 
 const sha = "d".repeat(40);
@@ -100,6 +100,21 @@ describe("pure, reviewed artifact to Worker Version bridge", () => {
     expect(candidate.upload.migrations).toBeUndefined();
   });
 
+  it("accepts a never-deployed version without a migration tag only when no DO migration was uploaded", () => {
+    const current = active();
+    current.migration_tag = "v3";
+    const noMigration = planStagedUpgrade(pack(), current, reviewed);
+    const staged = (proposal: typeof noMigration): WorkerVersion => ({
+      id: stagedId, annotations: { "workers/tag": sha },
+      bindings: [...(proposal.upload.bindings as unknown as WorkerBinding[]).filter(b => b.type !== "inherit"),
+        ...proposal.requiredExistingBindings as WorkerBinding[]]
+    });
+    expect(() => verifyUploadedCandidate(staged(noMigration), noMigration)).not.toThrow();
+    const withMigration = planStagedUpgrade(pack(), active(), reviewed);
+    expect(withMigration.upload.migrations).toBeDefined();
+    expect(() => verifyUploadedCandidate(staged(withMigration), withMigration)).toThrow("could not be verified");
+  });
+
   it.each([
     { sourceSha: "b".repeat(40) }, { artifactDigest: "b".repeat(64) },
     { expectedActiveVersionId: stagedId }, { legacyAdoptionReviewed: false }
@@ -129,6 +144,29 @@ describe("pure, reviewed artifact to Worker Version bridge", () => {
     const changedTags = pack();
     changedTags.config.migrations.push({ tag: "v4", deleted_classes: ["SomeClass"] });
     expect(() => planStagedUpgrade(changedTags, active(), reviewed)).toThrow("migrations differ");
+  });
+
+  it("re-declares the static assets binding that Cloudflare omits from version details", () => {
+    const real = active();
+    real.bindings = real.bindings!.filter(binding => binding.name !== "ASSETS");
+    const candidate = planStagedUpgrade(pack(), real, reviewed);
+    expect(candidate.upload.bindings).toContainEqual({ type: "assets", name: "ASSETS" });
+    expect(candidate.requiredExistingBindings.some(binding => binding.name === "ASSETS")).toBe(false);
+  });
+
+  it("switches Analytics Engine on for an installation deployed without it", () => {
+    const enable = { accountId, datasets: [{ binding: "REQUEST_ANALYTICS", dataset: "insightflare_request_events" }] };
+    const bindings = planStagedUpgrade(pack(), active(), { ...reviewed, enableAnalyticsEngine: enable }).upload.bindings ?? [];
+    expect(bindings).toContainEqual({ type: "plain_text", name: "INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED", text: "0" });
+    expect(bindings).toContainEqual({ type: "analytics_engine", name: "REQUEST_ANALYTICS", dataset: "insightflare_request_events" });
+    expect(bindings).toContainEqual({ type: "plain_text", name: "INSIGHTFLARE_AE_ACCOUNT_ID", text: accountId });
+    // Without the request, or when Analytics Engine is already on, nothing is added.
+    const untouched = planStagedUpgrade(pack(), active(), reviewed).upload.bindings ?? [];
+    expect(untouched.some(binding => binding.type === "analytics_engine")).toBe(false);
+    const alreadyOn = active();
+    alreadyOn.bindings = alreadyOn.bindings!.filter(binding => binding.name !== "INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED");
+    const kept = planStagedUpgrade(pack(), alreadyOn, { ...reviewed, enableAnalyticsEngine: enable }).upload.bindings ?? [];
+    expect(kept.some(binding => binding.type === "analytics_engine")).toBe(false);
   });
 });
 

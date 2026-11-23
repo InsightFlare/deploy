@@ -110,7 +110,7 @@ describe("existing InsightFlare Worker versions; no maintenance DO or forced dow
     expect(preview).toMatchObject({
       sourceSha,expectedActiveVersionId:original,databaseId,
       activeMigrationTag:"v1",targetMigrationTag:"v2",
-      requiresDoMigration:true,existingBindingsPreserved:6,
+      requiresDoMigration:true,existingBindingsPreserved:5,
       legacyAdoptionRequired:false,stageAvailable:true
     });
     expect(JSON.stringify(preview)).not.toContain("DASHBOARD_SESSION_SECRET");

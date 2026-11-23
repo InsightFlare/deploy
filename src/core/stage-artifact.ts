@@ -50,6 +50,20 @@ export interface ReviewedStaging {
   artifactDigest: string;
   expectedActiveVersionId: string;
   legacyAdoptionReviewed: boolean;
+  /**
+   * Turn Analytics Engine on for an installation that was deployed while the
+   * account had not enabled it (INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED=1).
+   */
+  enableAnalyticsEngine?: { accountId: string; datasets: Array<{ binding: string; dataset: string }> };
+}
+
+const AE_DISABLED_FLAG = "INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED";
+
+/** True when the active version was deployed with Analytics Engine switched off. */
+export function analyticsEngineSwitchedOff(bindings: WorkerBinding[]): boolean {
+  const flag = bindings.find(binding => binding.name === AE_DISABLED_FLAG);
+  return flag?.type === "plain_text" && ["1", "true", "yes", "on"].includes(String(flag.text ?? "").trim().toLowerCase()) &&
+    !bindings.some(binding => binding.type === "analytics_engine");
 }
 
 export interface StagingProposal {
@@ -67,9 +81,11 @@ export interface StagingProposal {
 const REQUIRED = [
   { name: "DB", type: "d1" },
   { name: "SITE_SETTINGS_KV", type: "kv_namespace" },
-  { name: "INGEST_DO", type: "durable_object_namespace" },
-  { name: "ASSETS", type: "assets" }
+  { name: "INGEST_DO", type: "durable_object_namespace" }
 ] as const;
+
+/** Cloudflare's version details omit the static-assets binding, so it is re-declared, not inherited. */
+const ASSETS_BINDING = { type: "assets", name: "ASSETS" };
 
 function assertBindingContinuity(bindings: WorkerBinding[]): void {
   for (const { name, type } of REQUIRED) {
@@ -157,14 +173,34 @@ export function planStagedUpgrade(
     throw new DeployError("UNAVAILABLE", "The existing Durable Object migration tag is unknown; manual review is required.", 409);
   }
   const migrations = planDurableObjectMigrations(activeVersion.migration_tag, pack.config.migrations);
-  const inherited = inheritWorkerBindings(activeVersion, [{
-    name: "ASSETS", binding: { type: "assets", name: "ASSETS" }
-  }]);
-  const bindings = markManagedVersionBindings(inherited, reviewed.sourceSha);
+  const enableAe = reviewed.enableAnalyticsEngine && analyticsEngineSwitchedOff(oldBindings)
+    ? reviewed.enableAnalyticsEngine : undefined;
+  const listsAssets = oldBindings.some(binding => binding.name === "ASSETS");
+  const inherited = inheritWorkerBindings(activeVersion, [
+    ...(listsAssets ? [{ name: "ASSETS", binding: ASSETS_BINDING }] : []),
+    // Keep the flag (and its type) so binding continuity still holds; "0" means enabled.
+    ...(enableAe ? [{ name: AE_DISABLED_FLAG, binding: { type: "plain_text", name: AE_DISABLED_FLAG, text: "0" } }] : [])
+  ]);
+  const added: Array<Record<string, unknown>> = listsAssets ? [] : [{ ...ASSETS_BINDING }];
+  if (enableAe) {
+    for (const item of enableAe.datasets) {
+      if (!/^[A-Z_][A-Z0-9_]{0,127}$/.test(item.binding) || !/^[a-z0-9_]{1,64}$/.test(item.dataset) ||
+          oldBindings.some(binding => binding.name === item.binding)) {
+        throw new DeployError("INVALID_SOURCE", "Invalid or conflicting Analytics Engine binding " + item.binding, 409);
+      }
+      added.push({ type: "analytics_engine", name: item.binding, dataset: item.dataset });
+    }
+    if (!oldBindings.some(binding => binding.name === "INSIGHTFLARE_AE_ACCOUNT_ID")) {
+      added.push({ type: "plain_text", name: "INSIGHTFLARE_AE_ACCOUNT_ID", text: enableAe.accountId });
+    }
+  }
+  const bindings = markManagedVersionBindings([...inherited, ...added], reviewed.sourceSha);
 
   // Build config vars and cron definitions are informative; never blindly
   // overwrite the user's existing plain vars, Cron triggers or bindings.
-  const requiredExistingBindings = oldBindings.map(({ name, type, database_id, namespace_id, class_name }) => ({ name, type, database_id, namespace_id, class_name }));
+  const requiredExistingBindings = oldBindings
+    .filter(binding => binding.type !== "assets")
+    .map(({ name, type, database_id, namespace_id, class_name }) => ({ name, type, database_id, namespace_id, class_name }));
   return {
     reviewedSha: reviewed.sourceSha.toLowerCase(),
     artifactDigest: reviewed.artifactDigest.toLowerCase(),
@@ -203,7 +239,11 @@ export interface StagingResult {
 
 export function verifyUploadedCandidate(candidate: WorkerVersion, proposal: StagingProposal): void {
   if (!candidate || candidate.annotations?.["workers/tag"] !== proposal.reviewedSha ||
-      candidate.migration_tag !== proposal.expectedMigrationTag ||
+      // Cloudflare reports no migration tag for a version that was never deployed;
+      // that is only acceptable when this upload carries no Durable Object migration.
+      (candidate.migration_tag === undefined
+        ? Boolean(proposal.upload.migrations)
+        : candidate.migration_tag !== proposal.expectedMigrationTag) ||
       !Array.isArray(candidate.bindings)) {
     throw new DeployError("UPSTREAM_UNAVAILABLE", "The staged version's SHA, migration tag or binding inventory could not be verified.", 502);
   }

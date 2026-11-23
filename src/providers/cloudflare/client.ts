@@ -206,9 +206,18 @@ export class CloudflareClient {
     if (!result.ok || payload?.success !== true || !payload || payload.result === undefined) {
       const reason = payload?.errors?.[0]?.code;
       // Do not print upstream response bodies (they can contain confidential request data).
-      throw new DeployError("UPSTREAM_UNAVAILABLE", `Cloudflare request failed (HTTP ${result.status}${reason ? `, code ${reason}` : ""}).`, result.status === 401 || result.status === 403 ? 403 : 502);
+      throw new DeployError("UPSTREAM_UNAVAILABLE", `Cloudflare request failed (HTTP ${result.status}${reason ? `, code ${reason}` : ""}).`, result.status === 401 || result.status === 403 ? 403 : 502,
+        typeof reason === "number" ? reason : undefined);
     }
     return payload.result;
+  }
+
+  private async sendJson<T>(method: "PUT" | "POST", path: string, body: unknown, timeoutMs = 30000): Promise<T> {
+    return this.request<T>(path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }, timeoutMs);
   }
 
   async get<T>(path: string): Promise<T> {
@@ -225,7 +234,7 @@ export class CloudflareClient {
 
   async postForm<T>(path: string, body: FormData, bearerToken = this.token): Promise<T> {
     // Let fetch generate the multipart boundary. Never set Content-Type manually.
-    return this.request<T>(path, { method: "POST", body }, 120000, bearerToken);
+    return this.request<T>(path, { method: "POST", body }, 300000, bearerToken);
   }
 
   /** List names/IDs only from the caller's selected, authorized Cloudflare account. */
@@ -324,6 +333,23 @@ export class CloudflareClient {
     };
   }
 
+  /** Whether a table holds at least one row (constant SQL, no row data is read). */
+  async d1TableHasRows(accountId: string, databaseId: string, table: string): Promise<boolean> {
+    if (!/^[a-f0-9]{32}$/i.test(accountId) ||
+        !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId) || !/^[a-z_][a-z0-9_]{0,63}$/.test(table)) {
+      throw new DeployError("INVALID_ACCOUNT", "Invalid D1 table probe.");
+    }
+    await this.requireAccount(accountId);
+    const results = await this.postJson<Array<{ results?: Array<{ present?: unknown }>; success?: boolean }>>(
+      `/accounts/${accountId}/d1/database/${databaseId}/query`,
+      { sql: `SELECT EXISTS(SELECT 1 FROM "${table}") AS present` });
+    const present = results?.[0]?.results?.[0]?.present;
+    if (results?.[0]?.success !== true || (present !== 0 && present !== 1)) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "D1 returned an invalid table probe.", 502);
+    }
+    return present === 1;
+  }
+
   /**
    * Wrangler-equivalent D1 migration file execution: an official SQL file
    * and its d1_migrations ledger INSERT are executed atomically in one REST
@@ -388,8 +414,12 @@ export class CloudflareClient {
     return all;
   }
 
+  /** One client lives for one request; the authorized account list does not change within it. */
+  private accountList?: Promise<CloudflareAccount[]>;
+
   async requireAccount(id: string): Promise<CloudflareAccount> {
-    const accounts = await this.accounts();
+    this.accountList ??= this.accounts().catch(error => { this.accountList = undefined; throw error; });
+    const accounts = await this.accountList;
     const found = accounts.find(a => a.id === id);
     if (!found) throw new DeployError("INVALID_ACCOUNT", "This Cloudflare account is not accessible with your current authorization.", 403);
     return found;
@@ -618,7 +648,7 @@ export class CloudflareClient {
     const result = await this.postJson<WorkerVersion>(
       `/accounts/${accountId}/workers/workers/${worker.id}/versions?deploy=false`,
       payload,
-      120000
+      300000
     );
     if (!result || !isUuid(result.id)) {
       throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare did not return a valid staged Worker version.", 502);
@@ -635,11 +665,188 @@ export class CloudflareClient {
     const result = await this.postJson<WorkerDeployment>(`/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/deployments`, {
       strategy: "percentage",
       versions: [{ version_id: versionId, percentage: 100 }],
-      annotations: { "workers/message": message, "workers/triggered_by": "insightflare-deploy" }
+      // Cloudflare owns workers/triggered_by; sending a custom value is rejected (10210).
+      annotations: { "workers/message": message.slice(0, 100) }
     });
-    if (!result || !isUuid(result.id) || result.versions?.length !== 1 || result.versions[0]?.version_id !== versionId || result.versions[0]?.percentage !== 100) {
+    const serves = (deployment: WorkerDeployment | null | undefined) => Boolean(deployment && isUuid(deployment.id) &&
+      deployment.versions?.length === 1 && deployment.versions[0]?.version_id === versionId &&
+      Number(deployment.versions[0]?.percentage) === 100);
+    if (serves(result)) return result;
+    // The creation response is not always the full deployment; the live list is the source of truth.
+    const [latest] = await this.workerDeployments(accountId, scriptName);
+    if (!serves(latest)) {
       throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an unexpected Worker deployment.", 502);
     }
-    return result;
+    return latest!;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* New-installation provisioning. Callers decide names; the client     */
+  /* validates identifiers and never returns secret values to browsers.  */
+  /* ------------------------------------------------------------------ */
+
+  async createD1Database(accountId: string, name: string): Promise<{ uuid: string; name: string }> {
+    assertWorkerTarget(accountId, name);
+    const result = await this.postJson<{ uuid?: string; name?: string }>(`/accounts/${accountId}/d1/database`, { name });
+    if (typeof result.uuid !== "string" || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(result.uuid)) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare did not return a valid D1 database.", 502);
+    }
+    return { uuid: result.uuid.toLowerCase(), name: result.name ?? name };
+  }
+
+  async kvNamespaces(accountId: string): Promise<Array<{ id: string; title: string }>> {
+    if (!ACCOUNT_ID.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+    const all: Array<{ id: string; title: string }> = [];
+    for (let page = 1; page <= 10; page++) {
+      const result = await this.get<Array<{ id?: unknown; title?: unknown }>>(
+        `/accounts/${accountId}/storage/kv/namespaces?per_page=100&page=${page}`);
+      if (!Array.isArray(result)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an invalid KV inventory.", 502);
+      for (const item of result) {
+        if (typeof item?.id === "string" && /^[a-f0-9]{32}$/i.test(item.id) && typeof item.title === "string") {
+          all.push({ id: item.id.toLowerCase(), title: item.title });
+        }
+      }
+      if (result.length < 100) return all;
+    }
+    throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare KV inventory exceeds the safe pagination limit.", 502);
+  }
+
+  async createKvNamespace(accountId: string, title: string): Promise<{ id: string; title: string }> {
+    if (!ACCOUNT_ID.test(accountId) || !/^[A-Za-z0-9_-]{1,64}$/.test(title)) {
+      throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare account or KV namespace title.");
+    }
+    const result = await this.postJson<{ id?: string; title?: string }>(`/accounts/${accountId}/storage/kv/namespaces`, { title });
+    if (typeof result.id !== "string" || !/^[a-f0-9]{32}$/i.test(result.id)) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare did not return a valid KV namespace.", 502);
+    }
+    return { id: result.id.toLowerCase(), title: result.title ?? title };
+  }
+
+  /**
+   * First upload of a brand-new Worker (classic script upload, as `wrangler
+   * deploy` does). This immediately serves traffic, so it is only used when
+   * the account has no Worker with this name. Generated root secrets are sent
+   * once here and are never stored or returned by Deploy.
+   */
+  async uploadNewWorkerScript(accountId: string, scriptName: string, input: {
+    mainModule: string;
+    compatibilityDate: string;
+    compatibilityFlags: string[];
+    modules: WorkerModuleFile[];
+    bindings: Array<Record<string, unknown>>;
+    migrations: WorkerMigrations;
+    assets: WorkerAssetsConfig;
+    observability?: Record<string, unknown>;
+    tags: string[];
+  }): Promise<{ id: string }> {
+    assertWorkerTarget(accountId, scriptName);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.compatibilityDate) || !Array.isArray(input.modules) ||
+        input.modules.length < 1 || input.modules.length > 1000 ||
+        !input.modules.some(module => module.name === input.mainModule)) {
+      throw new DeployError("INVALID_SOURCE", "The new Worker upload is missing its entrypoint or compatibility date.");
+    }
+    const names = new Set<string>();
+    for (const binding of input.bindings) {
+      if (!binding || typeof binding.name !== "string" || !BINDING_NAME.test(binding.name) ||
+          typeof binding.type !== "string" || binding.type === "inherit" || names.has(binding.name)) {
+        throw new DeployError("INVALID_SOURCE", "The new Worker upload contains an invalid or duplicate binding.");
+      }
+      names.add(binding.name);
+    }
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify({
+      main_module: input.mainModule,
+      compatibility_date: input.compatibilityDate,
+      compatibility_flags: input.compatibilityFlags,
+      bindings: input.bindings,
+      migrations: input.migrations,
+      assets: input.assets,
+      tags: input.tags,
+      ...(input.observability ? { observability: input.observability } : {})
+    })], { type: "application/json" }));
+    let totalBytes = 0;
+    const moduleNames = new Set<string>();
+    for (const module of input.modules) {
+      if (!safeModuleName(module.name) || moduleNames.has(module.name) || !MODULE_CONTENT_TYPES.has(module.contentType)) {
+        throw new DeployError("INVALID_SOURCE", "The new Worker upload contains an invalid or duplicate module.");
+      }
+      moduleNames.add(module.name);
+      const bytes = await toBytes(module.content);
+      totalBytes += bytes.byteLength;
+      form.append(module.name, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: module.contentType }), module.name);
+    }
+    if (totalBytes > 80 * 1024 * 1024) throw new DeployError("INVALID_SOURCE", "The Worker upload is too large.");
+    const result = await this.request<{ id?: string }>(
+      `/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}`,
+      { method: "PUT", body: form }, 300000
+    );
+    return { id: typeof result.id === "string" ? result.id : scriptName };
+  }
+
+  async putWorkerSchedules(accountId: string, scriptName: string, crons: string[]): Promise<void> {
+    assertWorkerTarget(accountId, scriptName);
+    if (!Array.isArray(crons) || crons.length > 3 || crons.some(cron => typeof cron !== "string" || !/^[0-9*/,\- A-Za-z?#LW]{1,100}$/.test(cron))) {
+      throw new DeployError("INVALID_SOURCE", "Invalid Cron trigger list.");
+    }
+    await this.sendJson(`PUT`, `/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/schedules`,
+      crons.map(cron => ({ cron })));
+  }
+
+  /** The account's workers.dev subdomain, or null when the account has never registered one. */
+  async workersSubdomain(accountId: string): Promise<string | null> {
+    if (!ACCOUNT_ID.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+    try {
+      const result = await this.get<{ subdomain?: string }>(`/accounts/${accountId}/workers/subdomain`);
+      return typeof result.subdomain === "string" && /^[a-z0-9-]{1,63}$/i.test(result.subdomain)
+        ? result.subdomain.toLowerCase() : null;
+    } catch (error) {
+      // 10007: no subdomain has been registered for this account yet.
+      if (error instanceof DeployError && error.cloudflareCode === 10007) return null;
+      throw error;
+    }
+  }
+
+  async enableWorkerSubdomain(accountId: string, scriptName: string): Promise<void> {
+    assertWorkerTarget(accountId, scriptName);
+    await this.postJson(`/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/subdomain`,
+      { enabled: true, previews_enabled: false });
+  }
+
+  /** Writes one secret; Cloudflare creates and deploys a new version carrying it. */
+  async putWorkerSecret(accountId: string, scriptName: string, name: string, text: string): Promise<void> {
+    assertWorkerTarget(accountId, scriptName);
+    if (!BINDING_NAME.test(name) || typeof text !== "string" || !text || text.length > 5000) {
+      throw new DeployError("INVALID_SOURCE", "Invalid Worker secret.");
+    }
+    await this.sendJson("PUT", `/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/secrets`,
+      { name, text, type: "secret_text" });
+  }
+
+  async accountTokenPermissionGroups(accountId: string): Promise<Array<{ id: string; name: string }>> {
+    if (!ACCOUNT_ID.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+    const result = await this.get<Array<{ id?: unknown; name?: unknown }>>(`/accounts/${accountId}/tokens/permission_groups`);
+    if (!Array.isArray(result)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned invalid token permissions.", 502);
+    return result.filter((item): item is { id: string; name: string } =>
+      typeof item?.id === "string" && typeof item.name === "string");
+  }
+
+  /** Creates an account-owned API token limited to the given permission groups on this account. */
+  async createAccountToken(accountId: string, name: string, permissionGroupIds: string[]): Promise<{ id: string; value: string }> {
+    if (!ACCOUNT_ID.test(accountId) || !name || name.length > 120 || permissionGroupIds.length < 1 ||
+        permissionGroupIds.some(id => !/^[a-f0-9]{32}$/i.test(id))) {
+      throw new DeployError("INVALID_SOURCE", "Invalid API token request.");
+    }
+    const result = await this.postJson<{ id?: string; value?: string }>(`/accounts/${accountId}/tokens`, {
+      name,
+      policies: [{
+        effect: "allow",
+        permission_groups: permissionGroupIds.map(id => ({ id })),
+        resources: { [`com.cloudflare.api.account.${accountId}`]: "*" }
+      }]
+    });
+    if (typeof result.id !== "string" || typeof result.value !== "string" || !result.value) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare did not return the new API token.", 502);
+    }
+    return { id: result.id, value: result.value };
   }
 }

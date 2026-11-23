@@ -59,6 +59,14 @@ export function requestedOAuthScopes(base: string, capability?: string): string 
   if (["d1-read", "d1-write", "deploy"].includes(capability ?? "")) scopes.add("d1.read");
   if (["d1-write", "deploy"].includes(capability ?? "")) scopes.add("d1.write");
   if (["workers-write", "deploy"].includes(capability ?? "")) scopes.add("workers-scripts.write");
+  if (capability === "deploy") {
+    // New installations create a KV namespace and a read-only Analytics Engine
+    // token; an OAuth-created token can only carry scopes granted here.
+    scopes.add("workers-kv-storage.read");
+    scopes.add("workers-kv-storage.write");
+    scopes.add("account-analytics.read");
+    scopes.add("account-api-tokens.write");
+  }
   return [...scopes].join(" ");
 }
 

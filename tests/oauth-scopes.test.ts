@@ -22,9 +22,9 @@ describe("least-privilege Cloudflare OAuth escalation", () => {
     );
     expect(requestedOAuthScopes(defaultScopes)).toBe(defaultScopes);
   });
-  it("requests the three deployment capabilities in a single explicit consent", () => {
+  it("requests every deployment capability in a single explicit consent", () => {
     expect(requestedOAuthScopes(defaultScopes,"deploy")).toBe(
-      defaultScopes+" d1.read d1.write workers-scripts.write"
+      defaultScopes+" d1.read d1.write workers-scripts.write workers-kv-storage.read workers-kv-storage.write account-analytics.read account-api-tokens.write"
     );
   });
   it("never duplicates a previously allowed scope", () => {

@@ -31,7 +31,9 @@ export function interpretBindings(accountId: string, bindings: WorkerBinding[]):
   return { kind, accountId, workerName: DEFAULT_WORKER, deployedSha, bindings: { database, kv, ingest }, issues };
 }
 
-export async function discoverDeployment(client: CloudflareClient, accountId: string): Promise<Deployment> {
+export async function discoverDeployment(
+  client: Pick<CloudflareClient, "requireAccount" | "workerNames" | "settings">, accountId: string
+): Promise<Deployment> {
   await client.requireAccount(accountId);
   const scripts = await client.workerNames(accountId);
   if (!scripts.includes(DEFAULT_WORKER)) {

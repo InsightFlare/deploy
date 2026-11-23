@@ -21,8 +21,17 @@ export type ApiErrorCode =
   | "UNAVAILABLE";
 
 export class DeployError extends Error {
-  constructor(public readonly code: ApiErrorCode, message: string, public readonly status = 400) {
+  constructor(
+    public readonly code: ApiErrorCode,
+    message: string,
+    public readonly status = 400,
+    /** Cloudflare API error code, when the failure came from the Cloudflare API. */
+    public readonly cloudflareCode?: number
+  ) {
     super(message);
     this.name = "DeployError";
   }
 }
+
+/** Cloudflare refuses Analytics Engine bindings until the account enables Analytics Engine once. */
+export const CF_ANALYTICS_ENGINE_NOT_ENABLED = 10089;
