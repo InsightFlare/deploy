@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  RiCloudLine, RiServerLine, RiFileList3Line, RiRocketLine, RiFlagLine, RiLayoutGridLine,
+  RiCloudLine, RiServerLine, RiFileList3Line, RiRocketLine, RiFlagLine,
   RiShieldCheckLine, RiArrowLeftLine, RiArrowRightLine, RiGlobalLine, RiMoonLine, RiSunLine,
   RiComputerLine, RiArrowDownSLine, RiCheckLine, RiLoader4Line
 } from "@remixicon/react";
@@ -15,7 +15,9 @@ import { SUPPORTED_LOCALES } from "../lib/i18n/config";
 import { nativeLocaleName } from "../lib/i18n/native-locale-names";
 import { useTheme } from "./theme-provider";
 import { api, ApiError, type Account, type AccountOverview, type RunView, type Session } from "./api";
-import { Eyebrow, Notice, errorText, useI18n } from "./ui";
+import { Notice, errorText, useI18n } from "./ui";
+import { AutoResizer } from "@insightflare/ui/auto-resizer";
+import { AutoTransition } from "@insightflare/ui/auto-transition";
 import { AccountStep, ConnectStep, DeployStep, DoneStep, ReviewStep } from "./steps";
 
 const STEP_COUNT = 5;
@@ -205,7 +207,7 @@ export function App() {
     <main className="mx-auto flex min-h-svh w-full max-w-4xl flex-col justify-center gap-6 px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <a href={hrefForLocale(locale)} className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
-          <RiLayoutGridLine className="size-5 text-primary" />{t("brand")}
+          <img src="/android-chrome-192x192.png" alt="" width={24} height={24} className="size-6 shrink-0" />{t("brand")}
         </a>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={session.connected ? "secondary" : "outline"}>{t(session.connected ? "connected" : "disconnected")}</Badge>
@@ -245,10 +247,7 @@ export function App() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-3xl space-y-2">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t("brand")}</h1>
-        <p className="max-w-prose text-xs leading-5 text-muted-foreground">{t("wizardHelp")}</p>
-      </div>
+      <p className="mx-auto w-full max-w-3xl text-xs leading-5 text-muted-foreground">{t("wizardHelp")}</p>
 
       <div className="mx-auto w-full max-w-3xl">
         <Card className="gap-0 overflow-hidden py-0">
@@ -267,9 +266,9 @@ export function App() {
                 return <li key={i} className="min-w-0">
                   <button type="button" onClick={() => setStep(i)} disabled={!reachable(i)}
                     aria-current={step === i ? "step" : undefined}
-                    className="deploy-step flex w-full flex-col items-center gap-1.5 rounded-none px-0.5 py-2 text-center text-[11px] transition-colors sm:text-xs"
+                    className="deploy-step flex w-full flex-col items-stretch gap-1.5 rounded-none p-1 text-center text-[11px] transition-colors sm:text-xs"
                     data-active={step === i} data-complete={completed[i]}>
-                    <span className="deploy-step-circle flex size-8 items-center justify-center rounded-none border">
+                    <span className="deploy-step-circle flex h-9 w-full items-center justify-center rounded-none border">
                       {completed[i] && i !== step ? <RiShieldCheckLine className="size-4" /> : <Icon className="size-4" />}
                     </span>
                     <span className="max-w-full truncate">{item.title}</span>
@@ -279,14 +278,17 @@ export function App() {
             </ol>
           </CardHeader>
 
-          <CardContent className="min-h-[280px] px-4 py-6 sm:px-6" role="region" aria-labelledby="wizard-step-title">
+          <AutoResizer duration={0.24}>
+          <CardContent className="px-4 py-6 sm:px-6" role="region" aria-labelledby="wizard-step-title">
+            <AutoTransition transitionKey={step} type="fade" duration={0.18}>
             <div className="mb-6 space-y-2">
-              <Eyebrow>{t("stepCount", { current: step + 1, total: STEP_COUNT })}</Eyebrow>
               <CardTitle><h2 id="wizard-step-title" className="text-lg font-semibold tracking-tight">{current.heading}</h2></CardTitle>
               {current.description && step !== 3 ? <CardDescription>{current.description}</CardDescription> : null}
             </div>
-            {message ? <div className="mb-5"><Notice tone="error" action={
-              <Button variant="ghost" onClick={() => setMessage("")}>{t("dismiss")}</Button>}>{message}</Notice></div> : null}
+            <AutoTransition transitionKey={message ? "message" : "none"} type="fade" duration={0.18}>
+              {message ? <div className="mb-5"><Notice tone="error" action={
+                <Button variant="ghost" onClick={() => setMessage("")}>{t("dismiss")}</Button>}>{message}</Notice></div> : null}
+            </AutoTransition>
 
             {!sessionLoaded ? <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLoader4Line className="size-4 animate-spin" />{t("loading")}</p>
               : step === 0 ? <ConnectStep t={t} session={session} locale={locale} onDisconnect={() => void disconnect()} />
@@ -303,16 +305,19 @@ export function App() {
                   onPasswordSaved={() => void act(() => api.passwordSaved(accountId, run.id))}
                   onFinish={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(1); void loadAccount(accountId); })} />
               : null}
+            </AutoTransition>
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 px-4 py-4 sm:px-6">
-            <Button variant="outline" onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0 || step >= 3}>
+          {/* The run drives itself once it has started; navigation only matters before that. */}
+          {step < 3 ? <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 px-4 py-4 sm:px-6">
+            <Button variant="outline" onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>
               <RiArrowLeftLine data-icon="inline-start" />{t("back")}
             </Button>
             {step < 2 ? <Button onClick={() => setStep(nextStep)} disabled={!canContinue}>
               {t("next")}<RiArrowRightLine data-icon="inline-end" />
             </Button> : null}
-          </CardFooter>
+          </CardFooter> : null}
+          </AutoResizer>
         </Card>
         <p className="mt-4 text-center text-[11px] text-muted-foreground">{t("tagline")}</p>
       </div>

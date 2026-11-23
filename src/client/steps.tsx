@@ -11,6 +11,8 @@ import { Separator } from "@insightflare/ui/separator";
 import { Input } from "@insightflare/ui/input";
 import { Label } from "@insightflare/ui/label";
 import { RadioGroup, RadioGroupItem } from "@insightflare/ui/radio-group";
+import { AutoResizer } from "@insightflare/ui/auto-resizer";
+import { AutoTransition } from "@insightflare/ui/auto-transition";
 import type { Account, AccountOverview, PipelineRun, PipelineStep, RunView, Session } from "./api";
 import { ANALYTICS_ENGINE_URL, CLOUDFLARE_WORKER_URL, CONNECT_URL } from "./api";
 import { ConfirmOperation, CopyValue, Eyebrow, Notice, shortSha, type Translate } from "./ui";
@@ -58,8 +60,10 @@ export function AccountStep({ t, accounts, accountId, onSelect, overview, loadin
         </SelectContent>
       </Select>
     </div>
-    {loading ? <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLoader4Line className="size-4 animate-spin" />{t("discovering")}</p> : null}
-    {overview && !loading ? <div className="flex flex-wrap items-center gap-2 border border-border p-4 text-sm">
+    <AutoTransition type="fade" duration={0.18} transitionKey={loading ? "loading" : overview ? overview.deployment.kind + (runView?.run ? ":run" : "") : "none"}>
+    {loading ? <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLoader4Line className="size-4 animate-spin" />{t("discovering")}</p>
+    : <div className="space-y-5">
+    {overview ? <div className="flex flex-wrap items-center gap-2 border border-border p-4 text-sm">
       <Badge variant={overview.deployment.kind === "conflict" ? "destructive" : overview.deployment.kind === "not-installed" ? "outline" : "secondary"}>
         {t(KIND_KEY[overview.deployment.kind])}
       </Badge>
@@ -68,6 +72,8 @@ export function AccountStep({ t, accounts, accountId, onSelect, overview, loadin
         ? <span className="deploy-mono text-xs text-muted-foreground">· {t("deployedCommit", { sha: shortSha(overview.deployment.deployedSha) })}</span> : null}
     </div> : null}
     {runView?.run ? <Notice>{t("resumeRun")}</Notice> : null}
+    </div>}
+    </AutoTransition>
   </div>;
 }
 
@@ -136,6 +142,8 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
           <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="generate" />{t("adminPasswordGenerate")}</label>
           <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="custom" />{t("adminPasswordCustom")}</label>
         </RadioGroup>
+        <AutoResizer duration={0.2}>
+        <AutoTransition type="fade" duration={0.16} transitionKey={passwordMode}>
         {custom ? <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="admin-password">{t("adminPasswordLabel")}</Label>
@@ -145,10 +153,15 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
             <Label htmlFor="admin-password-repeat">{t("adminPasswordRepeat")}</Label>
             <Input id="admin-password-repeat" type="password" autoComplete="new-password" value={repeat} onChange={event => setRepeat(event.target.value)} />
           </div>
-          <p className={"text-xs sm:col-span-2 " + (passwordProblem && (password || repeat) ? "text-destructive" : "text-muted-foreground")}>
-            {passwordProblem && (password || repeat) ? t(passwordProblem) : t("adminPasswordHint")}
-          </p>
-        </div> : null}
+          <AutoTransition className="sm:col-span-2" type="fade" duration={0.14}
+            transitionKey={passwordProblem && (password || repeat) ? passwordProblem : "hint"}>
+            <p className={"text-xs " + (passwordProblem && (password || repeat) ? "text-destructive" : "text-muted-foreground")}>
+              {passwordProblem && (password || repeat) ? t(passwordProblem) : t("adminPasswordHint")}
+            </p>
+          </AutoTransition>
+        </div> : <span />}
+        </AutoTransition>
+        </AutoResizer>
       </div>
     </div> : null}
 
@@ -218,14 +231,21 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, working, error
               <span className={"text-sm " + (active ? "font-semibold" : step.status === "pending" ? "text-muted-foreground" : "")}>
                 {tMaybe("runStep_" + step.id) ?? step.id}
               </span>
-              <span className="text-[11px] text-muted-foreground">{t(active ? "statusRunning" : STATUS[step.status])}</span>
+              <AutoTransition as="span" type="fade" duration={0.16} transitionKey={active ? "running" : step.status}>
+                <span className="text-[11px] text-muted-foreground">{t(active ? "statusRunning" : STATUS[step.status])}</span>
+              </AutoTransition>
             </div>
-            {note ? <p className="deploy-mono mt-0.5 text-xs text-muted-foreground">{note}</p> : null}
+            <AutoTransition type="fade" duration={0.16} transitionKey={note ?? ""}>
+              {note ? <p className="deploy-mono mt-0.5 text-xs text-muted-foreground">{note}</p> : null}
+            </AutoTransition>
             {step.status === "failed" && step.note?.message ? <p className="deploy-mono mt-1 text-xs text-destructive">{step.note.message}</p> : null}
           </div>
         </li>;
       })}
     </ol>
+    <AutoTransition type="fade" duration={0.18}
+      transitionKey={[run.phase, otherTab, reconnect, error, run.state.rolledBack].join("|")}>
+    <div className="space-y-5">
     {run.phase === "running" ? <Notice>{t("deployDesc")}</Notice> : null}
     {otherTab ? <Notice>{t("otherTab")}</Notice> : null}
     {reconnect ? <Notice tone="warning" action={<Button asChild><a href={CONNECT_URL}>{t("connectButton")}</a></Button>}>{t("reconnectNeeded")}</Notice> : null}
@@ -237,6 +257,8 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, working, error
       </div>}>
       {run.state.rolledBack ? t("rolledBackDesc") : t("runFailedDesc")}
     </Notice> : null}
+    </div>
+    </AutoTransition>
   </div>;
 }
 
@@ -268,6 +290,7 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
       {url ? <span className="deploy-mono block pt-1">{url}</span> : null}
     </Notice>
 
+    <AutoTransition type="fade" duration={0.18} transitionKey={admin?.password ? "shown" : "hidden"}>
     {run.intent === "install" ? <div className="space-y-4 border border-border p-4">
       <div className="space-y-1">
         <p className="text-sm font-semibold">{t("adminTitle")}</p>
@@ -283,7 +306,8 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
           <RiCheckLine data-icon="inline-start" />{t("passwordSaved")}
         </Button>
       </> : null}
-    </div> : null}
+    </div> : <span />}
+    </AutoTransition>
 
     {followUps.length ? <div className="space-y-3">
       <Eyebrow>{t("followUpTitle")}</Eyebrow>
