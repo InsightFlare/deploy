@@ -48,6 +48,8 @@ export interface PipelineState {
   activatedVersionId?: string;
   healthAttempts?: number;
   rolledBack?: boolean;
+  /** Set once a version upload was attempted, so a retry first looks for it. */
+  stageAttempted?: boolean;
 }
 
 export interface PipelineRun {
@@ -383,9 +385,14 @@ class StepContext {
     if (this.state.stagedVersionId) return { status: "done" };
     const release = await this.loadRelease();
     const observed = await discoverDeployment(this.client, this.account);
-    const existing = await findVerifiedStagedCandidates(this.client, this.account, observed, release);
-    const reusable = existing.find(item => item.expectedActiveVersionId === this.state.previousVersionId);
-    if (reusable) return { status: "done", note: { code: "REUSED" }, state: { stagedVersionId: reusable.stagedVersionId } };
+    // Only a retried attempt can have uploaded a version already; listing versions is slow
+    // on Workers that Builds deploys on every push, so skip the scan the first time.
+    if (this.state.stageAttempted) {
+      const existing = await findVerifiedStagedCandidates(this.client, this.account, observed, release);
+      const reusable = existing.find(item => item.expectedActiveVersionId === this.state.previousVersionId);
+      if (reusable) return { status: "done", note: { code: "REUSED" }, state: { stagedVersionId: reusable.stagedVersionId } };
+    }
+    this.state.stageAttempted = true;
     const reviewed = {
       sourceSha: this.run.sourceSha,
       artifactDigest: this.run.artifactDigest,

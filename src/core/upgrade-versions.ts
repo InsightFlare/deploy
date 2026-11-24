@@ -65,7 +65,8 @@ export async function findVerifiedStagedCandidates(
   const versions = await client.workerVersions(accountId, "insightflare");
   if (!Array.isArray(versions)) refuse("Cloudflare Worker versions inventory is invalid");
   const found: VerifiedStagedCandidate[] = [];
-  for (const entry of versions.slice(0, 30)) {
+  // A candidate from this run is among the newest; Builds-managed Workers can have hundreds.
+  for (const entry of versions.slice(0, 10)) {
     if (!entry || !UUID.test(entry.id ?? "") || entry.id === current) continue;
     // Detail GET is required: version list entries may omit bindings/annotations.
     const candidate = await client.workerVersionDetails(accountId, "insightflare", entry.id);

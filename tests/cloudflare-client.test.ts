@@ -60,7 +60,7 @@ describe("Cloudflare Beta Worker Versions API", () => {
       if (url.endsWith("/workers/workers/insightflare")) {
         return Response.json({ success: true, result: { id: workerId, name: "insightflare" } });
       }
-      if (url.endsWith("/versions?per_page=100")) {
+      if (url.endsWith("/versions?per_page=10")) {
         return Response.json({ success: true, result: [{ id: versionId, number: 10, migration_tag: "v1" }] });
       }
       return Response.json({ success: true, result: { deployments: [{ id: deploymentId, strategy: "percentage", versions: [{ version_id: versionId, percentage: 100 }] }] } });
@@ -68,7 +68,7 @@ describe("Cloudflare Beta Worker Versions API", () => {
     const client = new CloudflareClient("short-lived-token", mock as typeof fetch);
     expect((await client.workerVersions(accountId, "insightflare"))[0]?.migration_tag).toBe("v1");
     expect((await client.workerDeployments(accountId, "insightflare"))[0]?.versions[0]?.version_id).toBe(versionId);
-    expect(calls).toContain("https://api.cloudflare.com/client/v4/accounts/" + accountId + "/workers/workers/" + workerId + "/versions?per_page=100");
+    expect(calls).toContain("https://api.cloudflare.com/client/v4/accounts/" + accountId + "/workers/workers/" + workerId + "/versions?per_page=10");
     expect(calls.every(url => url.includes("/workers/"))).toBe(true);
   });
 
@@ -317,5 +317,26 @@ describe("Workers runtime fetch binding", () => {
     } finally {
       globalThis.fetch = original;
     }
+  });
+});
+
+describe("transient read failures", () => {
+  it("retries a timed-out GET once", async () => {
+    let calls = 0;
+    const mock = vi.fn(async () => {
+      calls++;
+      if (calls === 1) throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      return Response.json({ success: true, result: [{ id: accountId, name: "Personal" }] });
+    });
+    const client = new CloudflareClient("token", mock as unknown as typeof fetch);
+    await expect(client.accounts()).resolves.toHaveLength(1);
+    expect(calls).toBe(2);
+  });
+
+  it("does not retry a definite answer such as not found", async () => {
+    const mock = vi.fn(async () => Response.json({ success: false, errors: [{ code: 10007 }] }, { status: 404 }));
+    const client = new CloudflareClient("token", mock as unknown as typeof fetch);
+    await expect(client.workerExists(accountId, "insightflare")).resolves.toBe(false);
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 });

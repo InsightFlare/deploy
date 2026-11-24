@@ -195,7 +195,7 @@ export class CloudflareClient {
   // so the default must not be the bare global stored on `this`.
   constructor(private readonly token: string, private readonly http: typeof fetch = (input, init) => fetch(input, init)) {}
 
-  private async request<T>(path: string, init: RequestInit, timeoutMs = 9000, bearerToken = this.token): Promise<T> {
+  private async request<T>(path: string, init: RequestInit, timeoutMs = 30000, bearerToken = this.token): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${bearerToken}`);
     headers.set("Accept", "application/json");
@@ -222,8 +222,16 @@ export class CloudflareClient {
     }, timeoutMs);
   }
 
+  /** Reads are idempotent: retry once on a timeout or a Cloudflare 5xx before giving up. */
   async get<T>(path: string): Promise<T> {
-    return this.request<T>(path, { method: "GET" });
+    try {
+      return await this.request<T>(path, { method: "GET" });
+    } catch (error) {
+      const transient = (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) ||
+        (error instanceof DeployError && error.status === 502 && error.cloudflareCode === undefined);
+      if (!transient) throw error;
+      return this.request<T>(path, { method: "GET" });
+    }
   }
 
   async postJson<T>(path: string, body: unknown, timeoutMs = 30000, bearerToken = this.token): Promise<T> {
@@ -474,7 +482,7 @@ export class CloudflareClient {
 
   async workerVersions(accountId: string, scriptName: string): Promise<WorkerVersion[]> {
     const worker = await this.workerInfo(accountId, scriptName);
-    const versions = await this.get<WorkerVersion[]>(`/accounts/${accountId}/workers/workers/${worker.id}/versions?per_page=100`);
+    const versions = await this.get<WorkerVersion[]>(`/accounts/${accountId}/workers/workers/${worker.id}/versions?per_page=10`);
     if (!Array.isArray(versions)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an invalid Worker versions list.", 502);
     return versions.filter(item => Boolean(item && typeof item.id === "string"));
   }
