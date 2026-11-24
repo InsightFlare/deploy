@@ -21,14 +21,23 @@ type TMaybe = (key: string, params?: Record<string, string | number>) => string 
 
 /* ------------------------------- Connect ------------------------------- */
 
-export function ConnectStep({ t, session, locale, onDisconnect }: {
-  t: Translate; session: Session; locale: string; onDisconnect: () => void;
+/** Shown when the grant lacks API token management: re-authorize, or go on and set the reader up by hand. */
+function ReaderScopeNotice({ t }: { t: Translate }) {
+  return <Notice tone="warning" title={t("readerScopeMissingTitle")}
+    action={<Button variant="outline" asChild><a href={CONNECT_URL}><RiRefreshLine data-icon="inline-start" />{t("reauthorize")}</a></Button>}>
+    {t("readerScopeMissingBody")}
+  </Notice>;
+}
+
+export function ConnectStep({ t, session, locale, readerMissing, onDisconnect }: {
+  t: Translate; session: Session; locale: string; readerMissing: boolean; onDisconnect: () => void;
 }) {
   const expires = session.expiresAt
     ? new Date(session.expiresAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : "";
   return <div className="space-y-5">
     <Notice tone="success" title={t("dataPromise")}>{session.connected ? t("connectedDesc", { time: expires }) : t("connectDesc")}</Notice>
     <Notice title={t("permissionsTitle")}>{t("permissionsBody")}</Notice>
+    {readerMissing ? <ReaderScopeNotice t={t} /> : null}
     <div className="flex flex-wrap items-center gap-3">
       {session.connected
         ? <Button variant="outline" onClick={onDisconnect}><RiLogoutBoxRLine data-icon="inline-start" />{t("disconnect")}</Button>
@@ -87,8 +96,8 @@ function PlanList({ items }: { items: Array<string | null | false> }) {
   </ul>;
 }
 
-export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart }: {
-  t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountName: string; starting: boolean;
+export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, starting, onStart }: {
+  t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountName: string; readerMissing: boolean; starting: boolean;
   onStart: (legacyAdoptionApproved: boolean, adminPassword?: string) => void;
 }) {
   const [adopt, setAdopt] = useState(false);
@@ -103,7 +112,11 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
   const update = overview.update;
   // Up to date installations can still run an update just to configure the AE reader.
   const configureOnly = overview.upToDate && overview.analyticsReader === "missing";
-  const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly);
+  // The run would set up the AE reader, but the grant cannot create the token.
+  const readerAffected = readerMissing && (configureOnly || overview.analyticsReader === "missing" ||
+    Boolean(overview.install?.analyticsDatasets.length));
+  const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly) ||
+    (configureOnly && readerMissing);
   const needsAdoption = Boolean(update?.legacyAdoptionRequired);
   return <div className="space-y-6">
     {overview.source ? <div className="space-y-1.5">
@@ -123,6 +136,7 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
     </Notice> : null}
 
     {overview.upToDate ? <Notice tone="success">{t(configureOnly ? "upToDateReaderMissing" : "upToDate")}</Notice> : null}
+    {readerAffected ? <ReaderScopeNotice t={t} /> : null}
 
     {install ? <div className="space-y-3">
       <Eyebrow>{t("installPlanTitle")}</Eyebrow>
@@ -278,7 +292,7 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
   if (run.state.analyticsEngine === "disabled") {
     followUps.push({ text: t("followAeEnable"), href: ANALYTICS_ENGINE_URL(accountId), label: t("enableAnalyticsEngine") });
   }
-  if (step("analytics")?.note?.code === "AE_READER_MANUAL") {
+  if (["AE_READER_MANUAL", "AE_READER_NOT_AUTHORIZED"].includes(step("analytics")?.note?.code ?? "")) {
     followUps.push({ text: t("followAeReader"), href: url ? url + "/" : CLOUDFLARE_WORKER_URL(accountId), label: url ? t("openDashboard") : t("openCloudflare") });
   }
   if (step("subdomain")?.note?.code === "WORKERS_DEV_MISSING") {

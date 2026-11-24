@@ -61,6 +61,8 @@ export interface PipelineRun {
   legacyAdoptionApproved: boolean;
   /** The user chose the administrator password, so it is never shown back. */
   customAdminPassword?: boolean;
+  /** The OAuth grant lacks API-token management, so the AE reader is left for manual setup. */
+  analyticsReaderNotAuthorized?: boolean;
   createdAt: number;
   updatedAt: number;
   phase: PipelinePhase;
@@ -115,6 +117,7 @@ export async function installDatabaseReusable(
 export function createRun(input: {
   id: string; intent: PipelineIntent; accountId: string; sourceSha: string;
   artifactDigest: string; legacyAdoptionApproved: boolean; now: number; customAdminPassword?: boolean;
+  analyticsReaderAuthorized?: boolean;
 }): PipelineRun {
   if (!/^[a-f0-9]{32}$/.test(input.accountId) || !/^[a-f0-9]{40}$/.test(input.sourceSha) ||
       !/^[a-f0-9]{64}$/.test(input.artifactDigest)) {
@@ -126,6 +129,7 @@ export function createRun(input: {
     sourceSha: input.sourceSha, artifactDigest: input.artifactDigest,
     legacyAdoptionApproved: input.legacyAdoptionApproved,
     ...(input.intent === "install" && input.customAdminPassword ? { customAdminPassword: true } : {}),
+    ...(input.analyticsReaderAuthorized === false ? { analyticsReaderNotAuthorized: true } : {}),
     createdAt: input.now, updatedAt: input.now, phase: "running",
     steps: ids.map(id => ({ id, status: "pending" })), state: {}
   };
@@ -350,6 +354,9 @@ class StepContext {
         return { status: "skipped", note: { code: "AE_READER_PRESENT" } };
       }
       needsAccountId = !bindings.some(binding => binding.name === "INSIGHTFLARE_AE_ACCOUNT_ID");
+    }
+    if (this.run.analyticsReaderNotAuthorized) {
+      return { status: "warning", note: { code: "AE_READER_NOT_AUTHORIZED" } };
     }
     try {
       const groups = await this.client.accountTokenPermissionGroups(this.account);

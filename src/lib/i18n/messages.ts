@@ -83,6 +83,10 @@ export interface AppMessages {
     "upToDateReaderMissing": string;
     "planAnalyticsReader": string;
     "note_AE_READER_PRESENT": string;
+    "readerScopeMissingTitle": string;
+    "readerScopeMissingBody": string;
+    "reauthorize": string;
+    "note_AE_READER_NOT_AUTHORIZED": string;
     "blockersTitle": string;
     "blocker_WORKER_CONFLICT": string;
     "blocker_NIGHTLY_PENDING": string;
@@ -250,6 +254,10 @@ const enMessages: AppMessages = {
     "upToDateReaderMissing": "This installation already runs the latest official build, but Analytics Engine reading is not configured yet. Run an update to set it up automatically.",
     "planAnalyticsReader": "Create a read-only Analytics Engine token and store it in the Worker",
     "note_AE_READER_PRESENT": "Already configured",
+    "readerScopeMissingTitle": "API token permission not granted",
+    "readerScopeMissingBody": "Cloudflare leaves \"API Tokens\" unticked on the consent page, so Deploy cannot create the read-only Analytics Engine token. You can re-authorize and tick it, or continue without it: InsightFlare still collects analytics, but request observation and other views that read Analytics Engine stay empty until you add a token under Settings → Analytics Engine.",
+    "reauthorize": "Re-authorize",
+    "note_AE_READER_NOT_AUTHORIZED": "Skipped: the authorization does not include API token management",
     "blockersTitle": "This cannot continue yet",
     "blocker_WORKER_CONFLICT": "A Worker named insightflare already exists but is not an InsightFlare installation. Rename or remove it first.",
     "blocker_NIGHTLY_PENDING": "The newest official build is still being published. Try again in a few minutes.",
@@ -417,6 +425,10 @@ const zhMessages: AppMessages = {
     "upToDateReaderMissing": "这个实例已经是最新的官方构建，但还没有配置 Analytics Engine 读取。执行一次更新即可自动配置。",
     "planAnalyticsReader": "创建 Analytics Engine 只读 token 并写入 Worker",
     "note_AE_READER_PRESENT": "已配置过",
+    "readerScopeMissingTitle": "未授予 API 令牌管理权限",
+    "readerScopeMissingBody": "Cloudflare 授权页默认不勾选“API 令牌”权限，所以无法自动创建 Analytics Engine 只读 token。你可以重新授权并勾选它，也可以直接继续：InsightFlare 照常采集数据，但请求观测等需要读取 Analytics Engine 的页面会没有数据，直到你在“设置 → 分析引擎”中手动填写 token。",
+    "reauthorize": "重新授权",
+    "note_AE_READER_NOT_AUTHORIZED": "已跳过：本次授权不包含 API 令牌管理权限",
     "blockersTitle": "暂时无法继续",
     "blocker_WORKER_CONFLICT": "已经有一个名为 insightflare 的 Worker，但它不是 InsightFlare。请先重命名或删除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方构建还在发布中，请几分钟后再试。",
@@ -584,6 +596,10 @@ const zh_twMessages: AppMessages = {
     "upToDateReaderMissing": "這個實例已經是最新的官方建置，但還沒有設定 Analytics Engine 讀取。執行一次更新即可自動設定。",
     "planAnalyticsReader": "建立 Analytics Engine 唯讀 token 並寫入 Worker",
     "note_AE_READER_PRESENT": "已設定過",
+    "readerScopeMissingTitle": "未授予 API 權杖管理權限",
+    "readerScopeMissingBody": "Cloudflare 授權頁預設不勾選「API 權杖」權限，所以無法自動建立 Analytics Engine 唯讀 token。你可以重新授權並勾選它，也可以直接繼續：InsightFlare 照常收集資料，但請求觀測等需要讀取 Analytics Engine 的頁面會沒有資料，直到你在「設定 → 分析引擎」中手動填寫 token。",
+    "reauthorize": "重新授權",
+    "note_AE_READER_NOT_AUTHORIZED": "已略過：本次授權不包含 API 權杖管理權限",
     "blockersTitle": "暫時無法繼續",
     "blocker_WORKER_CONFLICT": "已經有一個名為 insightflare 的 Worker，但它不是 InsightFlare。請先重新命名或刪除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方建置還在發布中，請幾分鐘後再試。",
@@ -751,6 +767,10 @@ const jaMessages: AppMessages = {
     "upToDateReaderMissing": "このインスタンスは最新の公式ビルドですが、Analytics Engine の読み取りが未設定です。更新を実行すると自動で設定されます。",
     "planAnalyticsReader": "Analytics Engine の読み取り専用トークンを作成して Worker に保存",
     "note_AE_READER_PRESENT": "設定済み",
+    "readerScopeMissingTitle": "API トークン管理の権限が付与されていません",
+    "readerScopeMissingBody": "Cloudflare の同意画面では「API トークン」がデフォルトで未選択のため、Analytics Engine の読み取り専用トークンを自動作成できません。再認可してチェックを入れるか、このまま続行できます。続行した場合もデータ収集は行われますが、リクエスト観測など Analytics Engine を読み取る画面は、「設定 → Analytics Engine」でトークンを追加するまで空のままです。",
+    "reauthorize": "再認可する",
+    "note_AE_READER_NOT_AUTHORIZED": "スキップ：この認可には API トークン管理が含まれていません",
     "blockersTitle": "まだ続行できません",
     "blocker_WORKER_CONFLICT": "insightflare という名前の Worker が既にありますが、InsightFlare ではありません。先に名前を変更するか削除してください。",
     "blocker_NIGHTLY_PENDING": "最新の公式ビルドを公開中です。数分後にもう一度お試しください。",

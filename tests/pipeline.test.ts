@@ -379,3 +379,16 @@ describe("Analytics Engine reader on existing installations", () => {
     expect(account.client.createAccountToken).not.toHaveBeenCalled();
   });
 });
+
+describe("authorization without API token management", () => {
+  it("skips the reader with a clear note instead of trying and failing", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount({ analyticsEngineEnabled: true });
+    const run = createRun({ id: "run-scope", intent: "install", accountId, sourceSha, artifactDigest: artifact.manifest.artifactDigest,
+      legacyAdoptionApproved: false, now: 0, analyticsReaderAuthorized: false });
+    const done = await runToEnd(run, deps(account.client, artifact));
+    expect(done.phase).toBe("succeeded");
+    expect(done.steps.find(step => step.id === "analytics")).toMatchObject({ status: "warning", note: { code: "AE_READER_NOT_AUTHORIZED" } });
+    expect(account.client.createAccountToken).not.toHaveBeenCalled();
+  });
+});

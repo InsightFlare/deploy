@@ -4,7 +4,10 @@ import type { AccountOverview } from "../core/overview";
 export type { PipelineRun, AccountOverview };
 export type { PipelineStep, StepNote, PipelineStepId } from "../core/pipeline";
 
-export interface Session { connected: boolean; oauthConfigured: boolean; expiresAt: number | null }
+/** scopes: what Cloudflare actually granted; null when it did not report them. */
+export interface Session { connected: boolean; oauthConfigured: boolean; expiresAt: number | null; scopes: string[] | null }
+/** Needed to create the read-only Analytics Engine token (API token management is opt-in on the consent page). */
+export const ANALYTICS_READER_SCOPES = ["account-api-tokens.write", "account-analytics.read"];
 export interface Account { id: string; name: string }
 export interface RunView {
   run: PipelineRun | null;

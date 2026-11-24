@@ -6,6 +6,8 @@ export interface SessionRecord {
   expiresAt: number;
   oauth?: { state: string; verifier: string; startedAt: number };
   bearer?: SealedToken;
+  /** Scopes Cloudflare actually granted (users can untick optional ones); null when unknown. */
+  scopes?: string[] | null;
 }
 
 const SESSION_KEY = "session";

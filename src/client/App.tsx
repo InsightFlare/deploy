@@ -14,7 +14,7 @@ import {
 import { SUPPORTED_LOCALES } from "../lib/i18n/config";
 import { nativeLocaleName } from "../lib/i18n/native-locale-names";
 import { useTheme } from "./theme-provider";
-import { api, ApiError, type Account, type AccountOverview, type RunView, type Session } from "./api";
+import { api, ApiError, ANALYTICS_READER_SCOPES, type Account, type AccountOverview, type RunView, type Session } from "./api";
 import { Notice, errorText, useI18n } from "./ui";
 import { AutoResizer } from "@insightflare/ui/auto-resizer";
 import { AutoTransition } from "@insightflare/ui/auto-transition";
@@ -33,7 +33,7 @@ export function App() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const ThemeIcon = (theme === "system" ? resolvedTheme : theme) === "dark" ? RiMoonLine : RiSunLine;
 
-  const [session, setSession] = useState<Session>({ connected: false, oauthConfigured: false, expiresAt: null });
+  const [session, setSession] = useState<Session>({ connected: false, oauthConfigured: false, expiresAt: null, scopes: null });
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem(ACCOUNT_KEY) ?? "");
@@ -46,6 +46,10 @@ export function App() {
   const [otherTab, setOtherTab] = useState(false);
   const [reconnect, setReconnect] = useState(false);
   const [working, setWorking] = useState(false);
+  const [finishedHere, setFinishedHere] = useState(false);
+  // Cloudflare does not pre-select API token management on the consent page.
+  const readerMissing = session.connected && session.scopes !== null &&
+    !ANALYTICS_READER_SCOPES.every(scope => session.scopes!.includes(scope));
 
   const run = runView?.run ?? null;
   const accountName = accounts.find(account => account.id === accountId)?.name ?? accountId;
@@ -78,15 +82,18 @@ export function App() {
   }, [session.connected]);
 
   const loadAccount = useCallback(async (id: string) => {
-    setOverview(null); setRunView(null); setRunError(""); setOtherTab(false);
+    setOverview(null); setRunView(null); setRunError(""); setOtherTab(false); setFinishedHere(false);
     if (!id) return;
     setOverviewLoading(true);
     try {
       const [over, current] = await Promise.all([api.overview(id), api.run(id)]);
       setOverview(over.overview);
       setRunView(current);
-      // A run in progress (or waiting for the user) takes over the wizard.
-      if (current.run) setStep(current.run.phase === "succeeded" ? 4 : 3);
+      // A run in progress, failed, or with a password still to be saved takes over the
+      // wizard; a finished one is history and the user starts from the review again.
+      if (current.run && (current.run.phase !== "succeeded" || current.admin?.password)) {
+        setStep(current.run.phase === "succeeded" ? 4 : 3);
+      }
     } catch (error) {
       setMessage(errorText(t, error));
     } finally {
@@ -131,7 +138,7 @@ export function App() {
           const waiting = current.steps.find(item => item.status === "pending")?.note?.code === "WAITING";
           if (waiting) await sleep(HEALTH_WAIT_MS);
         }
-        if (!cancelled && current.phase === "succeeded") setStep(4);
+        if (!cancelled && current.phase === "succeeded") { setFinishedHere(true); setStep(4); }
       } catch (error) {
         if (!cancelled) setRunError(errorText(t, error));
       } finally {
@@ -183,21 +190,23 @@ export function App() {
     { title: t("stepDeploy"), heading: t("deployTitle"), description: t("deployDesc"), icon: RiRocketLine },
     { title: t("stepDone"), heading: run?.intent === "update" ? t("doneUpdateTitle") : t("doneInstallTitle"), description: "", icon: RiFlagLine }
   ];
+  // Finished runs only stay on screen right after they finish or while a password is pending.
+  const liveRun = run && (run.phase !== "succeeded" || finishedHere || Boolean(runView?.admin?.password)) ? run : null;
   const completed = [
     session.connected,
     Boolean(session.connected && accountId && overview),
-    Boolean(run),
-    run?.phase === "succeeded",
-    run?.phase === "succeeded" && !runView?.admin
+    Boolean(liveRun),
+    liveRun?.phase === "succeeded",
+    liveRun?.phase === "succeeded" && !runView?.admin?.password
   ];
   const reachable = (index: number) => {
     if (index === 0) return true;
     if (!session.connected) return false;
-    if (run) return index === 1 || index === 3 || (index === 4 && run.phase === "succeeded");
+    if (liveRun) return index === 1 || index === 3 || (index === 4 && liveRun.phase === "succeeded");
     return index <= 2 && (index < 2 || Boolean(overview));
   };
   // With a run in progress the account step continues straight to it.
-  const nextStep = step === 1 && run ? (run.phase === "succeeded" ? 4 : 3) : step + 1;
+  const nextStep = step === 1 && liveRun ? (liveRun.phase === "succeeded" ? 4 : 3) : step + 1;
   const canContinue = step < 2 && completed[step] && reachable(nextStep);
   const finished = completed.filter(Boolean).length;
   const percent = Math.round((finished / STEP_COUNT) * 100);
@@ -291,10 +300,10 @@ export function App() {
             </AutoTransition>
 
             {!sessionLoaded ? <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLoader4Line className="size-4 animate-spin" />{t("loading")}</p>
-              : step === 0 ? <ConnectStep t={t} session={session} locale={locale} onDisconnect={() => void disconnect()} />
+              : step === 0 ? <ConnectStep t={t} session={session} locale={locale} readerMissing={readerMissing} onDisconnect={() => void disconnect()} />
               : step === 1 ? <AccountStep t={t} accounts={accounts} accountId={accountId} onSelect={setAccountId}
-                  overview={overview} loading={overviewLoading} runView={runView} />
-              : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountName={accountName}
+                  overview={overview} loading={overviewLoading} runView={liveRun ? runView : null} />
+              : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountName={accountName} readerMissing={readerMissing}
                   starting={working} onStart={(legacy, password) => void startRun(legacy, password)} />
               : step === 3 && run ? <DeployStep t={t} tMaybe={tMaybe} run={run} otherTab={otherTab} reconnect={reconnect}
                   working={working} error={runError}

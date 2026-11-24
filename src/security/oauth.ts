@@ -74,6 +74,16 @@ export function requestedOAuthScopes(base: string, capability?: string): string 
   return [...scopes].join(" ");
 }
 
+/** Scopes needed to create the read-only Analytics Engine token. */
+export const ANALYTICS_READER_SCOPES = ["account-api-tokens.write", "account-analytics.read"];
+
+/** null when Cloudflare did not report the granted scopes (then creation is simply attempted). */
+export async function grantedScopes(c: AppContext): Promise<string[] | null> {
+  const id = cookie(c);
+  const session = id ? await readSession(c.env, id) : null;
+  return session?.scopes ?? null;
+}
+
 export function oauthConfigured(env: Env): boolean {
   return Boolean(env.CF_OAUTH_CLIENT_ID && env.CF_OAUTH_CLIENT_SECRET && env.SESSION_ENCRYPTION_KEY);
 }
@@ -124,7 +134,7 @@ export async function finishOAuth(c: AppContext): Promise<Response> {
     }),
     signal: AbortSignal.timeout(12000)
   });
-  const data = await result.json().catch(() => null) as { access_token?: string; expires_in?: number } | null;
+  const data = await result.json().catch(() => null) as { access_token?: string; expires_in?: number; scope?: string } | null;
   if (!result.ok || !data?.access_token) {
     await clearSession(c.env, id);
     return c.redirect("/?error=oauth_exchange", 302);
@@ -132,7 +142,11 @@ export async function finishOAuth(c: AppContext): Promise<Response> {
   const lifetime = Math.min(Math.max(Number(data.expires_in ?? 3600), 60), 3600) * 1000;
   const expiresAt = Math.min(Date.now() + lifetime, Date.now() + MAX_SESSION_MS);
   const bearer = await sealToken(data.access_token, c.env.SESSION_ENCRYPTION_KEY!, expiresAt);
-  await saveSession(c.env, id, { createdAt: session.createdAt, expiresAt, bearer });
+  // Cloudflare reports the granted scopes on the token response and the redirect;
+  // sensitive ones (API token management) are not pre-selected on the consent page.
+  const granted = typeof data.scope === "string" ? data.scope : url.searchParams.get("scope");
+  const scopes = granted ? granted.split(' ').join('+').split('+').filter(Boolean) : null;
+  await saveSession(c.env, id, { createdAt: session.createdAt, expiresAt, bearer, scopes });
   return c.redirect("/?connected=1", 302);
 }
 
@@ -150,7 +164,8 @@ export async function connectionStatus(c: AppContext): Promise<Response> {
   return c.json({
     connected: Boolean(session?.bearer && session.bearer.expiresAt > Date.now()),
     expiresAt: session?.bearer?.expiresAt ?? null,
-    oauthConfigured: oauthConfigured(c.env)
+    oauthConfigured: oauthConfigured(c.env),
+    scopes: session?.bearer ? session.scopes ?? null : null
   }, 200, { "Cache-Control": "no-store" });
 }
 

@@ -12,7 +12,7 @@ import { accountOverview } from "../core/overview";
 import { advanceRun, createRun, retryRun, type PipelineRun, type PipelineIntent } from "../core/pipeline";
 import { generatePassword } from "../core/install-plan";
 import { runStore, RUN_RETENTION_MS, type StoredRun } from "../session/runs";
-import { assertSameOrigin, userToken } from "../security/oauth";
+import { assertSameOrigin, userToken, grantedScopes, ANALYTICS_READER_SCOPES } from "../security/oauth";
 import { sealToken, unsealToken } from "../security/crypto";
 
 const ACCOUNT = /^[a-f0-9]{32}$/;
@@ -63,6 +63,12 @@ async function checkHealth(url: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Unknown grants (Cloudflare did not report scopes) are attempted; known ones must include both. */
+async function readerAuthorized(c: Parameters<typeof grantedScopes>[0]): Promise<boolean> {
+  const scopes = await grantedScopes(c);
+  return scopes === null || ANALYTICS_READER_SCOPES.every(scope => scopes.includes(scope));
 }
 
 /** 8–128 printable characters, matching InsightFlare's own minimum. */
@@ -142,7 +148,8 @@ pipelineRoutes.post("/:accountId/run", async c => {
     id: crypto.randomUUID(), intent: body.intent, accountId,
     sourceSha: pointer.sha, artifactDigest: pointer.artifactDigest,
     legacyAdoptionApproved: body.legacyAdoptionApproved === true, now,
-    customAdminPassword: chosenPassword !== null
+    customAdminPassword: chosenPassword !== null,
+    analyticsReaderAuthorized: await readerAuthorized(c)
   });
   let sealed;
   if (run.intent === "install") {
