@@ -16,6 +16,8 @@ export interface AccountOverview {
   release: { sha: string; artifactDigest: string } | null;
   intent: "install" | "update" | null;
   upToDate: boolean;
+  /** Existing installations: whether Deploy can (or already did) set up the Analytics Engine reader. */
+  analyticsReader?: "configured" | "missing" | "not-bound";
   blockers: OverviewBlocker[];
   install?: {
     workerName: string;
@@ -96,8 +98,16 @@ export async function accountOverview(input: {
     return overview;
   }
 
+  const bindings = await client.settings(accountId, observed.workerName);
+  overview.analyticsReader = !bindings.some(binding => binding.type === "analytics_engine") ? "not-bound"
+    : bindings.some(binding => binding.name === "INSIGHTFLARE_AE_API_TOKEN") ? "configured" : "missing";
   if (observed.kind === "managed" && observed.deployedSha === release.release.sha) {
     overview.upToDate = true;
+    // Up to date, but the reader can still be configured by running an update.
+    if (overview.analyticsReader === "missing") {
+      overview.update = { fromSha: observed.deployedSha, legacyAdoptionRequired: false, pendingMigrations: 0,
+        destructiveMigrations: false, durableObjectMigration: false };
+    }
     return overview;
   }
   try {

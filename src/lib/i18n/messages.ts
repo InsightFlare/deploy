@@ -80,6 +80,9 @@ export interface AppMessages {
     "updateSafety": string;
     "legacyAdopt": string;
     "upToDate": string;
+    "upToDateReaderMissing": string;
+    "planAnalyticsReader": string;
+    "note_AE_READER_PRESENT": string;
     "blockersTitle": string;
     "blocker_WORKER_CONFLICT": string;
     "blocker_NIGHTLY_PENDING": string;
@@ -244,6 +247,9 @@ const enMessages: AppMessages = {
     "updateSafety": "The new version is uploaded first and only switched on after the database is ready. If it fails its health check, the previous version is restored automatically.",
     "legacyAdopt": "This installation was set up before InsightFlare Deploy. I agree to let Deploy manage it from now on; its data, secrets and bindings are kept.",
     "upToDate": "This installation already runs the latest official build.",
+    "upToDateReaderMissing": "This installation already runs the latest official build, but Analytics Engine reading is not configured yet. Run an update to set it up automatically.",
+    "planAnalyticsReader": "Create a read-only Analytics Engine token and store it in the Worker",
+    "note_AE_READER_PRESENT": "Already configured",
     "blockersTitle": "This cannot continue yet",
     "blocker_WORKER_CONFLICT": "A Worker named insightflare already exists but is not an InsightFlare installation. Rename or remove it first.",
     "blocker_NIGHTLY_PENDING": "The newest official build is still being published. Try again in a few minutes.",
@@ -408,6 +414,9 @@ const zhMessages: AppMessages = {
     "updateSafety": "新版本会先上传，数据库就绪后才切换。如果健康检查失败，会自动恢复到之前的版本。",
     "legacyAdopt": "这个实例早于 InsightFlare Deploy 部署。我同意之后由 Deploy 管理它；数据、secret 和绑定都会保留。",
     "upToDate": "这个实例已经是最新的官方构建。",
+    "upToDateReaderMissing": "这个实例已经是最新的官方构建，但还没有配置 Analytics Engine 读取。执行一次更新即可自动配置。",
+    "planAnalyticsReader": "创建 Analytics Engine 只读 token 并写入 Worker",
+    "note_AE_READER_PRESENT": "已配置过",
     "blockersTitle": "暂时无法继续",
     "blocker_WORKER_CONFLICT": "已经有一个名为 insightflare 的 Worker，但它不是 InsightFlare。请先重命名或删除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方构建还在发布中，请几分钟后再试。",
@@ -572,6 +581,9 @@ const zh_twMessages: AppMessages = {
     "updateSafety": "新版本會先上傳，資料庫就緒後才切換。如果健康檢查失敗，會自動恢復到之前的版本。",
     "legacyAdopt": "這個實例早於 InsightFlare Deploy 部署。我同意之後由 Deploy 管理它；資料、secret 和綁定都會保留。",
     "upToDate": "這個實例已經是最新的官方建置。",
+    "upToDateReaderMissing": "這個實例已經是最新的官方建置，但還沒有設定 Analytics Engine 讀取。執行一次更新即可自動設定。",
+    "planAnalyticsReader": "建立 Analytics Engine 唯讀 token 並寫入 Worker",
+    "note_AE_READER_PRESENT": "已設定過",
     "blockersTitle": "暫時無法繼續",
     "blocker_WORKER_CONFLICT": "已經有一個名為 insightflare 的 Worker，但它不是 InsightFlare。請先重新命名或刪除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方建置還在發布中，請幾分鐘後再試。",
@@ -736,6 +748,9 @@ const jaMessages: AppMessages = {
     "updateSafety": "新しいバージョンを先にアップロードし、データベースの準備ができてから切り替えます。ヘルスチェックに失敗した場合は自動的に以前のバージョンへ戻します。",
     "legacyAdopt": "このインスタンスは InsightFlare Deploy 以前に構築されました。今後 Deploy で管理することに同意します（データ・シークレット・バインディングは保持されます）。",
     "upToDate": "このインスタンスは最新の公式ビルドを実行しています。",
+    "upToDateReaderMissing": "このインスタンスは最新の公式ビルドですが、Analytics Engine の読み取りが未設定です。更新を実行すると自動で設定されます。",
+    "planAnalyticsReader": "Analytics Engine の読み取り専用トークンを作成して Worker に保存",
+    "note_AE_READER_PRESENT": "設定済み",
     "blockersTitle": "まだ続行できません",
     "blocker_WORKER_CONFLICT": "insightflare という名前の Worker が既にありますが、InsightFlare ではありません。先に名前を変更するか削除してください。",
     "blocker_NIGHTLY_PENDING": "最新の公式ビルドを公開中です。数分後にもう一度お試しください。",

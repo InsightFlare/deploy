@@ -180,8 +180,11 @@ export async function advanceRun(run: PipelineRun, deps: PipelineDeps): Promise<
     return { id: item.id, status: result.status, ...(result.note ? { note: result.note } : {}) };
   });
   // "Nothing to do" short-circuit: an update to the commit already deployed.
+  // Nothing to upload when the installation already runs this commit; configuration
+  // steps (the Analytics Engine reader, then the health check) still run.
   const settled = ctx.skipRemaining
-    ? steps.map(item => item.status === "pending" ? { id: item.id, status: "skipped" as const, note: { code: "ALREADY_CURRENT" } } : item)
+    ? steps.map(item => item.status === "pending" && item.id !== "analytics" && item.id !== "health"
+      ? { id: item.id, status: "skipped" as const, note: { code: "ALREADY_CURRENT" } } : item)
     : steps;
   return finish({ ...run, state, steps: settled }, deps.now());
 }
@@ -333,14 +336,29 @@ class StepContext {
 
   /** Account-owned token that can only read Analytics Engine, written as a Worker secret. */
   private async analytics(): Promise<StepResult> {
-    if (this.state.analyticsEngine !== "enabled") {
-      return { status: "skipped", ...(this.state.analyticsEngine === "disabled" ? { note: { code: "AE_NOT_ENABLED" } } : {}) };
+    let needsAccountId = false;
+    if (this.run.intent === "install") {
+      if (this.state.analyticsEngine !== "enabled") return { status: "skipped", note: { code: "AE_NOT_ENABLED" } };
+    } else {
+      // Any installation with Analytics Engine bound but no deployment-managed reader gets one.
+      const bindings = await this.client.settings(this.account, INSTALL_NAMES.worker);
+      const bound = this.state.analyticsEngine === "enabled" || bindings.some(binding => binding.type === "analytics_engine");
+      if (!bound) {
+        return { status: "skipped", ...(this.state.analyticsEngine === "disabled" ? { note: { code: "AE_NOT_ENABLED" } } : {}) };
+      }
+      if (bindings.some(binding => binding.name === "INSIGHTFLARE_AE_API_TOKEN")) {
+        return { status: "skipped", note: { code: "AE_READER_PRESENT" } };
+      }
+      needsAccountId = !bindings.some(binding => binding.name === "INSIGHTFLARE_AE_ACCOUNT_ID");
     }
     try {
       const groups = await this.client.accountTokenPermissionGroups(this.account);
       const read = groups.find(group => group.name === "Account Analytics Read");
       if (!read) throw new DeployError("UNAVAILABLE", "The Account Analytics Read permission is not available to this authorization.", 403);
       const token = await this.client.createAccountToken(this.account, "InsightFlare Analytics Engine reader", [read.id]);
+      if (needsAccountId) {
+        await this.client.putWorkerSecret(this.account, INSTALL_NAMES.worker, "INSIGHTFLARE_AE_ACCOUNT_ID", this.account);
+      }
       await this.client.putWorkerSecret(this.account, INSTALL_NAMES.worker, "INSIGHTFLARE_AE_API_TOKEN", token.value);
       return { status: "done", note: { code: "AE_READER_CONFIGURED" } };
     } catch (error) {
@@ -367,7 +385,7 @@ class StepContext {
     }
     if (observed.kind === "managed" && observed.deployedSha === this.run.sourceSha) {
       this.skipRemaining = true;
-      return { status: "done", note: { code: "ALREADY_CURRENT" }, state: { previousSha: observed.deployedSha } };
+      return { status: "done", note: { code: "ALREADY_CURRENT" }, state: { previousSha: observed.deployedSha, workerUrl: await this.publicUrl() } };
     }
     const preview = await previewVersionUpgrade(this.client, this.account, observed, release);
     const snapshot = await this.client.d1MigrationSnapshot(this.account, preview.databaseId);

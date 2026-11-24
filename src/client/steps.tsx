@@ -101,7 +101,9 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
     : password !== repeat ? "adminPasswordMismatch" as const : null;
   const install = overview.install;
   const update = overview.update;
-  const blocked = overview.blockers.length > 0 || !overview.release || overview.upToDate;
+  // Up to date installations can still run an update just to configure the AE reader.
+  const configureOnly = overview.upToDate && overview.analyticsReader === "missing";
+  const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly);
   const needsAdoption = Boolean(update?.legacyAdoptionRequired);
   return <div className="space-y-6">
     {overview.source ? <div className="space-y-1.5">
@@ -120,7 +122,7 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
         <li key={blocker.code}>{tMaybe("blocker_" + blocker.code) ?? blocker.message}</li>)}</ul>
     </Notice> : null}
 
-    {overview.upToDate ? <Notice tone="success">{t("upToDate")}</Notice> : null}
+    {overview.upToDate ? <Notice tone="success">{t(configureOnly ? "upToDateReaderMissing" : "upToDate")}</Notice> : null}
 
     {install ? <div className="space-y-3">
       <Eyebrow>{t("installPlanTitle")}</Eyebrow>
@@ -167,10 +169,11 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
 
     {update ? <div className="space-y-3">
       <Eyebrow>{t("updatePlanTitle")}</Eyebrow>
-      <PlanList items={[
+      <PlanList items={configureOnly ? [t("planAnalyticsReader")] : [
         t("updateFromTo", { from: shortSha(update.fromSha) || t("unknownVersion"), to: shortSha(overview.release?.sha) }),
         update.pendingMigrations ? t("updatePendingMigrations", { count: update.pendingMigrations }) : t("updateNoMigrations"),
-        update.durableObjectMigration ? t("updateDoMigration") : null
+        update.durableObjectMigration ? t("updateDoMigration") : null,
+        overview.analyticsReader === "missing" ? t("planAnalyticsReader") : null
       ]} />
       {update.destructiveMigrations ? <Notice tone="warning">{t("updateDestructive")}</Notice> : null}
       <Notice>{t("updateSafety")}</Notice>
@@ -180,7 +183,7 @@ export function ReviewStep({ t, tMaybe, overview, accountName, starting, onStart
       </label> : null}
     </div> : null}
 
-    {(install || update) && !overview.upToDate ? <>
+    {(install || update) && (!overview.upToDate || configureOnly) ? <>
       <Separator />
       <ConfirmOperation
         title={t(install ? "confirmInstallTitle" : "confirmUpdateTitle")}

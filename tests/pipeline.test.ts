@@ -258,7 +258,7 @@ describe("one-click update", () => {
       { name: "INSIGHTFLARE_DEPLOYMENT_SHA", type: "plain_text", text: sourceSha }
     ]);
     const run = createRun({ id: "run-2", intent: "update", accountId, sourceSha, artifactDigest: artifact.manifest.artifactDigest, legacyAdoptionApproved: false, now: 0 });
-    const done = await advanceRun(run, deps(account.client, artifact));
+    const done = await runToEnd(run, deps(account.client, artifact));
     expect(done.phase).toBe("succeeded");
     expect(done.steps.slice(1).every(step => step.status === "skipped")).toBe(true);
   });
@@ -345,5 +345,37 @@ describe("eventually consistent Worker listing", () => {
     };
     expect((await discoverDeployment(client, accountId)).kind).toBe("managed");
     expect((await discoverDeployment({ ...client, workerExists: async () => false }, accountId)).kind).toBe("not-installed");
+  });
+});
+
+describe("Analytics Engine reader on existing installations", () => {
+  const current = (extra: WorkerBinding[] = []) => [
+    { name: "DB", type: "d1" }, { name: "SITE_SETTINGS_KV", type: "kv_namespace" },
+    { name: "INGEST_DO", type: "durable_object_namespace", class_name: "IngestDurableObject" },
+    { name: "INSIGHTFLARE_DEPLOYMENT_SHA", type: "plain_text", text: sourceSha },
+    { name: "REQUEST_ANALYTICS", type: "analytics_engine", dataset: "insightflare_request_events" }, ...extra
+  ];
+  const updateRun = (artifact: ReleaseArtifact) => createRun({ id: "run-ae", intent: "update", accountId, sourceSha,
+    artifactDigest: artifact.manifest.artifactDigest, legacyAdoptionApproved: false, now: 0 });
+
+  it("configures a missing reader even when the installation is already current", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount();
+    account.workers.set("insightflare", current());
+    const done = await runToEnd(updateRun(artifact), deps(account.client, artifact));
+    expect(done.phase).toBe("succeeded");
+    expect(done.steps.find(step => step.id === "analytics")).toMatchObject({ status: "done", note: { code: "AE_READER_CONFIGURED" } });
+    expect(account.secrets.get("INSIGHTFLARE_AE_API_TOKEN")).toBe("ae-token");
+    expect(account.secrets.get("INSIGHTFLARE_AE_ACCOUNT_ID")).toBe(accountId);
+    expect(done.steps.find(step => step.id === "stage")?.status).toBe("skipped");
+  });
+
+  it("leaves an already configured reader alone", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount();
+    account.workers.set("insightflare", current([{ name: "INSIGHTFLARE_AE_API_TOKEN", type: "secret_text" }]));
+    const done = await runToEnd(updateRun(artifact), deps(account.client, artifact));
+    expect(done.steps.find(step => step.id === "analytics")).toMatchObject({ status: "skipped", note: { code: "AE_READER_PRESENT" } });
+    expect(account.client.createAccountToken).not.toHaveBeenCalled();
   });
 });
