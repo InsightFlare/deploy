@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { DeployError } from "../types";
-import { CloudflareClient } from "../providers/cloudflare/client";
+import { CloudflareClient, isHostname } from "../providers/cloudflare/client";
 import { discoverDeployment } from "../providers/cloudflare/discovery";
 import { resolveLatestMain } from "../core/source";
 import { githubFetcher } from "../core/github";
@@ -9,7 +9,7 @@ import {
   resolveLatestPublicNightly, resolvePublicDeployRelease, downloadVerifiedPublicRelease, type ReleaseArtifact
 } from "../core/public-release";
 import { accountOverview } from "../core/overview";
-import { advanceRun, createRun, retryRun, type PipelineRun, type PipelineIntent } from "../core/pipeline";
+import { advanceRun, createRun, retryRun, type PipelineRun, type PipelineIntent, type CustomDomain } from "../core/pipeline";
 import { generatePassword } from "../core/install-plan";
 import { runStore, RUN_RETENTION_MS, type StoredRun } from "../session/runs";
 import { assertSameOrigin, userToken, grantedScopes, ANALYTICS_READER_SCOPES } from "../security/oauth";
@@ -71,6 +71,22 @@ async function readerAuthorized(c: Parameters<typeof grantedScopes>[0]): Promise
   return scopes === null || ANALYTICS_READER_SCOPES.every(scope => scopes.includes(scope));
 }
 
+/**
+ * The hostname is built here from one of the account's own zones plus an
+ * optional subdomain, so a request cannot route the Worker anywhere else.
+ */
+async function resolveCustomDomain(
+  client: CloudflareClient, accountId: string, input: { zoneId?: unknown; subdomain?: unknown }
+): Promise<CustomDomain> {
+  const zone = (await client.zones(accountId)).find(item => item.id === input.zoneId);
+  const subdomain = typeof input.subdomain === "string" ? input.subdomain.trim().toLowerCase() : "";
+  const hostname = subdomain ? subdomain + "." + zone?.name : zone?.name ?? "";
+  if (!zone || !isHostname(hostname)) {
+    throw new DeployError("INVALID_SOURCE", "Choose one of the account's domains and a valid subdomain.");
+  }
+  return { zoneId: zone.id, zoneName: zone.name, hostname };
+}
+
 /** 8–128 printable characters, matching InsightFlare's own minimum. */
 export function validAdminPassword(value: unknown): value is string {
   return typeof value === "string" && value.length >= 8 && value.length <= 128 && Array.from(value).every(ch => ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) !== 127);
@@ -125,6 +141,7 @@ pipelineRoutes.post("/:accountId/run", async c => {
   const accountId = accountParam(c.req.param("accountId"));
   const body = await c.req.json().catch(() => null) as {
     intent?: string; sourceSha?: string; artifactDigest?: string; legacyAdoptionApproved?: boolean; adminPassword?: unknown;
+    customDomain?: { zoneId?: unknown; subdomain?: unknown } | null;
   } | null;
   if (!body || (body.intent !== "install" && body.intent !== "update")) {
     throw new DeployError("INVALID_SOURCE", "Intent must be install or update.");
@@ -151,7 +168,8 @@ pipelineRoutes.post("/:accountId/run", async c => {
     sourceSha: pointer.sha, artifactDigest: pointer.artifactDigest,
     legacyAdoptionApproved: body.legacyAdoptionApproved === true, now,
     customAdminPassword: chosenPassword !== null,
-    analyticsReaderAuthorized: await readerAuthorized(c)
+    analyticsReaderAuthorized: await readerAuthorized(c),
+    customDomain: body.customDomain ? await resolveCustomDomain(client, accountId, body.customDomain) : undefined
   });
   let sealed;
   if (run.intent === "install") {

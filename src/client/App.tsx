@@ -150,14 +150,15 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.id, run?.phase, step, reconnect, accountId]);
 
-  async function startRun(legacyAdoptionApproved: boolean, adminPassword?: string) {
+  async function startRun(legacyAdoptionApproved: boolean, adminPassword?: string, customDomain?: { zoneId: string; subdomain: string }) {
     if (!overview?.release || !overview.intent) return;
     setWorking(true); setRunError("");
     try {
       const view = await api.startRun(accountId, {
         intent: overview.intent, sourceSha: overview.release.sha,
         artifactDigest: overview.release.artifactDigest, legacyAdoptionApproved,
-        ...(adminPassword ? { adminPassword } : {})
+        ...(adminPassword ? { adminPassword } : {}),
+        ...(customDomain ? { customDomain } : {})
       });
       setRunView(view);
       setStep(3);
@@ -338,7 +339,8 @@ export function App() {
                   : review.mode === "configure" ? t("confirmConfigureDesc")
                   : t(review.hasMigrations ? "confirmUpdateDesc" : "confirmUpdateNoMigrationDesc")}
                 confirmText={t("confirm")} cancelText={t("cancel")}
-                onConfirm={() => void startRun(reviewForm.adopt, review.install && review.custom ? reviewForm.password : undefined)}>
+                onConfirm={() => void startRun(reviewForm.adopt, review.install && review.custom ? reviewForm.password : undefined,
+                  review.domainNew ? { zoneId: reviewForm.zoneId, subdomain: reviewForm.subdomain.trim().toLowerCase() } : undefined)}>
                 <Button disabled={review.blocked || working}>
                   {working ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiArrowRightLine data-icon="inline-start" />}
                   {t(review.mode === "install" ? "installButton" : review.mode === "configure" ? "configureButton" : "updateButton")}

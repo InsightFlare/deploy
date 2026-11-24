@@ -53,7 +53,8 @@ export const api = {
   accounts: () => request<{ accounts: Account[] }>("/api/v1/providers/cloudflare/accounts"),
   overview: (id: string) => request<{ overview: AccountOverview }>(account(id) + "/overview"),
   run: (id: string) => request<RunView>(account(id) + "/run"),
-  startRun: (id: string, body: { intent: "install" | "update"; sourceSha: string; artifactDigest: string; legacyAdoptionApproved: boolean; adminPassword?: string }) =>
+  startRun: (id: string, body: { intent: "install" | "update"; sourceSha: string; artifactDigest: string; legacyAdoptionApproved: boolean; adminPassword?: string;
+    customDomain?: { zoneId: string; subdomain: string } }) =>
     post<RunView>(account(id) + "/run", body),
   advance: (id: string, runId: string) => post<RunView>(account(id) + "/run/advance", { runId }),
   retry: (id: string, runId: string) => post<RunView>(account(id) + "/run/retry", { runId }),

@@ -186,6 +186,24 @@ export interface AppMessages {
     "confirmConfigureTitle": string;
     "confirmConfigureDesc": string;
     "configureButton": string;
+    "domainTitle": string;
+    "domainCurrent": string;
+    "domainUseWorkersDev": string;
+    "domainKeep": string;
+    "domainUseCustom": string;
+    "domainAddCustom": string;
+    "domainSubdomain": string;
+    "domainZone": string;
+    "domainZonePlaceholder": string;
+    "domainHint": string;
+    "domainPreview": string;
+    "domainAlready": string;
+    "domainInvalid": string;
+    "planDomain": string;
+    "runStep_domain": string;
+    "note_DOMAIN_ATTACHED": string;
+    "note_DOMAIN_FAILED": string;
+    "followDomain": string;
   };
 };
 const enMessages: AppMessages = {
@@ -266,7 +284,7 @@ const enMessages: AppMessages = {
     "updateDoMigration": "Includes a Durable Object migration",
     "updateSafety": "The new version is uploaded first and only switched on after the database is ready. If it fails its health check, the previous version is restored automatically.",
     "legacyAdopt": "This installation was set up before InsightFlare Deploy. I agree to let Deploy manage it from now on; its data, secrets and bindings are kept.",
-    "upToDate": "This installation already runs the latest official build.",
+    "upToDate": "This installation already runs the latest official build. You can still add a custom domain below.",
     "upToDateReaderMissing": "This installation already runs the latest official build, but Analytics Engine reading is not configured yet. Run an update to set it up automatically.",
     "planAnalyticsReader": "Create a read-only Analytics Engine token and store it in the Worker",
     "note_AE_READER_PRESENT": "Already configured",
@@ -368,11 +386,29 @@ const enMessages: AppMessages = {
     "followHealth": "The address did not respond yet. Give it a few minutes, then open it.",
     "openCloudflare": "Open Cloudflare dashboard",
     "finish": "Finish",
-    "updateSafetyConfigure": "Only the Analytics Engine reader is configured; no new version is uploaded and InsightFlare keeps serving traffic.",
+    "updateSafetyConfigure": "Only the changes listed above are applied; no new version is uploaded and InsightFlare keeps serving traffic.",
     "confirmUpdateNoMigrationDesc": "A new version is uploaded and switched on after it is verified; if it fails its health check, the previous version is restored. InsightFlare keeps serving traffic during the update.",
-    "confirmConfigureTitle": "Configure Analytics Engine reading now?",
-    "confirmConfigureDesc": "A read-only Analytics Engine token is created in your account and stored as a secret of the insightflare Worker. Code and data are not changed.",
-    "configureButton": "Configure Analytics Engine"
+    "confirmConfigureTitle": "Apply these changes now?",
+    "confirmConfigureDesc": "Only the changes listed above are applied, such as creating the read-only Analytics Engine token or attaching the domain. No new version is uploaded and no data is changed.",
+    "configureButton": "Apply changes",
+    "domainTitle": "Address",
+    "domainCurrent": "Currently routed: {list}",
+    "domainUseWorkersDev": "Use the workers.dev address",
+    "domainKeep": "Keep the current address",
+    "domainUseCustom": "Use one of my domains",
+    "domainAddCustom": "Add another of my domains",
+    "domainSubdomain": "Subdomain (empty for the domain itself)",
+    "domainZone": "Domain",
+    "domainZonePlaceholder": "Choose a domain",
+    "domainHint": "Choose one of the domains in this Cloudflare account. Cloudflare creates the DNS record and certificate automatically.",
+    "domainPreview": "InsightFlare will be served at https://{host}. Cloudflare creates the DNS record and certificate automatically; it refuses if the hostname already has a different record.",
+    "domainAlready": "https://{host} already points to InsightFlare.",
+    "domainInvalid": "The subdomain may only contain letters, digits, hyphens and dots.",
+    "planDomain": "Route https://{host} to InsightFlare",
+    "runStep_domain": "Attach the custom domain",
+    "note_DOMAIN_ATTACHED": "Available at https://{host}",
+    "note_DOMAIN_FAILED": "Could not attach {host}",
+    "followDomain": "{host} could not be attached, usually because the hostname already has a DNS record. Remove or change that record, then run an update here, or add the domain to the insightflare Worker in the Cloudflare dashboard."
   }
 };
 const zhMessages: AppMessages = {
@@ -453,7 +489,7 @@ const zhMessages: AppMessages = {
     "updateDoMigration": "包含 Durable Object 迁移",
     "updateSafety": "新版本会先上传，数据库就绪后才切换。如果健康检查失败，会自动恢复到之前的版本。",
     "legacyAdopt": "这个实例早于 InsightFlare Deploy 部署。我同意之后由 Deploy 管理它；数据、secret 和绑定都会保留。",
-    "upToDate": "这个实例已经是最新的官方构建。",
+    "upToDate": "这个实例已经是最新的官方构建。如有需要，仍可以在下方绑定自定义域名。",
     "upToDateReaderMissing": "这个实例已经是最新的官方构建，但还没有配置 Analytics Engine 读取。执行一次更新即可自动配置。",
     "planAnalyticsReader": "创建 Analytics Engine 只读 token 并写入 Worker",
     "note_AE_READER_PRESENT": "已配置过",
@@ -555,11 +591,29 @@ const zhMessages: AppMessages = {
     "followHealth": "地址暂时还没有响应，请过几分钟再打开。",
     "openCloudflare": "打开 Cloudflare 控制台",
     "finish": "完成",
-    "updateSafetyConfigure": "只会配置 Analytics Engine 读取，不会上传新版本，InsightFlare 持续正常提供服务。",
+    "updateSafetyConfigure": "只会执行上面列出的配置，不会上传新版本，InsightFlare 持续正常提供服务。",
     "confirmUpdateNoMigrationDesc": "会上传新版本并在校验通过后切换；如果健康检查失败，会恢复到之前的版本。更新期间 InsightFlare 会继续正常提供服务。",
-    "confirmConfigureTitle": "现在配置 Analytics Engine 读取？",
-    "confirmConfigureDesc": "会在你的账号中创建一个 Analytics Engine 只读 token，并保存为 insightflare Worker 的 secret。不会改动代码和数据。",
-    "configureButton": "配置 Analytics Engine"
+    "confirmConfigureTitle": "现在应用这些配置？",
+    "confirmConfigureDesc": "只会执行上面列出的配置，例如创建 Analytics Engine 只读 token、绑定域名。不会上传新版本，也不会改动数据。",
+    "configureButton": "应用配置",
+    "domainTitle": "访问域名",
+    "domainCurrent": "当前已绑定：{list}",
+    "domainUseWorkersDev": "使用 workers.dev 地址",
+    "domainKeep": "保持现有地址",
+    "domainUseCustom": "使用我自己的域名",
+    "domainAddCustom": "再绑定一个我自己的域名",
+    "domainSubdomain": "子域名（留空表示直接使用主域名）",
+    "domainZone": "域名",
+    "domainZonePlaceholder": "选择一个域名",
+    "domainHint": "从这个 Cloudflare 账号的域名中选择一个。Cloudflare 会自动创建 DNS 记录和证书。",
+    "domainPreview": "InsightFlare 将通过 https://{host} 访问。Cloudflare 会自动创建 DNS 记录和证书；如果这个地址已有其他记录，会拒绝绑定。",
+    "domainAlready": "https://{host} 已经绑定到 InsightFlare。",
+    "domainInvalid": "子域名只能包含字母、数字、连字符和点。",
+    "planDomain": "将 https://{host} 绑定到 InsightFlare",
+    "runStep_domain": "绑定自定义域名",
+    "note_DOMAIN_ATTACHED": "已绑定 https://{host}",
+    "note_DOMAIN_FAILED": "无法绑定 {host}",
+    "followDomain": "无法绑定 {host}，通常是因为这个地址已有 DNS 记录。删除或修改那条记录后，回到这里执行一次更新；也可以在 Cloudflare 控制台为 insightflare Worker 添加该域名。"
   }
 };
 const zh_twMessages: AppMessages = {
@@ -640,7 +694,7 @@ const zh_twMessages: AppMessages = {
     "updateDoMigration": "包含 Durable Object 遷移",
     "updateSafety": "新版本會先上傳，資料庫就緒後才切換。如果健康檢查失敗，會自動恢復到之前的版本。",
     "legacyAdopt": "這個實例早於 InsightFlare Deploy 部署。我同意之後由 Deploy 管理它；資料、secret 和綁定都會保留。",
-    "upToDate": "這個實例已經是最新的官方建置。",
+    "upToDate": "這個實例已經是最新的官方建置。如有需要，仍可以在下方綁定自訂網域。",
     "upToDateReaderMissing": "這個實例已經是最新的官方建置，但還沒有設定 Analytics Engine 讀取。執行一次更新即可自動設定。",
     "planAnalyticsReader": "建立 Analytics Engine 唯讀 token 並寫入 Worker",
     "note_AE_READER_PRESENT": "已設定過",
@@ -742,11 +796,29 @@ const zh_twMessages: AppMessages = {
     "followHealth": "網址暫時還沒有回應，請過幾分鐘再開啟。",
     "openCloudflare": "開啟 Cloudflare 控制台",
     "finish": "完成",
-    "updateSafetyConfigure": "只會設定 Analytics Engine 讀取，不會上傳新版本，InsightFlare 持續正常提供服務。",
+    "updateSafetyConfigure": "只會執行上面列出的設定，不會上傳新版本，InsightFlare 持續正常提供服務。",
     "confirmUpdateNoMigrationDesc": "會上傳新版本並在校驗通過後切換；如果健康檢查失敗，會恢復到之前的版本。更新期間 InsightFlare 會繼續正常提供服務。",
-    "confirmConfigureTitle": "現在設定 Analytics Engine 讀取？",
-    "confirmConfigureDesc": "會在你的帳號中建立一個 Analytics Engine 唯讀 token，並保存為 insightflare Worker 的 secret。不會改動程式碼和資料。",
-    "configureButton": "設定 Analytics Engine"
+    "confirmConfigureTitle": "現在套用這些設定？",
+    "confirmConfigureDesc": "只會執行上面列出的設定，例如建立 Analytics Engine 唯讀 token、綁定網域。不會上傳新版本，也不會改動資料。",
+    "configureButton": "套用設定",
+    "domainTitle": "存取網域",
+    "domainCurrent": "目前已綁定：{list}",
+    "domainUseWorkersDev": "使用 workers.dev 網址",
+    "domainKeep": "保持現有網址",
+    "domainUseCustom": "使用我自己的網域",
+    "domainAddCustom": "再綁定一個我自己的網域",
+    "domainSubdomain": "子網域（留空表示直接使用主網域）",
+    "domainZone": "網域",
+    "domainZonePlaceholder": "選擇一個網域",
+    "domainHint": "從這個 Cloudflare 帳號的網域中選擇一個。Cloudflare 會自動建立 DNS 記錄和憑證。",
+    "domainPreview": "InsightFlare 將透過 https://{host} 存取。Cloudflare 會自動建立 DNS 記錄和憑證；如果這個網址已有其他記錄，會拒絕綁定。",
+    "domainAlready": "https://{host} 已經綁定到 InsightFlare。",
+    "domainInvalid": "子網域只能包含字母、數字、連字號和點。",
+    "planDomain": "將 https://{host} 綁定到 InsightFlare",
+    "runStep_domain": "綁定自訂網域",
+    "note_DOMAIN_ATTACHED": "已綁定 https://{host}",
+    "note_DOMAIN_FAILED": "無法綁定 {host}",
+    "followDomain": "無法綁定 {host}，通常是因為這個網址已有 DNS 記錄。刪除或修改那條記錄後，回到這裡執行一次更新；也可以在 Cloudflare 控制台為 insightflare Worker 新增該網域。"
   }
 };
 const jaMessages: AppMessages = {
@@ -827,7 +899,7 @@ const jaMessages: AppMessages = {
     "updateDoMigration": "Durable Object のマイグレーションを含みます",
     "updateSafety": "新しいバージョンを先にアップロードし、データベースの準備ができてから切り替えます。ヘルスチェックに失敗した場合は自動的に以前のバージョンへ戻します。",
     "legacyAdopt": "このインスタンスは InsightFlare Deploy 以前に構築されました。今後 Deploy で管理することに同意します（データ・シークレット・バインディングは保持されます）。",
-    "upToDate": "このインスタンスは最新の公式ビルドを実行しています。",
+    "upToDate": "このインスタンスは最新の公式ビルドです。必要なら下でカスタムドメインを追加できます。",
     "upToDateReaderMissing": "このインスタンスは最新の公式ビルドですが、Analytics Engine の読み取りが未設定です。更新を実行すると自動で設定されます。",
     "planAnalyticsReader": "Analytics Engine の読み取り専用トークンを作成して Worker に保存",
     "note_AE_READER_PRESENT": "設定済み",
@@ -929,11 +1001,29 @@ const jaMessages: AppMessages = {
     "followHealth": "アドレスはまだ応答していません。数分待ってから開いてください。",
     "openCloudflare": "Cloudflare ダッシュボードを開く",
     "finish": "完了",
-    "updateSafetyConfigure": "Analytics Engine の読み取りだけを設定します。新しいバージョンはアップロードされず、InsightFlare はそのままトラフィックを処理し続けます。",
+    "updateSafetyConfigure": "上記の変更だけを適用します。新しいバージョンはアップロードされず、InsightFlare はそのままトラフィックを処理し続けます。",
     "confirmUpdateNoMigrationDesc": "新しいバージョンをアップロードし、検証後に切り替えます。ヘルスチェックに失敗した場合は以前のバージョンに戻します。更新中も InsightFlare はトラフィックを処理し続けます。",
-    "confirmConfigureTitle": "今すぐ Analytics Engine の読み取りを設定しますか？",
-    "confirmConfigureDesc": "アカウントに Analytics Engine 読み取り専用トークンを作成し、insightflare Worker のシークレットとして保存します。コードとデータは変更されません。",
-    "configureButton": "Analytics Engine を設定"
+    "confirmConfigureTitle": "今すぐこれらの変更を適用しますか？",
+    "confirmConfigureDesc": "Analytics Engine 読み取り専用トークンの作成やドメインの割り当てなど、上記の変更だけを適用します。新しいバージョンはアップロードされず、データも変更されません。",
+    "configureButton": "変更を適用",
+    "domainTitle": "アドレス",
+    "domainCurrent": "現在のドメイン：{list}",
+    "domainUseWorkersDev": "workers.dev のアドレスを使用",
+    "domainKeep": "現在のアドレスのまま",
+    "domainUseCustom": "自分のドメインを使用",
+    "domainAddCustom": "自分のドメインを追加",
+    "domainSubdomain": "サブドメイン（空欄ならドメインそのもの）",
+    "domainZone": "ドメイン",
+    "domainZonePlaceholder": "ドメインを選択",
+    "domainHint": "この Cloudflare アカウントのドメインから選んでください。DNS レコードと証明書は Cloudflare が自動で作成します。",
+    "domainPreview": "InsightFlare は https://{host} で提供されます。DNS レコードと証明書は Cloudflare が自動で作成します。既に別のレコードがある場合は拒否されます。",
+    "domainAlready": "https://{host} は既に InsightFlare を指しています。",
+    "domainInvalid": "サブドメインに使えるのは英数字・ハイフン・ドットのみです。",
+    "planDomain": "https://{host} を InsightFlare に割り当て",
+    "runStep_domain": "カスタムドメインを割り当て",
+    "note_DOMAIN_ATTACHED": "https://{host} を割り当てました",
+    "note_DOMAIN_FAILED": "{host} を割り当てられませんでした",
+    "followDomain": "{host} を割り当てられませんでした。多くの場合、そのホスト名に既に DNS レコードがあることが原因です。そのレコードを削除・変更してからここで更新を実行するか、Cloudflare ダッシュボードで insightflare Worker にドメインを追加してください。"
   }
 };
 const DICTIONARIES: Record<Locale,AppMessages> = {

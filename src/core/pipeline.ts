@@ -17,8 +17,11 @@ import { activeVersionId } from "./version-safety";
  */
 
 export type PipelineIntent = "install" | "update";
-export type InstallStepId = "verify" | "database" | "kv" | "migrate" | "worker" | "schedules" | "subdomain" | "analytics" | "health";
-export type UpdateStepId = "verify" | "migrate" | "stage" | "activate" | "analytics" | "health";
+export type InstallStepId = "verify" | "database" | "kv" | "migrate" | "worker" | "schedules" | "subdomain" | "domain" | "analytics" | "health";
+export type UpdateStepId = "verify" | "migrate" | "stage" | "activate" | "domain" | "analytics" | "health";
+
+/** A hostname of one of the account's zones to route to the Worker. */
+export interface CustomDomain { zoneId: string; zoneName: string; hostname: string }
 export type PipelineStepId = InstallStepId | UpdateStepId;
 export type StepStatus = "pending" | "done" | "skipped" | "warning" | "failed";
 export type PipelinePhase = "running" | "succeeded" | "failed";
@@ -51,6 +54,8 @@ export interface PipelineState {
   rolledBack?: boolean;
   /** Set once a version upload was attempted, so a retry first looks for it. */
   stageAttempted?: boolean;
+  /** https URL of the custom domain once it is attached. */
+  customUrl?: string;
 }
 
 export interface PipelineRun {
@@ -64,6 +69,8 @@ export interface PipelineRun {
   customAdminPassword?: boolean;
   /** The OAuth grant lacks API-token management, so the AE reader is left for manual setup. */
   analyticsReaderNotAuthorized?: boolean;
+  /** Optional custom domain chosen on the review step. */
+  customDomain?: CustomDomain;
   createdAt: number;
   updatedAt: number;
   phase: PipelinePhase;
@@ -72,15 +79,15 @@ export interface PipelineRun {
   failure?: { step: PipelineStepId; code: string; message: string };
 }
 
-export const INSTALL_STEPS: InstallStepId[] = ["verify", "database", "kv", "migrate", "worker", "schedules", "subdomain", "analytics", "health"];
-export const UPDATE_STEPS: UpdateStepId[] = ["verify", "migrate", "stage", "activate", "analytics", "health"];
+export const INSTALL_STEPS: InstallStepId[] = ["verify", "database", "kv", "migrate", "worker", "schedules", "subdomain", "domain", "analytics", "health"];
+export const UPDATE_STEPS: UpdateStepId[] = ["verify", "migrate", "stage", "activate", "domain", "analytics", "health"];
 export const HEALTH_ATTEMPTS = 8;
 
 export type PipelineClient = Pick<CloudflareClient,
   | "requireAccount" | "workerNames" | "settings" | "workerExists" | "analyticsEngineStatus" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1TableHasRows"
   | "createD1Database" | "kvNamespaces" | "createKvNamespace" | "uploadWorkerAssets" | "uploadNewWorkerScript"
   | "putWorkerSchedules" | "workersSubdomain" | "enableWorkerSubdomain" | "putWorkerSecret"
-  | "accountTokenPermissionGroups" | "createAccountToken" | "workerInfo" | "workerDeployments"
+  | "accountTokenPermissionGroups" | "createAccountToken" | "workerDomains" | "attachWorkerDomain" | "zones" | "workerInfo" | "workerDeployments"
   | "workerVersionDetails" | "workerVersions" | "uploadWorkerVersion" | "createWorkerDeployment">;
 
 export interface PipelineDeps {
@@ -119,6 +126,7 @@ export function createRun(input: {
   id: string; intent: PipelineIntent; accountId: string; sourceSha: string;
   artifactDigest: string; legacyAdoptionApproved: boolean; now: number; customAdminPassword?: boolean;
   analyticsReaderAuthorized?: boolean;
+  customDomain?: CustomDomain;
 }): PipelineRun {
   if (!/^[a-f0-9]{32}$/.test(input.accountId) || !/^[a-f0-9]{40}$/.test(input.sourceSha) ||
       !/^[a-f0-9]{64}$/.test(input.artifactDigest)) {
@@ -131,6 +139,7 @@ export function createRun(input: {
     legacyAdoptionApproved: input.legacyAdoptionApproved,
     ...(input.intent === "install" && input.customAdminPassword ? { customAdminPassword: true } : {}),
     ...(input.analyticsReaderAuthorized === false ? { analyticsReaderNotAuthorized: true } : {}),
+    ...(input.customDomain ? { customDomain: { ...input.customDomain } } : {}),
     createdAt: input.now, updatedAt: input.now, phase: "running",
     steps: ids.map(id => ({ id, status: "pending" })), state: {}
   };
@@ -188,7 +197,7 @@ export async function advanceRun(run: PipelineRun, deps: PipelineDeps): Promise<
   // Nothing to upload when the installation already runs this commit; configuration
   // steps (the Analytics Engine reader, then the health check) still run.
   const settled = ctx.skipRemaining
-    ? steps.map(item => item.status === "pending" && item.id !== "analytics" && item.id !== "health"
+    ? steps.map(item => item.status === "pending" && item.id !== "domain" && item.id !== "analytics" && item.id !== "health"
       ? { id: item.id, status: "skipped" as const, note: { code: "ALREADY_CURRENT" } } : item)
     : steps;
   return finish({ ...run, state, steps: settled }, deps.now());
@@ -221,6 +230,7 @@ class StepContext {
         case "worker": return this.worker();
         case "schedules": return this.schedules();
         case "subdomain": return this.subdomain();
+        case "domain": return this.domain();
         case "analytics": return this.analytics();
         case "health": return this.health(false);
       }
@@ -230,6 +240,7 @@ class StepContext {
         case "migrate": return this.migrate();
         case "stage": return this.stage();
         case "activate": return this.activate();
+        case "domain": return this.domain();
         case "analytics": return this.analytics();
         case "health": return this.health(true);
       }
@@ -337,6 +348,27 @@ class StepContext {
     await this.client.enableWorkerSubdomain(this.account, INSTALL_NAMES.worker);
     const url = `https://${INSTALL_NAMES.worker}.${subdomain}.workers.dev`;
     return { status: "done", note: { code: "URL", params: { url } }, state: { workerUrl: url } };
+  }
+
+  /**
+   * Routes the chosen hostname to the Worker. Failing here does not undo the
+   * deployment: InsightFlare already serves on workers.dev, so it is a warning.
+   */
+  private async domain(): Promise<StepResult> {
+    const target = this.run.customDomain;
+    if (!target) return { status: "skipped" };
+    const url = "https://" + target.hostname;
+    const attached = await this.client.workerDomains(this.account, INSTALL_NAMES.worker);
+    if (attached.some(item => item.hostname === target.hostname)) {
+      return { status: "done", note: { code: "DOMAIN_ATTACHED", params: { host: target.hostname } }, state: { customUrl: url } };
+    }
+    try {
+      await this.client.attachWorkerDomain(this.account, INSTALL_NAMES.worker, target.zoneId, target.hostname);
+    } catch (error) {
+      return { status: "warning", note: { code: "DOMAIN_FAILED", params: { host: target.hostname },
+        message: error instanceof Error ? error.message : undefined } };
+    }
+    return { status: "done", note: { code: "DOMAIN_ATTACHED", params: { host: target.hostname } }, state: { customUrl: url } };
   }
 
   /** Account-owned token that can only read Analytics Engine, written as a Worker secret. */
@@ -498,7 +530,7 @@ class StepContext {
   }
 
   private async health(rollbackOnFailure: boolean): Promise<StepResult> {
-    const url = this.state.workerUrl;
+    const url = this.state.workerUrl ?? this.state.customUrl;
     if (!url) return { status: "skipped", note: { code: "NO_PUBLIC_URL" } };
     if (await this.deps.checkHealth(url)) return { status: "done", note: { code: "HEALTHY", params: { url } } };
     const attempts = (this.state.healthAttempts ?? 0) + 1;

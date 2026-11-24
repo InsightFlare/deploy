@@ -56,7 +56,7 @@ async function release(migrationCount = 5): Promise<ReleaseArtifact> {
 }
 
 /** In-memory Cloudflare account for the install path. */
-function fakeAccount(options: { analyticsEngineEnabled?: boolean; subdomain?: string | null; tokenPermission?: boolean; existingDb?: "empty" | "data" | "abandoned" } = {}) {
+function fakeAccount(options: { domainConflict?: boolean; analyticsEngineEnabled?: boolean; subdomain?: string | null; tokenPermission?: boolean; existingDb?: "empty" | "data" | "abandoned" } = {}) {
   const databases: Array<{ uuid: string; name: string; applied: string[] | null; extraTables: string[]; hasUsers?: boolean }> = [];
   if (options.existingDb) {
     databases.push({ uuid: "11111111-2222-4333-8444-555555555555", name: "insightflare",
@@ -66,12 +66,19 @@ function fakeAccount(options: { analyticsEngineEnabled?: boolean; subdomain?: st
   const namespaces: Array<{ id: string; title: string }> = [];
   const workers = new Map<string, WorkerBinding[]>();
   const secrets = new Map<string, string>();
+  const domains: string[] = [];
   const calls: string[] = [];
   let uploadFailures = 0;
   const client = {
     requireAccount: vi.fn(async () => ({ id: accountId, name: "Test" })),
     workerNames: vi.fn(async () => [...workers.keys()]),
     workerExists: vi.fn(async (_a: string, name: string) => workers.has(name)),
+    workerDomains: vi.fn(async () => domains.map(hostname => ({ hostname, zoneId: "z".repeat(32), zoneName: "example.com" }))),
+    attachWorkerDomain: vi.fn(async (_a: string, _s: string, _z: string, hostname: string) => {
+      if (options.domainConflict) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare request failed (HTTP 409, code 100117).", 502, 100117);
+      domains.push(hostname);
+    }),
+    zones: vi.fn(async () => [{ id: "f".repeat(32), name: "example.com" }]),
     settings: vi.fn(async (_a: string, name: string) => workers.get(name) ?? []),
     d1Databases: vi.fn(async () => databases.map(({ uuid, name }) => ({ uuid, name }))),
     d1MigrationSnapshot: vi.fn(async (_a: string, id: string) => {
@@ -159,7 +166,7 @@ describe("one-click installation", () => {
     expect(done.phase).toBe("succeeded");
     expect(done.steps.map(step => [step.id, step.status])).toEqual([
       ["verify", "done"], ["database", "done"], ["kv", "done"], ["migrate", "done"], ["worker", "done"],
-      ["schedules", "done"], ["subdomain", "done"], ["analytics", "done"], ["health", "done"]
+      ["schedules", "done"], ["subdomain", "done"], ["domain", "skipped"], ["analytics", "done"], ["health", "done"]
     ]);
     expect(account.calls.filter(call => call.startsWith("migrate:"))).toHaveLength(5);
     expect(done.state).toMatchObject({ analyticsEngine: "enabled", workerUrl: "https://insightflare.acme.workers.dev", migrationsApplied: 5, migrationsTotal: 5 });
@@ -407,5 +414,39 @@ describe("installation deployed with Analytics Engine switched off", () => {
     const after = await advanceRun(run, deps(account.client, artifact));
     // It goes on to plan a real upload (the fake account has no version history, so planning stops there).
     expect(after.steps.some(step => step.note?.code === "ALREADY_CURRENT")).toBe(false);
+  });
+});
+
+
+describe("custom domain", () => {
+  const withDomain = (artifact: ReleaseArtifact) => createRun({ id: "run-domain", intent: "install", accountId, sourceSha,
+    artifactDigest: artifact.manifest.artifactDigest, legacyAdoptionApproved: false, now: 0,
+    customDomain: { zoneId: "f".repeat(32), zoneName: "example.com", hostname: "insight.example.com" } });
+
+  it("attaches the chosen hostname during installation", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount({ analyticsEngineEnabled: true });
+    const done = await runToEnd(withDomain(artifact), deps(account.client, artifact));
+    expect(done.phase).toBe("succeeded");
+    expect(done.steps.find(step => step.id === "domain")).toMatchObject({ status: "done", note: { code: "DOMAIN_ATTACHED" } });
+    expect(done.state.customUrl).toBe("https://insight.example.com");
+    expect(account.client.attachWorkerDomain).toHaveBeenCalledWith(accountId, "insightflare", "f".repeat(32), "insight.example.com");
+  });
+
+  it("keeps the installation when the hostname cannot be attached", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount({ analyticsEngineEnabled: true, domainConflict: true });
+    const done = await runToEnd(withDomain(artifact), deps(account.client, artifact));
+    expect(done.phase).toBe("succeeded");
+    expect(done.steps.find(step => step.id === "domain")).toMatchObject({ status: "warning", note: { code: "DOMAIN_FAILED" } });
+    expect(done.state.customUrl).toBeUndefined();
+  });
+
+  it("skips the step without a chosen domain", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount({ analyticsEngineEnabled: true });
+    const done = await runToEnd(installRun(artifact), deps(account.client, artifact));
+    expect(done.steps.find(step => step.id === "domain")?.status).toBe("skipped");
+    expect(account.client.attachWorkerDomain).not.toHaveBeenCalled();
   });
 });

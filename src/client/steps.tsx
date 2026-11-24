@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@insightflare/ui/radio-group";
 import { AutoResizer } from "@insightflare/ui/auto-resizer";
 import { AutoTransition } from "@insightflare/ui/auto-transition";
 import type { Account, AccountOverview, PipelineRun, PipelineStep, RunView, Session } from "./api";
+import { isHostname } from "../lib/hostname";
 import { ANALYTICS_ENGINE_URL, CLOUDFLARE_WORKER_URL, CONNECT_URL } from "./api";
 import { ConfirmOperation, CopyValue, Eyebrow, Notice, shortSha, type Translate } from "./ui";
 
@@ -96,6 +97,9 @@ export interface ReviewForm {
   passwordMode: "generate" | "custom"; setPasswordMode: (value: "generate" | "custom") => void;
   password: string; setPassword: (value: string) => void;
   repeat: string; setRepeat: (value: string) => void;
+  domainMode: "default" | "custom"; setDomainMode: (value: "default" | "custom") => void;
+  zoneId: string; setZoneId: (value: string) => void;
+  subdomain: string; setSubdomain: (value: string) => void;
 }
 
 export function useReviewForm(): ReviewForm {
@@ -103,7 +107,11 @@ export function useReviewForm(): ReviewForm {
   const [passwordMode, setPasswordMode] = useState<"generate" | "custom">("generate");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
-  return { adopt, setAdopt, passwordMode, setPasswordMode, password, setPassword, repeat, setRepeat };
+  const [domainMode, setDomainMode] = useState<"default" | "custom">("default");
+  const [zoneId, setZoneId] = useState("");
+  const [subdomain, setSubdomain] = useState("insight");
+  return { adopt, setAdopt, passwordMode, setPasswordMode, password, setPassword, repeat, setRepeat,
+    domainMode, setDomainMode, zoneId, setZoneId, subdomain, setSubdomain };
 }
 
 export type ReviewMode = "install" | "update" | "configure";
@@ -113,10 +121,17 @@ export function reviewDecision(overview: AccountOverview, readerMissing: boolean
   const install = overview.install;
   const update = overview.update;
   const reader = overview.analyticsReader;
-  // Up to date installations can still run an update to switch AE on or configure its reader.
-  const configureOnly = overview.upToDate && (reader === "missing" || reader === "switched-off");
-  // Only the reader is configured: nothing is uploaded.
-  const readerOnly = configureOnly && reader === "missing";
+  // Custom domain: one of the account's zones plus an optional subdomain.
+  const zone = overview.zones?.find(item => item.id === form.zoneId);
+  const sub = form.subdomain.trim().toLowerCase();
+  const hostname = zone ? (sub ? sub + "." + zone.name : zone.name) : "";
+  const domainChosen = form.domainMode === "custom";
+  const domainInvalid = domainChosen && (!zone || !isHostname(hostname));
+  const domainNew = domainChosen && !domainInvalid && !(overview.customDomains ?? []).includes(hostname);
+  // Up to date installations can still switch AE on, configure its reader or add a domain.
+  const configureOnly = overview.upToDate && (reader === "missing" || reader === "switched-off" || domainNew);
+  // Nothing is uploaded: only the reader and/or the domain are configured.
+  const readerOnly = configureOnly && reader !== "switched-off";
   const aeOff = overview.analyticsEngine === "disabled" &&
     (Boolean(install?.analyticsDatasets.length) || reader === "switched-off");
   // The run would create the reader token, but the grant cannot.
@@ -130,12 +145,14 @@ export function reviewDecision(overview: AccountOverview, readerMissing: boolean
   const mode: ReviewMode | null = install ? "install" : update ? (readerOnly ? "configure" : "update") : null;
   const available = Boolean(mode) && (!overview.upToDate || configureOnly);
   const blocked = overview.blockers.length > 0 || !overview.release || !available ||
-    (readerOnly && readerMissing) ||
+    // Reader-only configuration without the permission to create the token does nothing.
+    (readerOnly && readerMissing && !domainNew) ||
     // Switching Analytics Engine on cannot work until the account has enabled it.
     (configureOnly && reader === "switched-off" && overview.analyticsEngine === "disabled") ||
-    (needsAdoption && !form.adopt) || Boolean(passwordProblem);
+    (needsAdoption && !form.adopt) || Boolean(passwordProblem) || domainInvalid;
   return { install, update, reader, configureOnly, readerOnly, aeOff, readerAffected, custom, passwordProblem,
-    needsAdoption, mode, available, blocked, hasMigrations: Boolean(update?.pendingMigrations) };
+    needsAdoption, mode, available, blocked, hasMigrations: Boolean(update?.pendingMigrations),
+    hostname, domainChosen, domainInvalid, domainNew, readerConfigures: configureOnly && (reader === "missing" || reader === "switched-off") };
 }
 
 export function ReviewStep({ t, tMaybe, overview, accountId, readerMissing, form, onRecheck }: {
@@ -181,6 +198,7 @@ export function ReviewStep({ t, tMaybe, overview, accountId, readerMissing, form
         t("planSecrets"),
         install.analyticsDatasets.length && !d.aeOff ? t("planAnalytics") : null,
         install.analyticsDatasets.length && !d.aeOff && readerPlanned ? t("planAnalyticsReader") : null,
+        d.domainNew ? t("planDomain", { host: d.hostname }) : null,
         install.workersDevSubdomain ? t("planUrl", { url: `https://${install.workerName}.${install.workersDevSubdomain}.workers.dev` }) : null
       ]} />
       {!install.workersDevSubdomain ? <Notice tone="warning">{t("planNoWorkersDev")}</Notice> : null}
@@ -213,17 +231,21 @@ export function ReviewStep({ t, tMaybe, overview, accountId, readerMissing, form
       </div>
     </div> : null}
 
-    {update && d.available ? <div className="space-y-3">
+    {(install || update) && overview.zones && overview.zones.length ? <DomainSection t={t} overview={overview} form={form} hostname={d.hostname} invalid={d.domainInvalid} /> : null}
+
+    {update && (d.available || d.domainNew) ? <div className="space-y-3">
       <Eyebrow>{t("updatePlanTitle")}</Eyebrow>
       <PlanList items={d.configureOnly ? [
         reader === "switched-off" ? t("planEnableAnalytics") : null,
-        readerPlanned ? t("planAnalyticsReader") : null
+        d.readerConfigures && readerPlanned ? t("planAnalyticsReader") : null,
+        d.domainNew ? t("planDomain", { host: d.hostname }) : null
       ] : [
         t("updateFromTo", { from: shortSha(update.fromSha) || t("unknownVersion"), to: shortSha(overview.release?.sha) }),
         update.pendingMigrations ? t("updatePendingMigrations", { count: update.pendingMigrations }) : t("updateNoMigrations"),
         update.durableObjectMigration ? t("updateDoMigration") : null,
         reader === "switched-off" ? t("planEnableAnalytics") : null,
-        (reader === "missing" || reader === "switched-off") && readerPlanned ? t("planAnalyticsReader") : null
+        (reader === "missing" || reader === "switched-off") && readerPlanned ? t("planAnalyticsReader") : null,
+        d.domainNew ? t("planDomain", { host: d.hostname }) : null
       ]} />
       {update.destructiveMigrations ? <Notice tone="warning">{t("updateDestructive")}</Notice> : null}
       <Notice>{t(d.readerOnly ? "updateSafetyConfigure" : "updateSafety")}</Notice>
@@ -232,6 +254,43 @@ export function ReviewStep({ t, tMaybe, overview, accountId, readerMissing, form
         <span>{t("legacyAdopt")}</span>
       </label> : null}
     </div> : null}
+  </div>;
+}
+
+/** Optional custom domain: one of the account's zones plus a subdomain. */
+function DomainSection({ t, overview, form, hostname, invalid }: {
+  t: Translate; overview: AccountOverview; form: ReviewForm; hostname: string; invalid: boolean;
+}) {
+  const current = overview.customDomains ?? [];
+  const custom = form.domainMode === "custom";
+  return <div className="space-y-3 border border-border p-4">
+    <Eyebrow>{t("domainTitle")}</Eyebrow>
+    {current.length ? <p className="text-xs text-muted-foreground">{t("domainCurrent", { list: current.join(", ") })}</p> : null}
+    <RadioGroup value={form.domainMode} onValueChange={value => form.setDomainMode(value === "custom" ? "custom" : "default")} className="gap-2">
+      <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="default" />{t(overview.install ? "domainUseWorkersDev" : "domainKeep")}</label>
+      <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="custom" />{t(current.length ? "domainAddCustom" : "domainUseCustom")}</label>
+    </RadioGroup>
+    <AutoResizer duration={0.2}>
+    <AutoTransition type="fade" duration={0.16} transitionKey={form.domainMode}>
+    {custom ? <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-1.5">
+        <Label htmlFor="domain-subdomain">{t("domainSubdomain")}</Label>
+        <Input id="domain-subdomain" value={form.subdomain} placeholder="insight" onChange={event => form.setSubdomain(event.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t("domainZone")}</Label>
+        <Select value={form.zoneId || undefined} onValueChange={form.setZoneId}>
+          <SelectTrigger className="w-full"><SelectValue placeholder={t("domainZonePlaceholder")} /></SelectTrigger>
+          <SelectContent>{(overview.zones ?? []).map(zone => <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <p className={"text-xs sm:col-span-2 " + (invalid && form.zoneId ? "text-destructive" : "text-muted-foreground")}>
+        {invalid ? (form.zoneId ? t("domainInvalid") : t("domainHint"))
+          : current.includes(hostname) ? t("domainAlready", { host: hostname }) : t("domainPreview", { host: hostname })}
+      </p>
+    </div> : <span />}
+    </AutoTransition>
+    </AutoResizer>
   </div>;
 }
 
@@ -303,7 +362,8 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
 export function DoneStep({ t, run, admin, accountId }: {
   t: Translate; run: PipelineRun; admin: RunView["admin"]; accountId: string;
 }) {
-  const url = run.state.workerUrl ?? null;
+  // A custom domain is the address users will keep; workers.dev stays as a fallback.
+  const url = run.state.customUrl ?? run.state.workerUrl ?? null;
   const step = (id: string) => run.steps.find(item => item.id === id);
   const followUps: Array<{ text: string; href: string; label: string }> = [];
   if (run.state.analyticsEngine === "disabled") {
@@ -314,6 +374,10 @@ export function DoneStep({ t, run, admin, accountId }: {
   }
   if (step("subdomain")?.note?.code === "WORKERS_DEV_MISSING") {
     followUps.push({ text: t("followWorkersDev"), href: CLOUDFLARE_WORKER_URL(accountId), label: t("openCloudflare") });
+  }
+  const domainStep = step("domain");
+  if (domainStep?.note?.code === "DOMAIN_FAILED") {
+    followUps.push({ text: t("followDomain", { host: String(domainStep.note.params?.host ?? "") }), href: CLOUDFLARE_WORKER_URL(accountId), label: t("openCloudflare") });
   }
   if (step("health")?.note?.code === "HEALTH_TIMEOUT") {
     followUps.push({ text: t("followHealth"), href: url ?? CLOUDFLARE_WORKER_URL(accountId), label: t("openDashboard") });

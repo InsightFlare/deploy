@@ -22,6 +22,9 @@ export interface AccountOverview {
   /** Whether the account appears to have Analytics Engine enabled (checked before anything is deployed). */
   analyticsEngine?: "enabled" | "disabled" | "unknown";
   blockers: OverviewBlocker[];
+  /** Account zones for the custom-domain picker, and hostnames already routed to the Worker. */
+  zones?: Array<{ id: string; name: string }>;
+  customDomains?: string[];
   install?: {
     workerName: string;
     database: { name: string; action: "create" | "reuse" };
@@ -74,6 +77,10 @@ export async function accountOverview(input: {
     return overview;
   }
   overview.release = { sha: release.release.sha, artifactDigest: release.manifest.artifactDigest };
+  // Domains are optional; a failure to list them only hides the picker.
+  overview.zones = await client.zones(accountId).catch(() => []);
+  overview.customDomains = observed.kind === "not-installed" ? []
+    : (await client.workerDomains(accountId, observed.workerName).catch(() => [])).map(item => item.hostname);
 
   if (overview.intent === "install") {
     const [databases, namespaces, subdomain, analyticsEngine] = await Promise.all([
@@ -110,11 +117,9 @@ export async function accountOverview(input: {
     : bindings.some(binding => binding.name === "INSIGHTFLARE_AE_API_TOKEN") ? "configured" : "missing";
   if (observed.kind === "managed" && observed.deployedSha === release.release.sha) {
     overview.upToDate = true;
-    // Up to date, but Analytics Engine can still be switched on or its reader configured.
-    if (overview.analyticsReader === "missing" || overview.analyticsReader === "switched-off") {
-      overview.update = { fromSha: observed.deployedSha, legacyAdoptionRequired: false, pendingMigrations: 0,
-        destructiveMigrations: false, durableObjectMigration: false };
-    }
+    // Up to date, but Analytics Engine, its reader or a custom domain can still be configured.
+    overview.update = { fromSha: observed.deployedSha, legacyAdoptionRequired: false, pendingMigrations: 0,
+      destructiveMigrations: false, durableObjectMigration: false };
     return overview;
   }
   try {

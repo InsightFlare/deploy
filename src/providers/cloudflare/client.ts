@@ -1,4 +1,7 @@
 import { DeployError } from "../../types";
+import { isHostname } from "../../lib/hostname";
+
+export { isHostname };
 
 const API_ROOT = "https://api.cloudflare.com/client/v4";
 const ACCOUNT_ID = /^[a-f0-9]{32}$/i;
@@ -458,6 +461,49 @@ export class CloudflareClient {
     } catch {
       return "unknown";
     }
+  }
+
+  /** Active zones (domains) of the account, for the custom-domain picker. */
+  async zones(accountId: string): Promise<Array<{ id: string; name: string }>> {
+    if (!ACCOUNT_ID.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+    const all: Array<{ id: string; name: string }> = [];
+    for (let page = 1; page <= 10; page++) {
+      const result = await this.get<Array<{ id?: unknown; name?: unknown }>>(
+        `/zones?account.id=${accountId}&status=active&per_page=50&page=${page}`);
+      if (!Array.isArray(result)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an invalid zone list.", 502);
+      for (const zone of result) {
+        if (typeof zone?.id === "string" && /^[a-f0-9]{32}$/.test(zone.id) && typeof zone.name === "string") {
+          all.push({ id: zone.id, name: zone.name.toLowerCase() });
+        }
+      }
+      if (result.length < 50) break;
+    }
+    return all;
+  }
+
+  /** Custom domains currently routed to a Worker. */
+  async workerDomains(accountId: string, scriptName: string): Promise<Array<{ hostname: string; zoneId: string; zoneName: string }>> {
+    assertWorkerTarget(accountId, scriptName);
+    const result = await this.get<Array<{ hostname?: unknown; service?: unknown; zone_id?: unknown; zone_name?: unknown }>>(
+      `/accounts/${accountId}/workers/domains?service=${encodeURIComponent(scriptName)}`);
+    if (!Array.isArray(result)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned an invalid custom domain list.", 502);
+    return result.filter(item => item?.service === scriptName && typeof item.hostname === "string")
+      .map(item => ({ hostname: String(item.hostname).toLowerCase(), zoneId: String(item.zone_id ?? ""), zoneName: String(item.zone_name ?? "") }));
+  }
+
+  /**
+   * Routes a hostname of one of the account's zones to the Worker. Cloudflare
+   * creates the DNS record and the edge certificate; it refuses (rather than
+   * overwrites) a hostname that already has a conflicting record.
+   */
+  async attachWorkerDomain(accountId: string, scriptName: string, zoneId: string, hostname: string): Promise<void> {
+    assertWorkerTarget(accountId, scriptName);
+    if (!/^[a-f0-9]{32}$/.test(zoneId) || !isHostname(hostname)) {
+      throw new DeployError("INVALID_SOURCE", "Invalid custom domain.");
+    }
+    await this.sendJson("PUT", `/accounts/${accountId}/workers/domains`, {
+      hostname, service: scriptName, zone_id: zoneId, enabled: true
+    });
   }
 
   /** Direct lookup by name; the script list can briefly omit a Worker right after it changed. */
