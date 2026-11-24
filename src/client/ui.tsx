@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { RiAlertLine, RiCheckLine, RiFileCopyLine, RiInformationLine, RiShieldCheckLine } from "@remixicon/react";
 import { Button } from "@insightflare/ui/button";
+import { Input } from "@insightflare/ui/input";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTrigger,
   AlertDialogAction, AlertDialogCancel, AlertDialogTitle, AlertDialogDescription
@@ -81,8 +82,8 @@ export function CopyValue({ label, value, t }: { label: string; value: string; t
   const [copied, setCopied] = useState(false);
   return <div className="space-y-1.5">
     <Eyebrow>{label}</Eyebrow>
-    <div className="flex items-stretch gap-2">
-      <code className="deploy-mono flex min-w-0 flex-1 items-center border border-border bg-muted/20 px-3 py-2 text-sm">{value}</code>
+    <div className="flex items-center gap-2">
+      <Input aria-label={label} readOnly value={value} className="deploy-mono flex-1 bg-muted/20" onFocus={event => event.currentTarget.select()} />
       <Button variant="outline" onClick={() => {
         void navigator.clipboard?.writeText(value).then(() => {
           setCopied(true);
