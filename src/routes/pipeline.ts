@@ -36,7 +36,16 @@ async function authorizedClient(c: { env: Env } & Parameters<typeof userToken>[0
 
 /** Verified archive for exactly this SHA/digest (fails if nightly has moved on). */
 async function loadPinnedRelease(github: typeof fetch, sha: string, artifactDigest: string): Promise<ReleaseArtifact> {
-  const pointer = await resolvePublicDeployRelease(sha, github);
+  let pointer;
+  try {
+    pointer = await resolvePublicDeployRelease(sha, github);
+  } catch (error) {
+    // Nightly keeps only the newest build: once main moves on, the pinned one is gone for good.
+    if (error instanceof DeployError && error.code === "UNAVAILABLE" && error.status === 409) {
+      throw new DeployError("SOURCE_MOVED", "A newer official build replaced the reviewed one. Start the deployment again.", 409);
+    }
+    throw error;
+  }
   if (pointer.artifactDigest !== artifactDigest) {
     throw new DeployError("SOURCE_MOVED", "The official build for this commit changed. Start the deployment again.", 409);
   }

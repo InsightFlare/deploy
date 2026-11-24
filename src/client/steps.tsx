@@ -252,10 +252,11 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, working, error
     {error && !reconnect ? <Notice tone="error">{error}</Notice> : null}
     {run.phase === "failed" ? <Notice tone="error" title={t("runFailedTitle")} action={
       <div className="flex flex-wrap gap-2">
-        {!run.state.rolledBack ? <Button onClick={onRetry} disabled={working}><RiRefreshLine data-icon="inline-start" />{t("retry")}</Button> : null}
+        {!run.state.rolledBack && run.failure?.code !== "SOURCE_MOVED"
+          ? <Button onClick={onRetry} disabled={working}><RiRefreshLine data-icon="inline-start" />{t("retry")}</Button> : null}
         <Button variant="outline" onClick={onStartOver} disabled={working}>{t("startOver")}</Button>
       </div>}>
-      {run.state.rolledBack ? t("rolledBackDesc") : t("runFailedDesc")}
+      {run.state.rolledBack ? t("rolledBackDesc") : run.failure?.code === "SOURCE_MOVED" ? t("runSourceMovedDesc") : t("runFailedDesc")}
     </Notice> : null}
     </div>
     </AutoTransition>

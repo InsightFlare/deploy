@@ -137,6 +137,7 @@ deploy:
   note_ROLLED_BACK: "健康檢查失敗，已恢復到之前的版本"
   runFailedTitle: "部署已停止"
   runFailedDesc: "已完成的部分都會保留。必要時先處理問題，然後從這一步重試。"
+  runSourceMovedDesc: "這次部署開始後，官方發布了更新的建置。請重新開始以部署新版本，已完成的步驟（例如資料庫遷移）不會重複執行。"
   rolledBackDesc: "新版本未通過健康檢查，之前的版本已重新接管流量。已經執行的資料庫遷移會保留。"
   retry: "重試"
   startOver: "重新開始"

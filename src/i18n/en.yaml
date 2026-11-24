@@ -137,6 +137,7 @@ deploy:
   note_ROLLED_BACK: "Health check failed; the previous version was restored"
   runFailedTitle: "The deployment stopped"
   runFailedDesc: "Everything finished so far is kept. Fix the problem if needed, then retry from this step."
+  runSourceMovedDesc: "A newer official build has been published since this deployment started. Start over to deploy it; finished steps such as database migrations are not repeated."
   rolledBackDesc: "The new version did not pass its health check, so the previous version is serving traffic again. Database migrations that already ran are kept."
   retry: "Retry"
   startOver: "Start over"

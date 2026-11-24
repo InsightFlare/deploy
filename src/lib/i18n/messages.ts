@@ -140,6 +140,7 @@ export interface AppMessages {
     "note_ROLLED_BACK": string;
     "runFailedTitle": string;
     "runFailedDesc": string;
+    "runSourceMovedDesc": string;
     "rolledBackDesc": string;
     "retry": string;
     "startOver": string;
@@ -303,6 +304,7 @@ const enMessages: AppMessages = {
     "note_ROLLED_BACK": "Health check failed; the previous version was restored",
     "runFailedTitle": "The deployment stopped",
     "runFailedDesc": "Everything finished so far is kept. Fix the problem if needed, then retry from this step.",
+    "runSourceMovedDesc": "A newer official build has been published since this deployment started. Start over to deploy it; finished steps such as database migrations are not repeated.",
     "rolledBackDesc": "The new version did not pass its health check, so the previous version is serving traffic again. Database migrations that already ran are kept.",
     "retry": "Retry",
     "startOver": "Start over",
@@ -466,6 +468,7 @@ const zhMessages: AppMessages = {
     "note_ROLLED_BACK": "健康检查失败，已恢复到之前的版本",
     "runFailedTitle": "部署已停止",
     "runFailedDesc": "已完成的部分都会保留。必要时先处理问题，然后从这一步重试。",
+    "runSourceMovedDesc": "这次部署开始后，官方发布了更新的构建。请重新开始以部署新版本，已完成的步骤（例如数据库迁移）不会重复执行。",
     "rolledBackDesc": "新版本未通过健康检查，之前的版本已重新接管流量。已经执行的数据库迁移会保留。",
     "retry": "重试",
     "startOver": "重新开始",
@@ -629,6 +632,7 @@ const zh_twMessages: AppMessages = {
     "note_ROLLED_BACK": "健康檢查失敗，已恢復到之前的版本",
     "runFailedTitle": "部署已停止",
     "runFailedDesc": "已完成的部分都會保留。必要時先處理問題，然後從這一步重試。",
+    "runSourceMovedDesc": "這次部署開始後，官方發布了更新的建置。請重新開始以部署新版本，已完成的步驟（例如資料庫遷移）不會重複執行。",
     "rolledBackDesc": "新版本未通過健康檢查，之前的版本已重新接管流量。已經執行的資料庫遷移會保留。",
     "retry": "重試",
     "startOver": "重新開始",
@@ -792,6 +796,7 @@ const jaMessages: AppMessages = {
     "note_ROLLED_BACK": "ヘルスチェックに失敗したため、以前のバージョンに戻しました",
     "runFailedTitle": "デプロイが停止しました",
     "runFailedDesc": "ここまで完了した内容は保持されます。必要に応じて問題を解決し、この手順から再試行してください。",
+    "runSourceMovedDesc": "このデプロイの開始後に新しい公式ビルドが公開されました。最初からやり直すと新しいビルドをデプロイします。完了した手順（データベースマイグレーションなど）は繰り返されません。",
     "rolledBackDesc": "新バージョンがヘルスチェックに通らなかったため、以前のバージョンがトラフィックを処理しています。実行済みのデータベースマイグレーションは保持されます。",
     "retry": "再試行",
     "startOver": "最初からやり直す",
