@@ -140,7 +140,8 @@ describe("existing InsightFlare Worker versions; no maintenance DO or forced dow
       previousActiveVersionId:original,activatedVersionId:candidate,
       databaseMigrationsCurrent:true});
     expect(c.calls).toContain("d1-ledger");
-    expect(c.calls.at(-1)).toBe("activate:"+candidate);
+    // Activation is the last write; afterwards only the live migration tag is read back.
+    expect(c.calls.filter(call=>!call.startsWith("version:")).at(-1)).toBe("activate:"+candidate);
     expect(c.client.createWorkerDeployment).toHaveBeenCalledTimes(1);
     expect(c.client.uploadWorkerVersion).not.toHaveBeenCalled();
   });

@@ -100,7 +100,7 @@ describe("pure, reviewed artifact to Worker Version bridge", () => {
     expect(candidate.upload.migrations).toBeUndefined();
   });
 
-  it("accepts a never-deployed version without a migration tag only when no DO migration was uploaded", () => {
+  it("accepts a never-deployed version without a migration tag, but not a wrong tag", () => {
     const current = active();
     current.migration_tag = "v3";
     const noMigration = planStagedUpgrade(pack(), current, reviewed);
@@ -112,7 +112,12 @@ describe("pure, reviewed artifact to Worker Version bridge", () => {
     expect(() => verifyUploadedCandidate(staged(noMigration), noMigration)).not.toThrow();
     const withMigration = planStagedUpgrade(pack(), active(), reviewed);
     expect(withMigration.upload.migrations).toBeDefined();
-    expect(() => verifyUploadedCandidate(staged(withMigration), withMigration)).toThrow("could not be verified");
+    // The DO migration it carries only runs at activation, which then checks the tag.
+    expect(() => verifyUploadedCandidate(staged(withMigration), withMigration)).not.toThrow();
+    expect(() => verifyUploadedCandidate({ ...staged(withMigration), migration_tag: "v1" }, withMigration))
+      .toThrow("migration tag is v1");
+    expect(() => verifyUploadedCandidate({ ...staged(withMigration), annotations: { "workers/tag": "e".repeat(40) } }, withMigration))
+      .toThrow("source tag");
   });
 
   it.each([

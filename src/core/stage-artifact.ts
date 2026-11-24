@@ -238,15 +238,19 @@ export interface StagingResult {
 }
 
 export function verifyUploadedCandidate(candidate: WorkerVersion, proposal: StagingProposal): void {
-  if (!candidate || candidate.annotations?.["workers/tag"] !== proposal.reviewedSha ||
-      // Cloudflare reports no migration tag for a version that was never deployed;
-      // that is only acceptable when this upload carries no Durable Object migration.
-      (candidate.migration_tag === undefined
-        ? Boolean(proposal.upload.migrations)
-        : candidate.migration_tag !== proposal.expectedMigrationTag) ||
-      !Array.isArray(candidate.bindings)) {
-    throw new DeployError("UPSTREAM_UNAVAILABLE", "The staged version's SHA, migration tag or binding inventory could not be verified.", 502);
+  function refuse(what: string): never {
+    throw new DeployError("UPSTREAM_UNAVAILABLE", "The staged version could not be verified: " + what + ".", 502);
   }
+  if (!candidate) refuse("Cloudflare returned no version");
+  if (candidate.annotations?.["workers/tag"] !== proposal.reviewedSha) {
+    refuse(`its source tag is ${JSON.stringify(candidate.annotations?.["workers/tag"] ?? null)}, expected ${proposal.reviewedSha}`);
+  }
+  // Cloudflare reports no migration tag for a version that was never deployed: any
+  // Durable Object migration it carries runs at activation, which checks it afterwards.
+  if (candidate.migration_tag !== undefined && candidate.migration_tag !== proposal.expectedMigrationTag) {
+    refuse(`its Durable Object migration tag is ${candidate.migration_tag}, expected ${proposal.expectedMigrationTag}`);
+  }
+  if (!Array.isArray(candidate.bindings)) refuse("Cloudflare returned no binding inventory");
   const byName = new Map(candidate.bindings.map(binding => [binding.name, binding]));
   if (byName.size !== candidate.bindings.length) {
     throw new DeployError("UPSTREAM_UNAVAILABLE", "Cloudflare returned duplicate bindings in the staged version.", 502);

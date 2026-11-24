@@ -228,6 +228,13 @@ export async function activateStagedUpgrade(
   const deployment = await client.createWorkerDeployment(accountId, "insightflare",
     request.stagedVersionId,
     "InsightFlare Deploy | " + request.sourceSha);
+  // Durable Object migrations carried by the version run now; confirm they landed.
+  if (proposal.upload.migrations) {
+    const live = await client.workerVersionDetails(accountId, "insightflare", request.stagedVersionId);
+    if (live.migration_tag !== undefined && live.migration_tag !== proposal.expectedMigrationTag) {
+      throw new DeployError("UNAVAILABLE", `The new version is live but its Durable Object migration tag is ${live.migration_tag}, expected ${proposal.expectedMigrationTag}.`, 409);
+    }
+  }
   return {
     deploymentId: deployment.id,
     previousActiveVersionId: current,
