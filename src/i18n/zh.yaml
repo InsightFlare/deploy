@@ -201,3 +201,5 @@ deploy:
   note_DOMAIN_ATTACHED: "已绑定 https://{host}"
   note_DOMAIN_FAILED: "无法绑定 {host}"
   followDomain: "无法绑定 {host}，通常是因为这个地址已有 DNS 记录。删除或修改那条记录后，回到这里执行一次更新；也可以在 Cloudflare 控制台为 insightflare Worker 添加该域名。"
+  domainNoZones: "这个 Cloudflare 账号里还没有已激活的域名。把域名添加到这个账号后，回到这里即可绑定到 InsightFlare；在此之前会使用 workers.dev 地址。"
+  domainZonesError: "无法读取这个账号的域名（{error}）。可以重新授权，或者之后再绑定；在此之前会使用 workers.dev 地址。"

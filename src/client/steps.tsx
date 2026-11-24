@@ -231,7 +231,8 @@ export function ReviewStep({ t, tMaybe, overview, accountId, readerMissing, form
       </div>
     </div> : null}
 
-    {(install || update) && overview.zones && overview.zones.length ? <DomainSection t={t} overview={overview} form={form} hostname={d.hostname} invalid={d.domainInvalid} /> : null}
+    {(install || update) && overview.release && !overview.blockers.length
+      ? <DomainSection t={t} overview={overview} form={form} hostname={d.hostname} invalid={d.domainInvalid} /> : null}
 
     {update && (d.available || d.domainNew) ? <div className="space-y-3">
       <Eyebrow>{t("updatePlanTitle")}</Eyebrow>
@@ -263,6 +264,17 @@ function DomainSection({ t, overview, form, hostname, invalid }: {
 }) {
   const current = overview.customDomains ?? [];
   const custom = form.domainMode === "custom";
+  const zones = overview.zones ?? [];
+  if (!zones.length) {
+    // Nothing to pick from: say why instead of hiding the option.
+    return <div className="space-y-2 border border-border p-4">
+      <Eyebrow>{t("domainTitle")}</Eyebrow>
+      {current.length ? <p className="text-xs text-muted-foreground">{t("domainCurrent", { list: current.join(", ") })}</p> : null}
+      <p className="text-xs leading-5 text-muted-foreground">
+        {overview.zonesError ? t("domainZonesError", { error: overview.zonesError }) : t("domainNoZones")}
+      </p>
+    </div>;
+  }
   return <div className="space-y-3 border border-border p-4">
     <Eyebrow>{t("domainTitle")}</Eyebrow>
     {current.length ? <p className="text-xs text-muted-foreground">{t("domainCurrent", { list: current.join(", ") })}</p> : null}

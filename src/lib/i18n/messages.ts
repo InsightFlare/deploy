@@ -204,6 +204,8 @@ export interface AppMessages {
     "note_DOMAIN_ATTACHED": string;
     "note_DOMAIN_FAILED": string;
     "followDomain": string;
+    "domainNoZones": string;
+    "domainZonesError": string;
   };
 };
 const enMessages: AppMessages = {
@@ -408,7 +410,9 @@ const enMessages: AppMessages = {
     "runStep_domain": "Attach the custom domain",
     "note_DOMAIN_ATTACHED": "Available at https://{host}",
     "note_DOMAIN_FAILED": "Could not attach {host}",
-    "followDomain": "{host} could not be attached, usually because the hostname already has a DNS record. Remove or change that record, then run an update here, or add the domain to the insightflare Worker in the Cloudflare dashboard."
+    "followDomain": "{host} could not be attached, usually because the hostname already has a DNS record. Remove or change that record, then run an update here, or add the domain to the insightflare Worker in the Cloudflare dashboard.",
+    "domainNoZones": "This Cloudflare account has no active domain yet. Add a domain to the account, then come back here to route it to InsightFlare; until then the workers.dev address is used.",
+    "domainZonesError": "The domains of this account could not be read ({error}). Re-authorize, or add the domain later; until then the workers.dev address is used."
   }
 };
 const zhMessages: AppMessages = {
@@ -613,7 +617,9 @@ const zhMessages: AppMessages = {
     "runStep_domain": "绑定自定义域名",
     "note_DOMAIN_ATTACHED": "已绑定 https://{host}",
     "note_DOMAIN_FAILED": "无法绑定 {host}",
-    "followDomain": "无法绑定 {host}，通常是因为这个地址已有 DNS 记录。删除或修改那条记录后，回到这里执行一次更新；也可以在 Cloudflare 控制台为 insightflare Worker 添加该域名。"
+    "followDomain": "无法绑定 {host}，通常是因为这个地址已有 DNS 记录。删除或修改那条记录后，回到这里执行一次更新；也可以在 Cloudflare 控制台为 insightflare Worker 添加该域名。",
+    "domainNoZones": "这个 Cloudflare 账号里还没有已激活的域名。把域名添加到这个账号后，回到这里即可绑定到 InsightFlare；在此之前会使用 workers.dev 地址。",
+    "domainZonesError": "无法读取这个账号的域名（{error}）。可以重新授权，或者之后再绑定；在此之前会使用 workers.dev 地址。"
   }
 };
 const zh_twMessages: AppMessages = {
@@ -818,7 +824,9 @@ const zh_twMessages: AppMessages = {
     "runStep_domain": "綁定自訂網域",
     "note_DOMAIN_ATTACHED": "已綁定 https://{host}",
     "note_DOMAIN_FAILED": "無法綁定 {host}",
-    "followDomain": "無法綁定 {host}，通常是因為這個網址已有 DNS 記錄。刪除或修改那條記錄後，回到這裡執行一次更新；也可以在 Cloudflare 控制台為 insightflare Worker 新增該網域。"
+    "followDomain": "無法綁定 {host}，通常是因為這個網址已有 DNS 記錄。刪除或修改那條記錄後，回到這裡執行一次更新；也可以在 Cloudflare 控制台為 insightflare Worker 新增該網域。",
+    "domainNoZones": "這個 Cloudflare 帳號裡還沒有已啟用的網域。把網域新增到這個帳號後，回到這裡即可綁定到 InsightFlare；在此之前會使用 workers.dev 網址。",
+    "domainZonesError": "無法讀取這個帳號的網域（{error}）。可以重新授權，或者之後再綁定；在此之前會使用 workers.dev 網址。"
   }
 };
 const jaMessages: AppMessages = {
@@ -1023,7 +1031,9 @@ const jaMessages: AppMessages = {
     "runStep_domain": "カスタムドメインを割り当て",
     "note_DOMAIN_ATTACHED": "https://{host} を割り当てました",
     "note_DOMAIN_FAILED": "{host} を割り当てられませんでした",
-    "followDomain": "{host} を割り当てられませんでした。多くの場合、そのホスト名に既に DNS レコードがあることが原因です。そのレコードを削除・変更してからここで更新を実行するか、Cloudflare ダッシュボードで insightflare Worker にドメインを追加してください。"
+    "followDomain": "{host} を割り当てられませんでした。多くの場合、そのホスト名に既に DNS レコードがあることが原因です。そのレコードを削除・変更してからここで更新を実行するか、Cloudflare ダッシュボードで insightflare Worker にドメインを追加してください。",
+    "domainNoZones": "この Cloudflare アカウントにはまだ有効なドメインがありません。ドメインをアカウントに追加してからここで InsightFlare に割り当ててください。それまでは workers.dev のアドレスを使用します。",
+    "domainZonesError": "このアカウントのドメインを読み取れませんでした（{error}）。再認可するか、後で割り当ててください。それまでは workers.dev のアドレスを使用します。"
   }
 };
 const DICTIONARIES: Record<Locale,AppMessages> = {

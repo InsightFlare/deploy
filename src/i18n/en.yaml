@@ -201,3 +201,5 @@ deploy:
   note_DOMAIN_ATTACHED: "Available at https://{host}"
   note_DOMAIN_FAILED: "Could not attach {host}"
   followDomain: "{host} could not be attached, usually because the hostname already has a DNS record. Remove or change that record, then run an update here, or add the domain to the insightflare Worker in the Cloudflare dashboard."
+  domainNoZones: "This Cloudflare account has no active domain yet. Add a domain to the account, then come back here to route it to InsightFlare; until then the workers.dev address is used."
+  domainZonesError: "The domains of this account could not be read ({error}). Re-authorize, or add the domain later; until then the workers.dev address is used."

@@ -201,3 +201,5 @@ deploy:
   note_DOMAIN_ATTACHED: "https://{host} を割り当てました"
   note_DOMAIN_FAILED: "{host} を割り当てられませんでした"
   followDomain: "{host} を割り当てられませんでした。多くの場合、そのホスト名に既に DNS レコードがあることが原因です。そのレコードを削除・変更してからここで更新を実行するか、Cloudflare ダッシュボードで insightflare Worker にドメインを追加してください。"
+  domainNoZones: "この Cloudflare アカウントにはまだ有効なドメインがありません。ドメインをアカウントに追加してからここで InsightFlare に割り当ててください。それまでは workers.dev のアドレスを使用します。"
+  domainZonesError: "このアカウントのドメインを読み取れませんでした（{error}）。再認可するか、後で割り当ててください。それまでは workers.dev のアドレスを使用します。"

@@ -126,7 +126,8 @@ pipelineRoutes.get("/:accountId/overview", async c => {
     }
   });
   // The Analytics Engine probe is a heuristic; keep its outcome visible in Workers Logs.
-  console.log(JSON.stringify({ event: "overview", kind: overview.deployment.kind, analyticsEngine: overview.analyticsEngine ?? null, analyticsReader: overview.analyticsReader ?? null }));
+  console.log(JSON.stringify({ event: "overview", kind: overview.deployment.kind, analyticsEngine: overview.analyticsEngine ?? null, analyticsReader: overview.analyticsReader ?? null,
+    zones: overview.zones?.length ?? null, zonesError: overview.zonesError ?? null, customDomains: overview.customDomains?.length ?? null }));
   return c.json({ overview }, 200, NO_STORE);
 });
 

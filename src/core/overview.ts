@@ -24,6 +24,8 @@ export interface AccountOverview {
   blockers: OverviewBlocker[];
   /** Account zones for the custom-domain picker, and hostnames already routed to the Worker. */
   zones?: Array<{ id: string; name: string }>;
+  /** Why the zone list could not be read (the picker then explains instead of hiding). */
+  zonesError?: string;
   customDomains?: string[];
   install?: {
     workerName: string;
@@ -78,7 +80,12 @@ export async function accountOverview(input: {
   }
   overview.release = { sha: release.release.sha, artifactDigest: release.manifest.artifactDigest };
   // Domains are optional; a failure to list them only hides the picker.
-  overview.zones = await client.zones(accountId).catch(() => []);
+  try {
+    overview.zones = await client.zones(accountId);
+  } catch (error) {
+    overview.zones = [];
+    overview.zonesError = error instanceof Error ? error.message : "Unavailable";
+  }
   overview.customDomains = observed.kind === "not-installed" ? []
     : (await client.workerDomains(accountId, observed.workerName).catch(() => [])).map(item => item.hostname);
 
