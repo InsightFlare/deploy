@@ -94,6 +94,10 @@ export interface AppMessages {
     "aeStatus_missing": string;
     "aeStatus_switched_off": string;
     "aeStatus_not_bound": string;
+    "aeDisabledTitle": string;
+    "aeDisabledInstallBody": string;
+    "aeDisabledUpdateBody": string;
+    "recheck": string;
     "blockersTitle": string;
     "blocker_WORKER_CONFLICT": string;
     "blocker_NIGHTLY_PENDING": string;
@@ -272,6 +276,10 @@ const enMessages: AppMessages = {
     "aeStatus_missing": "bound, reader not configured",
     "aeStatus_switched_off": "switched off when it was deployed",
     "aeStatus_not_bound": "not bound",
+    "aeDisabledTitle": "Analytics Engine does not appear to be enabled on this account",
+    "aeDisabledInstallBody": "If you install now, InsightFlare is deployed without Analytics Engine: analytics are collected, but request observation and related views stay empty until you enable it and run an update. Enabling it first takes one click in the Cloudflare dashboard; then check again here.",
+    "aeDisabledUpdateBody": "Enable Analytics Engine in the Cloudflare dashboard first and check again here. If you are sure it is already enabled, you can update right away; the update reports whether it could be switched on.",
+    "recheck": "Check again",
     "blockersTitle": "This cannot continue yet",
     "blocker_WORKER_CONFLICT": "A Worker named insightflare already exists but is not an InsightFlare installation. Rename or remove it first.",
     "blocker_NIGHTLY_PENDING": "The newest official build is still being published. Try again in a few minutes.",
@@ -450,6 +458,10 @@ const zhMessages: AppMessages = {
     "aeStatus_missing": "已绑定，读取未配置",
     "aeStatus_switched_off": "部署时未开启",
     "aeStatus_not_bound": "未绑定",
+    "aeDisabledTitle": "这个账号似乎尚未开启 Analytics Engine",
+    "aeDisabledInstallBody": "现在安装的话，InsightFlare 会先不带 Analytics Engine 部署：照常采集数据，但请求观测等相关页面会没有数据，直到开启后再执行一次更新。建议先在 Cloudflare 控制台点一下开启，然后回到这里重新检测。",
+    "aeDisabledUpdateBody": "请先在 Cloudflare 控制台开启 Analytics Engine，再回到这里重新检测。如果确认已经开启，也可以直接更新，更新结果会说明是否成功开启。",
+    "recheck": "重新检测",
     "blockersTitle": "暂时无法继续",
     "blocker_WORKER_CONFLICT": "已经有一个名为 insightflare 的 Worker，但它不是 InsightFlare。请先重命名或删除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方构建还在发布中，请几分钟后再试。",
@@ -628,6 +640,10 @@ const zh_twMessages: AppMessages = {
     "aeStatus_missing": "已綁定，讀取未設定",
     "aeStatus_switched_off": "部署時未開啟",
     "aeStatus_not_bound": "未綁定",
+    "aeDisabledTitle": "這個帳號似乎尚未開啟 Analytics Engine",
+    "aeDisabledInstallBody": "現在安裝的話，InsightFlare 會先不帶 Analytics Engine 部署：照常收集資料，但請求觀測等相關頁面會沒有資料，直到開啟後再執行一次更新。建議先在 Cloudflare 控制台點一下開啟，然後回到這裡重新檢測。",
+    "aeDisabledUpdateBody": "請先在 Cloudflare 控制台開啟 Analytics Engine，再回到這裡重新檢測。如果確認已經開啟，也可以直接更新，更新結果會說明是否成功開啟。",
+    "recheck": "重新檢測",
     "blockersTitle": "暫時無法繼續",
     "blocker_WORKER_CONFLICT": "已經有一個名為 insightflare 的 Worker，但它不是 InsightFlare。請先重新命名或刪除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方建置還在發布中，請幾分鐘後再試。",
@@ -806,6 +822,10 @@ const jaMessages: AppMessages = {
     "aeStatus_missing": "バインド済み、読み取り未設定",
     "aeStatus_switched_off": "デプロイ時に無効化",
     "aeStatus_not_bound": "未バインド",
+    "aeDisabledTitle": "このアカウントでは Analytics Engine が有効になっていないようです",
+    "aeDisabledInstallBody": "今インストールすると Analytics Engine なしでデプロイされます。データ収集は行われますが、リクエスト観測などの画面は、有効化して更新を実行するまで空のままです。先に Cloudflare ダッシュボードで有効化してから、ここで再チェックすることをおすすめします。",
+    "aeDisabledUpdateBody": "先に Cloudflare ダッシュボードで Analytics Engine を有効化し、ここで再チェックしてください。有効化済みであれば、そのまま更新することもできます。更新結果で有効化できたかどうかがわかります。",
+    "recheck": "再チェック",
     "blockersTitle": "まだ続行できません",
     "blocker_WORKER_CONFLICT": "insightflare という名前の Worker が既にありますが、InsightFlare ではありません。先に名前を変更するか削除してください。",
     "blocker_NIGHTLY_PENDING": "最新の公式ビルドを公開中です。数分後にもう一度お試しください。",

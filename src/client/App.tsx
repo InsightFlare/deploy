@@ -303,7 +303,8 @@ export function App() {
               : step === 0 ? <ConnectStep t={t} session={session} locale={locale} readerMissing={readerMissing} onDisconnect={() => void disconnect()} />
               : step === 1 ? <AccountStep t={t} accounts={accounts} accountId={accountId} onSelect={setAccountId}
                   overview={overview} loading={overviewLoading} runView={liveRun ? runView : null} />
-              : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountName={accountName} readerMissing={readerMissing}
+              : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountId={accountId} accountName={accountName} readerMissing={readerMissing}
+                  onRecheck={() => void loadAccount(accountId)}
                   starting={working} onStart={(legacy, password) => void startRun(legacy, password)} />
               : step === 3 && run ? <DeployStep t={t} tMaybe={tMaybe} run={run} otherTab={otherTab} reconnect={reconnect}
                   working={working} error={runError}

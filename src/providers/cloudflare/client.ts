@@ -441,6 +441,25 @@ export class CloudflareClient {
     return scripts.filter((s): s is WorkerScript => Boolean(s && typeof s.id === "string"));
   }
 
+  /**
+   * Read-only hint whether the account has Analytics Engine enabled: its SQL API
+   * answers 200 when enabled and usually 403 when not. Not authoritative (Cloudflare
+   * has been seen to answer 403 on enabled accounts), so uploads still handle 10089.
+   */
+  async analyticsEngineStatus(accountId: string): Promise<"enabled" | "disabled" | "unknown"> {
+    if (!ACCOUNT_ID.test(accountId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Cloudflare Account ID.");
+    try {
+      const response = await this.http(`${API_ROOT}/accounts/${accountId}/analytics_engine/sql`, {
+        method: "POST", headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "text/plain" },
+        body: "SELECT 1", signal: AbortSignal.timeout(10000)
+      });
+      await response.body?.cancel();
+      return response.status === 200 ? "enabled" : response.status === 403 ? "disabled" : "unknown";
+    } catch {
+      return "unknown";
+    }
+  }
+
   /** Direct lookup by name; the script list can briefly omit a Worker right after it changed. */
   async workerExists(accountId: string, scriptName: string): Promise<boolean> {
     assertWorkerTarget(accountId, scriptName);

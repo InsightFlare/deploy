@@ -340,3 +340,21 @@ describe("transient read failures", () => {
     expect(mock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Analytics Engine status probe", () => {
+  it("reads the SQL API answer without writing anything", async () => {
+    const probe = async (status: number) => {
+      const mock = vi.fn(async (_url: string, init?: RequestInit) => {
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe("SELECT 1");
+        return new Response("{}", { status });
+      });
+      return new CloudflareClient("token", mock as unknown as typeof fetch).analyticsEngineStatus(accountId);
+    };
+    expect(await probe(200)).toBe("enabled");
+    expect(await probe(403)).toBe("disabled");
+    expect(await probe(500)).toBe("unknown");
+    const down = vi.fn(async () => { throw new TypeError("fetch failed"); });
+    expect(await new CloudflareClient("token", down as unknown as typeof fetch).analyticsEngineStatus(accountId)).toBe("unknown");
+  });
+});

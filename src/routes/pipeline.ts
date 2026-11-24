@@ -109,6 +109,8 @@ pipelineRoutes.get("/:accountId/overview", async c => {
       return downloadVerifiedPublicRelease(await resolveLatestPublicNightly(github), github);
     }
   });
+  // The Analytics Engine probe is a heuristic; keep its outcome visible in Workers Logs.
+  console.log(JSON.stringify({ event: "overview", kind: overview.deployment.kind, analyticsEngine: overview.analyticsEngine ?? null, analyticsReader: overview.analyticsReader ?? null }));
   return c.json({ overview }, 200, NO_STORE);
 });
 

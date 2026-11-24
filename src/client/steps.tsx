@@ -96,8 +96,9 @@ function PlanList({ items }: { items: Array<string | null | false> }) {
   </ul>;
 }
 
-export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, starting, onStart }: {
-  t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountName: string; readerMissing: boolean; starting: boolean;
+export function ReviewStep({ t, tMaybe, overview, accountId, accountName, readerMissing, starting, onStart, onRecheck }: {
+  t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountId: string; accountName: string; readerMissing: boolean; starting: boolean;
+  onRecheck: () => void;
   onStart: (legacyAdoptionApproved: boolean, adminPassword?: string) => void;
 }) {
   const [adopt, setAdopt] = useState(false);
@@ -118,6 +119,10 @@ export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, st
     Boolean(overview.install?.analyticsDatasets.length));
   const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly) ||
     (configureOnly && readerMissing && reader === "missing");
+  // The Analytics Engine probe is a hint (Cloudflare can answer 403 on enabled accounts),
+  // so it warns ahead of time but never blocks; uploads still detect the real state.
+  const aeOff = overview.analyticsEngine === "disabled" &&
+    (Boolean(overview.install?.analyticsDatasets.length) || reader === "switched-off");
   const needsAdoption = Boolean(update?.legacyAdoptionRequired);
   return <div className="space-y-6">
     {overview.source ? <div className="space-y-1.5">
@@ -138,7 +143,11 @@ export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, st
 
     {overview.upToDate ? <Notice tone="success">{t(!configureOnly ? "upToDate" : reader === "switched-off" ? "upToDateAeOff" : "upToDateReaderMissing")}</Notice> : null}
     {reader ? <p className="text-xs text-muted-foreground">{t("aeStatusLabel")} · <span className="text-foreground">{tMaybe("aeStatus_" + reader.replace("-", "_"))}</span></p> : null}
-    {readerAffected ? <ReaderScopeNotice t={t} /> : null}
+    {aeOff ? <Notice tone="warning" title={t("aeDisabledTitle")} action={<div className="flex flex-wrap gap-2">
+      <Button variant="outline" asChild><a href={ANALYTICS_ENGINE_URL(accountId)} target="_blank" rel="noreferrer"><RiExternalLinkLine data-icon="inline-start" />{t("enableAnalyticsEngine")}</a></Button>
+      <Button variant="outline" onClick={onRecheck}><RiRefreshLine data-icon="inline-start" />{t("recheck")}</Button>
+    </div>}>{t(configureOnly ? "aeDisabledUpdateBody" : "aeDisabledInstallBody")}</Notice> : null}
+    {readerAffected && !aeOff ? <ReaderScopeNotice t={t} /> : null}
 
     {install ? <div className="space-y-3">
       <Eyebrow>{t("installPlanTitle")}</Eyebrow>
@@ -153,7 +162,7 @@ export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, st
         install.workersDevSubdomain ? t("planUrl", { url: `https://${install.workerName}.${install.workersDevSubdomain}.workers.dev` }) : null
       ]} />
       {!install.workersDevSubdomain ? <Notice tone="warning">{t("planNoWorkersDev")}</Notice> : null}
-      {install.analyticsDatasets.length ? <Notice>{t("planAnalyticsNote")}</Notice> : null}
+      {install.analyticsDatasets.length && !aeOff ? <Notice>{t("planAnalyticsNote")}</Notice> : null}
       <div className="space-y-3 border border-border p-4">
         <Eyebrow>{t("adminPasswordTitle")}</Eyebrow>
         <RadioGroup value={passwordMode} onValueChange={value => setPasswordMode(value === "custom" ? "custom" : "generate")} className="gap-2">

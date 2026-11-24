@@ -77,7 +77,7 @@ export const UPDATE_STEPS: UpdateStepId[] = ["verify", "migrate", "stage", "acti
 export const HEALTH_ATTEMPTS = 8;
 
 export type PipelineClient = Pick<CloudflareClient,
-  | "requireAccount" | "workerNames" | "settings" | "workerExists" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1TableHasRows"
+  | "requireAccount" | "workerNames" | "settings" | "workerExists" | "analyticsEngineStatus" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1TableHasRows"
   | "createD1Database" | "kvNamespaces" | "createKvNamespace" | "uploadWorkerAssets" | "uploadNewWorkerScript"
   | "putWorkerSchedules" | "workersSubdomain" | "enableWorkerSubdomain" | "putWorkerSecret"
   | "accountTokenPermissionGroups" | "createAccountToken" | "workerInfo" | "workerDeployments"

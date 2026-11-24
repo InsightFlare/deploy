@@ -19,6 +19,8 @@ export interface AccountOverview {
   upToDate: boolean;
   /** Existing installations: whether Deploy can (or already did) set up the Analytics Engine reader. */
   analyticsReader?: "configured" | "missing" | "switched-off" | "not-bound";
+  /** Whether the account appears to have Analytics Engine enabled (checked before anything is deployed). */
+  analyticsEngine?: "enabled" | "disabled" | "unknown";
   blockers: OverviewBlocker[];
   install?: {
     workerName: string;
@@ -74,9 +76,11 @@ export async function accountOverview(input: {
   overview.release = { sha: release.release.sha, artifactDigest: release.manifest.artifactDigest };
 
   if (overview.intent === "install") {
-    const [databases, namespaces, subdomain] = await Promise.all([
-      client.d1Databases(accountId), client.kvNamespaces(accountId), client.workersSubdomain(accountId)
+    const [databases, namespaces, subdomain, analyticsEngine] = await Promise.all([
+      client.d1Databases(accountId), client.kvNamespaces(accountId), client.workersSubdomain(accountId),
+      client.analyticsEngineStatus(accountId)
     ]);
+    overview.analyticsEngine = analyticsEngine;
     const database = databases.find(db => db.name === INSTALL_NAMES.database);
     if (database) {
       if (!(await installDatabaseReusable(client, accountId, database.uuid, release))) {
@@ -100,6 +104,7 @@ export async function accountOverview(input: {
   }
 
   const bindings = await client.settings(accountId, observed.workerName);
+  if (analyticsEngineSwitchedOff(bindings)) overview.analyticsEngine = await client.analyticsEngineStatus(accountId);
   overview.analyticsReader = analyticsEngineSwitchedOff(bindings) ? "switched-off"
     : !bindings.some(binding => binding.type === "analytics_engine") ? "not-bound"
     : bindings.some(binding => binding.name === "INSIGHTFLARE_AE_API_TOKEN") ? "configured" : "missing";
