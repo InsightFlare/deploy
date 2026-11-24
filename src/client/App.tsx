@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RiCloudLine, RiServerLine, RiFileList3Line, RiRocketLine, RiFlagLine,
   RiShieldCheckLine, RiArrowLeftLine, RiArrowRightLine, RiGlobalLine, RiMoonLine, RiSunLine,
-  RiComputerLine, RiArrowDownSLine, RiCheckLine, RiLoader4Line
+  RiComputerLine, RiArrowDownSLine, RiCheckLine, RiLoader4Line, RiLogoutBoxRLine, RiRefreshLine
 } from "@remixicon/react";
 import { Button } from "@insightflare/ui/button";
 import { Badge } from "@insightflare/ui/badge";
@@ -14,11 +14,11 @@ import {
 import { SUPPORTED_LOCALES } from "../lib/i18n/config";
 import { nativeLocaleName } from "../lib/i18n/native-locale-names";
 import { useTheme } from "./theme-provider";
-import { api, ApiError, ANALYTICS_READER_SCOPES, type Account, type AccountOverview, type RunView, type Session } from "./api";
-import { Notice, errorText, useI18n } from "./ui";
+import { api, ApiError, ANALYTICS_READER_SCOPES, CONNECT_URL, type Account, type AccountOverview, type RunView, type Session } from "./api";
+import { ConfirmOperation, Notice, errorText, useI18n } from "./ui";
 import { AutoResizer } from "@insightflare/ui/auto-resizer";
 import { AutoTransition } from "@insightflare/ui/auto-transition";
-import { AccountStep, ConnectStep, DeployStep, DoneStep, ReviewStep } from "./steps";
+import { AccountStep, ConnectStep, DeployStep, DoneStep, ReviewStep, reviewDecision, useReviewForm } from "./steps";
 
 const STEP_COUNT = 5;
 const ACCOUNT_KEY = "ifd:wizard:account";
@@ -47,6 +47,7 @@ export function App() {
   const [reconnect, setReconnect] = useState(false);
   const [working, setWorking] = useState(false);
   const [finishedHere, setFinishedHere] = useState(false);
+  const reviewForm = useReviewForm();
   // Cloudflare does not pre-select API token management on the consent page.
   const readerMissing = session.connected && session.scopes !== null &&
     !ANALYTICS_READER_SCOPES.every(scope => session.scopes!.includes(scope));
@@ -207,6 +208,7 @@ export function App() {
   };
   // With a run in progress the account step continues straight to it.
   const nextStep = step === 1 && liveRun ? (liveRun.phase === "succeeded" ? 4 : 3) : step + 1;
+  const review = overview ? reviewDecision(overview, readerMissing, reviewForm) : null;
   const canContinue = step < 2 && completed[step] && reachable(nextStep);
   const finished = completed.filter(Boolean).length;
   const percent = Math.round((finished / STEP_COUNT) * 100);
@@ -300,33 +302,60 @@ export function App() {
             </AutoTransition>
 
             {!sessionLoaded ? <p className="flex items-center gap-2 text-xs text-muted-foreground"><RiLoader4Line className="size-4 animate-spin" />{t("loading")}</p>
-              : step === 0 ? <ConnectStep t={t} session={session} locale={locale} readerMissing={readerMissing} onDisconnect={() => void disconnect()} />
+              : step === 0 ? <ConnectStep t={t} session={session} locale={locale} readerMissing={readerMissing} />
               : step === 1 ? <AccountStep t={t} accounts={accounts} accountId={accountId} onSelect={setAccountId}
                   overview={overview} loading={overviewLoading} runView={liveRun ? runView : null} />
-              : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountId={accountId} accountName={accountName} readerMissing={readerMissing}
-                  onRecheck={() => void loadAccount(accountId)}
-                  starting={working} onStart={(legacy, password) => void startRun(legacy, password)} />
-              : step === 3 && run ? <DeployStep t={t} tMaybe={tMaybe} run={run} otherTab={otherTab} reconnect={reconnect}
-                  working={working} error={runError}
-                  onRetry={() => void act(() => api.retry(accountId, run.id))}
-                  onStartOver={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(2); void loadAccount(accountId); })} />
-              : step === 4 && run ? <DoneStep t={t} run={run} admin={runView?.admin ?? null} accountId={accountId}
-                  savingPassword={working}
-                  onPasswordSaved={() => void act(() => api.passwordSaved(accountId, run.id))}
-                  onFinish={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(1); void loadAccount(accountId); })} />
+              : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountId={accountId}
+                  readerMissing={readerMissing} form={reviewForm} onRecheck={() => void loadAccount(accountId)} />
+              : step === 3 && run ? <DeployStep t={t} tMaybe={tMaybe} run={run} otherTab={otherTab} reconnect={reconnect} error={runError} />
+              : step === 4 && run ? <DoneStep t={t} run={run} admin={runView?.admin ?? null} accountId={accountId} />
               : null}
             </AutoTransition>
           </CardContent>
 
-          {/* The run drives itself once it has started; navigation only matters before that. */}
-          {step < 3 ? <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 px-4 py-4 sm:px-6">
-            <Button variant="outline" onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>
-              <RiArrowLeftLine data-icon="inline-start" />{t("back")}
-            </Button>
-            {step < 2 ? <Button onClick={() => setStep(nextStep)} disabled={!canContinue}>
-              {t("next")}<RiArrowRightLine data-icon="inline-end" />
-            </Button> : null}
-          </CardFooter> : null}
+          {/* Every step's primary action sits where "Continue" is; secondary ones go left. */}
+          <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center gap-2">
+              {step === 0 && session.connected ? <Button variant="outline" onClick={() => void disconnect()}>
+                <RiLogoutBoxRLine data-icon="inline-start" />{t("disconnect")}</Button> : null}
+              {step === 1 || step === 2 ? <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={working}>
+                <RiArrowLeftLine data-icon="inline-start" />{t("back")}</Button> : null}
+              {step === 3 && run?.phase === "failed" ? <Button variant="outline" disabled={working}
+                onClick={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(2); void loadAccount(accountId); })}>
+                {t("startOver")}</Button> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {step === 0 && !session.connected ? <Button asChild={session.oauthConfigured} disabled={!session.oauthConfigured}>
+                {session.oauthConfigured
+                  ? <a href={CONNECT_URL}><RiCloudLine data-icon="inline-start" />{t("connectButton")}</a>
+                  : <span><RiCloudLine data-icon="inline-start" />{t("connectButton")}</span>}
+              </Button> : null}
+              {(step === 0 && session.connected) || step === 1 ? <Button onClick={() => setStep(nextStep)} disabled={!canContinue}>
+                {t("next")}<RiArrowRightLine data-icon="inline-end" /></Button> : null}
+              {step === 2 && review?.available ? <ConfirmOperation
+                title={t(review.mode === "install" ? "confirmInstallTitle" : review.mode === "configure" ? "confirmConfigureTitle" : "confirmUpdateTitle")}
+                description={review.mode === "install" ? t("confirmInstallDesc", { account: accountName })
+                  : review.mode === "configure" ? t("confirmConfigureDesc")
+                  : t(review.hasMigrations ? "confirmUpdateDesc" : "confirmUpdateNoMigrationDesc")}
+                confirmText={t("confirm")} cancelText={t("cancel")}
+                onConfirm={() => void startRun(reviewForm.adopt, review.install && review.custom ? reviewForm.password : undefined)}>
+                <Button disabled={review.blocked || working}>
+                  {working ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiArrowRightLine data-icon="inline-start" />}
+                  {t(review.mode === "install" ? "installButton" : review.mode === "configure" ? "configureButton" : "updateButton")}
+                </Button>
+              </ConfirmOperation> : null}
+              {step === 3 && run?.phase === "running" ? <Button disabled>
+                <RiLoader4Line data-icon="inline-start" className="animate-spin" />{t("statusRunning")}</Button> : null}
+              {step === 3 && run?.phase === "failed" && !run.state.rolledBack && run.failure?.code !== "SOURCE_MOVED"
+                ? <Button onClick={() => void act(() => api.retry(accountId, run.id))} disabled={working}>
+                  <RiRefreshLine data-icon="inline-start" />{t("retry")}</Button> : null}
+              {step === 4 && run && runView?.admin?.password ? <Button onClick={() => void act(() => api.passwordSaved(accountId, run.id))} disabled={working}>
+                <RiCheckLine data-icon="inline-start" />{t("passwordSaved")}</Button> : null}
+              {step === 4 && run && !runView?.admin?.password ? <Button disabled={working}
+                onClick={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(1); void loadAccount(accountId); })}>
+                {t("finish")}<RiArrowRightLine data-icon="inline-end" /></Button> : null}
+            </div>
+          </CardFooter>
           </AutoResizer>
         </Card>
         <p className="mt-4 text-center text-[11px] text-muted-foreground">{t("tagline")}</p>

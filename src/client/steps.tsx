@@ -29,8 +29,8 @@ function ReaderScopeNotice({ t }: { t: Translate }) {
   </Notice>;
 }
 
-export function ConnectStep({ t, session, locale, readerMissing, onDisconnect }: {
-  t: Translate; session: Session; locale: string; readerMissing: boolean; onDisconnect: () => void;
+export function ConnectStep({ t, session, locale, readerMissing }: {
+  t: Translate; session: Session; locale: string; readerMissing: boolean;
 }) {
   const expires = session.expiresAt
     ? new Date(session.expiresAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : "";
@@ -38,13 +38,7 @@ export function ConnectStep({ t, session, locale, readerMissing, onDisconnect }:
     <Notice tone="success" title={t("dataPromise")}>{session.connected ? t("connectedDesc", { time: expires }) : t("connectDesc")}</Notice>
     <Notice title={t("permissionsTitle")}>{t("permissionsBody")}</Notice>
     {readerMissing ? <ReaderScopeNotice t={t} /> : null}
-    <div className="flex flex-wrap items-center gap-3">
-      {session.connected
-        ? <Button variant="outline" onClick={onDisconnect}><RiLogoutBoxRLine data-icon="inline-start" />{t("disconnect")}</Button>
-        : session.oauthConfigured
-          ? <Button asChild><a href={CONNECT_URL}><RiCloudLine data-icon="inline-start" />{t("connectButton")}</a></Button>
-          : <Notice tone="warning">{t("oauthMissing")}</Notice>}
-    </div>
+    {!session.connected && !session.oauthConfigured ? <Notice tone="warning">{t("oauthMissing")}</Notice> : null}
   </div>;
 }
 
@@ -96,34 +90,61 @@ function PlanList({ items }: { items: Array<string | null | false> }) {
   </ul>;
 }
 
-export function ReviewStep({ t, tMaybe, overview, accountId, accountName, readerMissing, starting, onStart, onRecheck }: {
-  t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountId: string; accountName: string; readerMissing: boolean; starting: boolean;
-  onRecheck: () => void;
-  onStart: (legacyAdoptionApproved: boolean, adminPassword?: string) => void;
-}) {
+/** Review form state, owned by the shell so the footer can start the run. */
+export interface ReviewForm {
+  adopt: boolean; setAdopt: (value: boolean) => void;
+  passwordMode: "generate" | "custom"; setPasswordMode: (value: "generate" | "custom") => void;
+  password: string; setPassword: (value: string) => void;
+  repeat: string; setRepeat: (value: string) => void;
+}
+
+export function useReviewForm(): ReviewForm {
   const [adopt, setAdopt] = useState(false);
   const [passwordMode, setPasswordMode] = useState<"generate" | "custom">("generate");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
-  const custom = passwordMode === "custom";
-  const passwordProblem = !custom ? null
-    : password.length < 8 || password.length > 128 ? "adminPasswordTooShort" as const
-    : password !== repeat ? "adminPasswordMismatch" as const : null;
+  return { adopt, setAdopt, passwordMode, setPasswordMode, password, setPassword, repeat, setRepeat };
+}
+
+export type ReviewMode = "install" | "update" | "configure";
+
+/** What the review step will do, shared by the page and the footer button. */
+export function reviewDecision(overview: AccountOverview, readerMissing: boolean, form: ReviewForm) {
   const install = overview.install;
   const update = overview.update;
-  // Up to date installations can still run an update just to configure the AE reader.
   const reader = overview.analyticsReader;
+  // Up to date installations can still run an update to switch AE on or configure its reader.
   const configureOnly = overview.upToDate && (reader === "missing" || reader === "switched-off");
-  // The run would set up the AE reader, but the grant cannot create the token.
-  const readerAffected = readerMissing && (configureOnly || reader === "missing" || reader === "switched-off" ||
-    Boolean(overview.install?.analyticsDatasets.length));
-  const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly) ||
-    (configureOnly && readerMissing && reader === "missing") ||
-    // Switching Analytics Engine on cannot work until the account has enabled it.
-    (configureOnly && reader === "switched-off" && overview.analyticsEngine === "disabled");
+  // Only the reader is configured: nothing is uploaded.
+  const readerOnly = configureOnly && reader === "missing";
   const aeOff = overview.analyticsEngine === "disabled" &&
-    (Boolean(overview.install?.analyticsDatasets.length) || reader === "switched-off");
+    (Boolean(install?.analyticsDatasets.length) || reader === "switched-off");
+  // The run would create the reader token, but the grant cannot.
+  const readerAffected = readerMissing && !aeOff &&
+    (configureOnly || reader === "missing" || reader === "switched-off" || Boolean(install?.analyticsDatasets.length));
+  const custom = form.passwordMode === "custom";
+  const passwordProblem = !install || !custom ? null
+    : form.password.length < 8 || form.password.length > 128 ? "adminPasswordTooShort" as const
+    : form.password !== form.repeat ? "adminPasswordMismatch" as const : null;
   const needsAdoption = Boolean(update?.legacyAdoptionRequired);
+  const mode: ReviewMode | null = install ? "install" : update ? (readerOnly ? "configure" : "update") : null;
+  const available = Boolean(mode) && (!overview.upToDate || configureOnly);
+  const blocked = overview.blockers.length > 0 || !overview.release || !available ||
+    (readerOnly && readerMissing) ||
+    // Switching Analytics Engine on cannot work until the account has enabled it.
+    (configureOnly && reader === "switched-off" && overview.analyticsEngine === "disabled") ||
+    (needsAdoption && !form.adopt) || Boolean(passwordProblem);
+  return { install, update, reader, configureOnly, readerOnly, aeOff, readerAffected, custom, passwordProblem,
+    needsAdoption, mode, available, blocked, hasMigrations: Boolean(update?.pendingMigrations) };
+}
+
+export function ReviewStep({ t, tMaybe, overview, accountId, readerMissing, form, onRecheck }: {
+  t: Translate; tMaybe: TMaybe; overview: AccountOverview; accountId: string; readerMissing: boolean;
+  form: ReviewForm; onRecheck: () => void;
+}) {
+  const d = reviewDecision(overview, readerMissing, form);
+  const { install, update, reader } = d;
+  const readerPlanned = !readerMissing;
   return <div className="space-y-6">
     {overview.source ? <div className="space-y-1.5">
       <Eyebrow>{t("sourceCommit")}</Eyebrow>
@@ -141,13 +162,13 @@ export function ReviewStep({ t, tMaybe, overview, accountId, accountName, reader
         <li key={blocker.code}>{tMaybe("blocker_" + blocker.code) ?? blocker.message}</li>)}</ul>
     </Notice> : null}
 
-    {overview.upToDate ? <Notice tone="success">{t(!configureOnly ? "upToDate" : reader === "switched-off" ? "upToDateAeOff" : "upToDateReaderMissing")}</Notice> : null}
+    {overview.upToDate ? <Notice tone="success">{t(!d.configureOnly ? "upToDate" : reader === "switched-off" ? "upToDateAeOff" : "upToDateReaderMissing")}</Notice> : null}
     {reader ? <p className="text-xs text-muted-foreground">{t("aeStatusLabel")} · <span className="text-foreground">{tMaybe("aeStatus_" + reader.replace("-", "_"))}</span></p> : null}
-    {aeOff ? <Notice tone="warning" title={t("aeDisabledTitle")} action={<div className="flex flex-wrap gap-2">
+    {d.aeOff ? <Notice tone="warning" title={t("aeDisabledTitle")} action={<div className="flex flex-wrap gap-2">
       <Button variant="outline" asChild><a href={ANALYTICS_ENGINE_URL(accountId)} target="_blank" rel="noreferrer"><RiExternalLinkLine data-icon="inline-start" />{t("enableAnalyticsEngine")}</a></Button>
       <Button variant="outline" onClick={onRecheck}><RiRefreshLine data-icon="inline-start" />{t("recheck")}</Button>
-    </div>}>{t(configureOnly ? "aeDisabledUpdateBody" : "aeDisabledInstallBody")}</Notice> : null}
-    {readerAffected && !aeOff ? <ReaderScopeNotice t={t} /> : null}
+    </div>}>{t(install ? "aeDisabledInstallBody" : "aeDisabledUpdateBody")}</Notice> : null}
+    {d.readerAffected ? <ReaderScopeNotice t={t} /> : null}
 
     {install ? <div className="space-y-3">
       <Eyebrow>{t("installPlanTitle")}</Eyebrow>
@@ -158,32 +179,32 @@ export function ReviewStep({ t, tMaybe, overview, accountId, accountName, reader
         t("planMigrations", { count: install.migrations }),
         install.crons.length ? t("planCrons", { list: install.crons.join(", ") }) : null,
         t("planSecrets"),
-        install.analyticsDatasets.length && !aeOff ? t("planAnalytics") : null,
+        install.analyticsDatasets.length && !d.aeOff ? t("planAnalytics") : null,
+        install.analyticsDatasets.length && !d.aeOff && readerPlanned ? t("planAnalyticsReader") : null,
         install.workersDevSubdomain ? t("planUrl", { url: `https://${install.workerName}.${install.workersDevSubdomain}.workers.dev` }) : null
       ]} />
       {!install.workersDevSubdomain ? <Notice tone="warning">{t("planNoWorkersDev")}</Notice> : null}
-      {install.analyticsDatasets.length && overview.analyticsEngine === "enabled" ? <Notice>{t("planAnalyticsNote")}</Notice> : null}
       <div className="space-y-3 border border-border p-4">
         <Eyebrow>{t("adminPasswordTitle")}</Eyebrow>
-        <RadioGroup value={passwordMode} onValueChange={value => setPasswordMode(value === "custom" ? "custom" : "generate")} className="gap-2">
+        <RadioGroup value={form.passwordMode} onValueChange={value => form.setPasswordMode(value === "custom" ? "custom" : "generate")} className="gap-2">
           <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="generate" />{t("adminPasswordGenerate")}</label>
           <label className="flex items-center gap-2 text-xs"><RadioGroupItem value="custom" />{t("adminPasswordCustom")}</label>
         </RadioGroup>
         <AutoResizer duration={0.2}>
-        <AutoTransition type="fade" duration={0.16} transitionKey={passwordMode}>
-        {custom ? <div className="grid gap-3 sm:grid-cols-2">
+        <AutoTransition type="fade" duration={0.16} transitionKey={form.passwordMode}>
+        {d.custom ? <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="admin-password">{t("adminPasswordLabel")}</Label>
-            <Input id="admin-password" type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} />
+            <Input id="admin-password" type="password" autoComplete="new-password" value={form.password} onChange={event => form.setPassword(event.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="admin-password-repeat">{t("adminPasswordRepeat")}</Label>
-            <Input id="admin-password-repeat" type="password" autoComplete="new-password" value={repeat} onChange={event => setRepeat(event.target.value)} />
+            <Input id="admin-password-repeat" type="password" autoComplete="new-password" value={form.repeat} onChange={event => form.setRepeat(event.target.value)} />
           </div>
           <AutoTransition className="sm:col-span-2" type="fade" duration={0.14}
-            transitionKey={passwordProblem && (password || repeat) ? passwordProblem : "hint"}>
-            <p className={"text-xs " + (passwordProblem && (password || repeat) ? "text-destructive" : "text-muted-foreground")}>
-              {passwordProblem && (password || repeat) ? t(passwordProblem) : t("adminPasswordHint")}
+            transitionKey={d.passwordProblem && (form.password || form.repeat) ? d.passwordProblem : "hint"}>
+            <p className={"text-xs " + (d.passwordProblem && (form.password || form.repeat) ? "text-destructive" : "text-muted-foreground")}>
+              {d.passwordProblem && (form.password || form.repeat) ? t(d.passwordProblem) : t("adminPasswordHint")}
             </p>
           </AutoTransition>
         </div> : <span />}
@@ -192,35 +213,25 @@ export function ReviewStep({ t, tMaybe, overview, accountId, accountName, reader
       </div>
     </div> : null}
 
-    {update ? <div className="space-y-3">
+    {update && d.available ? <div className="space-y-3">
       <Eyebrow>{t("updatePlanTitle")}</Eyebrow>
-      <PlanList items={configureOnly ? [reader === "switched-off" ? t("planEnableAnalytics") : null, t("planAnalyticsReader")] : [
+      <PlanList items={d.configureOnly ? [
+        reader === "switched-off" ? t("planEnableAnalytics") : null,
+        readerPlanned ? t("planAnalyticsReader") : null
+      ] : [
         t("updateFromTo", { from: shortSha(update.fromSha) || t("unknownVersion"), to: shortSha(overview.release?.sha) }),
         update.pendingMigrations ? t("updatePendingMigrations", { count: update.pendingMigrations }) : t("updateNoMigrations"),
         update.durableObjectMigration ? t("updateDoMigration") : null,
         reader === "switched-off" ? t("planEnableAnalytics") : null,
-        reader === "missing" || reader === "switched-off" ? t("planAnalyticsReader") : null
+        (reader === "missing" || reader === "switched-off") && readerPlanned ? t("planAnalyticsReader") : null
       ]} />
       {update.destructiveMigrations ? <Notice tone="warning">{t("updateDestructive")}</Notice> : null}
-      <Notice>{t("updateSafety")}</Notice>
-      {needsAdoption ? <label className="flex items-start gap-3 border border-border p-4 text-xs leading-5">
-        <Checkbox checked={adopt} onCheckedChange={value => setAdopt(value === true)} className="mt-0.5" />
+      <Notice>{t(d.readerOnly ? "updateSafetyConfigure" : "updateSafety")}</Notice>
+      {d.needsAdoption ? <label className="flex items-start gap-3 border border-border p-4 text-xs leading-5">
+        <Checkbox checked={form.adopt} onCheckedChange={value => form.setAdopt(value === true)} className="mt-0.5" />
         <span>{t("legacyAdopt")}</span>
       </label> : null}
     </div> : null}
-
-    {(install || update) && (!overview.upToDate || configureOnly) ? <>
-      <Separator />
-      <ConfirmOperation
-        title={t(install ? "confirmInstallTitle" : "confirmUpdateTitle")}
-        description={install ? t("confirmInstallDesc", { account: accountName }) : t("confirmUpdateDesc")}
-        confirmText={t("confirm")} cancelText={t("cancel")} onConfirm={() => onStart(adopt, install && custom ? password : undefined)}>
-        <Button disabled={blocked || starting || (needsAdoption && !adopt) || Boolean(install && passwordProblem)}>
-          {starting ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiArrowRightLine data-icon="inline-start" />}
-          {t(install ? "installButton" : "updateButton")}
-        </Button>
-      </ConfirmOperation>
-    </> : null}
   </div>;
 }
 
@@ -242,9 +253,9 @@ function noteText(tMaybe: TMaybe, step: PipelineStep): string | null {
   return tMaybe("note_" + step.note.code, step.note.params) ?? null;
 }
 
-export function DeployStep({ t, tMaybe, run, otherTab, reconnect, working, error, onRetry, onStartOver }: {
-  t: Translate; tMaybe: TMaybe; run: PipelineRun; otherTab: boolean; reconnect: boolean; working: boolean;
-  error: string; onRetry: () => void; onStartOver: () => void;
+export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
+  t: Translate; tMaybe: TMaybe; run: PipelineRun; otherTab: boolean; reconnect: boolean;
+  error: string;
 }) {
   const activeIndex = run.phase === "running" ? run.steps.findIndex(step => step.status === "pending") : -1;
   const STATUS = { pending: "statusPending", done: "statusDone", skipped: "statusSkipped", warning: "statusWarning", failed: "statusFailed" } as const;
@@ -279,12 +290,7 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, working, error
     {otherTab ? <Notice>{t("otherTab")}</Notice> : null}
     {reconnect ? <Notice tone="warning" action={<Button asChild><a href={CONNECT_URL}>{t("connectButton")}</a></Button>}>{t("reconnectNeeded")}</Notice> : null}
     {error && !reconnect ? <Notice tone="error">{error}</Notice> : null}
-    {run.phase === "failed" ? <Notice tone="error" title={t("runFailedTitle")} action={
-      <div className="flex flex-wrap gap-2">
-        {!run.state.rolledBack && run.failure?.code !== "SOURCE_MOVED"
-          ? <Button onClick={onRetry} disabled={working}><RiRefreshLine data-icon="inline-start" />{t("retry")}</Button> : null}
-        <Button variant="outline" onClick={onStartOver} disabled={working}>{t("startOver")}</Button>
-      </div>}>
+    {run.phase === "failed" ? <Notice tone="error" title={t("runFailedTitle")}>
       {run.state.rolledBack ? t("rolledBackDesc") : run.failure?.code === "SOURCE_MOVED" ? t("runSourceMovedDesc") : t("runFailedDesc")}
     </Notice> : null}
     </div>
@@ -294,9 +300,8 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, working, error
 
 /* --------------------------------- Done -------------------------------- */
 
-export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordSaved, onFinish }: {
-  t: Translate; run: PipelineRun; admin: RunView["admin"]; accountId: string; savingPassword: boolean;
-  onPasswordSaved: () => void; onFinish: () => void;
+export function DoneStep({ t, run, admin, accountId }: {
+  t: Translate; run: PipelineRun; admin: RunView["admin"]; accountId: string;
 }) {
   const url = run.state.workerUrl ?? null;
   const step = (id: string) => run.steps.find(item => item.id === id);
@@ -332,9 +337,6 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
       {admin?.password ? <>
         <CopyValue label={t("username")} value={admin.username} t={t} />
         <CopyValue label={t("password")} value={admin.password} t={t} />
-        <Button variant="outline" onClick={onPasswordSaved} disabled={savingPassword}>
-          <RiCheckLine data-icon="inline-start" />{t("passwordSaved")}
-        </Button>
       </> : null}
     </div> : <span />}
     </AutoTransition>
@@ -347,7 +349,5 @@ export function DoneStep({ t, run, admin, accountId, savingPassword, onPasswordS
       </Notice>)}
     </div> : null}
 
-    <Separator />
-    <Button variant="outline" onClick={onFinish} disabled={Boolean(admin?.password)}>{t("finish")}</Button>
   </div>;
 }
