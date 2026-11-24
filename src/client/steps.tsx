@@ -118,9 +118,9 @@ export function ReviewStep({ t, tMaybe, overview, accountId, accountName, reader
   const readerAffected = readerMissing && (configureOnly || reader === "missing" || reader === "switched-off" ||
     Boolean(overview.install?.analyticsDatasets.length));
   const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly) ||
-    (configureOnly && readerMissing && reader === "missing");
-  // The Analytics Engine probe is a hint (Cloudflare can answer 403 on enabled accounts),
-  // so it warns ahead of time but never blocks; uploads still detect the real state.
+    (configureOnly && readerMissing && reader === "missing") ||
+    // Switching Analytics Engine on cannot work until the account has enabled it.
+    (configureOnly && reader === "switched-off" && overview.analyticsEngine === "disabled");
   const aeOff = overview.analyticsEngine === "disabled" &&
     (Boolean(overview.install?.analyticsDatasets.length) || reader === "switched-off");
   const needsAdoption = Boolean(update?.legacyAdoptionRequired);
@@ -158,11 +158,11 @@ export function ReviewStep({ t, tMaybe, overview, accountId, accountName, reader
         t("planMigrations", { count: install.migrations }),
         install.crons.length ? t("planCrons", { list: install.crons.join(", ") }) : null,
         t("planSecrets"),
-        install.analyticsDatasets.length ? t("planAnalytics") : null,
+        install.analyticsDatasets.length && !aeOff ? t("planAnalytics") : null,
         install.workersDevSubdomain ? t("planUrl", { url: `https://${install.workerName}.${install.workersDevSubdomain}.workers.dev` }) : null
       ]} />
       {!install.workersDevSubdomain ? <Notice tone="warning">{t("planNoWorkersDev")}</Notice> : null}
-      {install.analyticsDatasets.length && !aeOff ? <Notice>{t("planAnalyticsNote")}</Notice> : null}
+      {install.analyticsDatasets.length && overview.analyticsEngine === "enabled" ? <Notice>{t("planAnalyticsNote")}</Notice> : null}
       <div className="space-y-3 border border-border p-4">
         <Eyebrow>{t("adminPasswordTitle")}</Eyebrow>
         <RadioGroup value={passwordMode} onValueChange={value => setPasswordMode(value === "custom" ? "custom" : "generate")} className="gap-2">
