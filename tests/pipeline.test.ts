@@ -392,3 +392,20 @@ describe("authorization without API token management", () => {
     expect(account.client.createAccountToken).not.toHaveBeenCalled();
   });
 });
+
+describe("installation deployed with Analytics Engine switched off", () => {
+  it("does not short-circuit an update to the same commit, so the bindings can be added", async () => {
+    const artifact = await release(1);
+    const account = fakeAccount();
+    account.workers.set("insightflare", [
+      { name: "DB", type: "d1" }, { name: "SITE_SETTINGS_KV", type: "kv_namespace" },
+      { name: "INGEST_DO", type: "durable_object_namespace", class_name: "IngestDurableObject" },
+      { name: "INSIGHTFLARE_DEPLOYMENT_SHA", type: "plain_text", text: sourceSha },
+      { name: "INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED", type: "plain_text", text: "1" }
+    ]);
+    const run = createRun({ id: "run-off", intent: "update", accountId, sourceSha, artifactDigest: artifact.manifest.artifactDigest, legacyAdoptionApproved: false, now: 0 });
+    const after = await advanceRun(run, deps(account.client, artifact));
+    // It goes on to plan a real upload (the fake account has no version history, so planning stops there).
+    expect(after.steps.some(step => step.note?.code === "ALREADY_CURRENT")).toBe(false);
+  });
+});

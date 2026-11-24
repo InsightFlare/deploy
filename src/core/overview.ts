@@ -6,6 +6,7 @@ import { planD1Migrations } from "./d1-migrations";
 import { INSTALL_NAMES } from "./install-plan";
 import { previewVersionUpgrade } from "./upgrade-versions";
 import { installDatabaseReusable, type PipelineClient } from "./pipeline";
+import { analyticsEngineSwitchedOff } from "./stage-artifact";
 
 export interface OverviewBlocker { code: string; message: string }
 
@@ -17,7 +18,7 @@ export interface AccountOverview {
   intent: "install" | "update" | null;
   upToDate: boolean;
   /** Existing installations: whether Deploy can (or already did) set up the Analytics Engine reader. */
-  analyticsReader?: "configured" | "missing" | "not-bound";
+  analyticsReader?: "configured" | "missing" | "switched-off" | "not-bound";
   blockers: OverviewBlocker[];
   install?: {
     workerName: string;
@@ -99,12 +100,13 @@ export async function accountOverview(input: {
   }
 
   const bindings = await client.settings(accountId, observed.workerName);
-  overview.analyticsReader = !bindings.some(binding => binding.type === "analytics_engine") ? "not-bound"
+  overview.analyticsReader = analyticsEngineSwitchedOff(bindings) ? "switched-off"
+    : !bindings.some(binding => binding.type === "analytics_engine") ? "not-bound"
     : bindings.some(binding => binding.name === "INSIGHTFLARE_AE_API_TOKEN") ? "configured" : "missing";
   if (observed.kind === "managed" && observed.deployedSha === release.release.sha) {
     overview.upToDate = true;
-    // Up to date, but the reader can still be configured by running an update.
-    if (overview.analyticsReader === "missing") {
+    // Up to date, but Analytics Engine can still be switched on or its reader configured.
+    if (overview.analyticsReader === "missing" || overview.analyticsReader === "switched-off") {
       overview.update = { fromSha: observed.deployedSha, legacyAdoptionRequired: false, pendingMigrations: 0,
         destructiveMigrations: false, durableObjectMigration: false };
     }

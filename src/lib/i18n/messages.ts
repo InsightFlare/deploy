@@ -87,6 +87,13 @@ export interface AppMessages {
     "readerScopeMissingBody": string;
     "reauthorize": string;
     "note_AE_READER_NOT_AUTHORIZED": string;
+    "upToDateAeOff": string;
+    "planEnableAnalytics": string;
+    "aeStatusLabel": string;
+    "aeStatus_configured": string;
+    "aeStatus_missing": string;
+    "aeStatus_switched_off": string;
+    "aeStatus_not_bound": string;
     "blockersTitle": string;
     "blocker_WORKER_CONFLICT": string;
     "blocker_NIGHTLY_PENDING": string;
@@ -258,6 +265,13 @@ const enMessages: AppMessages = {
     "readerScopeMissingBody": "Cloudflare leaves \"API Tokens\" unticked on the consent page, so Deploy cannot create the read-only Analytics Engine token. You can re-authorize and tick it, or continue without it: InsightFlare still collects analytics, but request observation and other views that read Analytics Engine stay empty until you add a token under Settings → Analytics Engine.",
     "reauthorize": "Re-authorize",
     "note_AE_READER_NOT_AUTHORIZED": "Skipped: the authorization does not include API token management",
+    "upToDateAeOff": "This installation already runs the latest official build, but it was deployed without Analytics Engine. Run an update to switch it on if your account has enabled Analytics Engine.",
+    "planEnableAnalytics": "Switch Analytics Engine on (if the account has enabled it)",
+    "aeStatusLabel": "Analytics Engine",
+    "aeStatus_configured": "bound, reader configured",
+    "aeStatus_missing": "bound, reader not configured",
+    "aeStatus_switched_off": "switched off when it was deployed",
+    "aeStatus_not_bound": "not bound",
     "blockersTitle": "This cannot continue yet",
     "blocker_WORKER_CONFLICT": "A Worker named insightflare already exists but is not an InsightFlare installation. Rename or remove it first.",
     "blocker_NIGHTLY_PENDING": "The newest official build is still being published. Try again in a few minutes.",
@@ -429,6 +443,13 @@ const zhMessages: AppMessages = {
     "readerScopeMissingBody": "Cloudflare 授权页默认不勾选“API 令牌”权限，所以无法自动创建 Analytics Engine 只读 token。你可以重新授权并勾选它，也可以直接继续：InsightFlare 照常采集数据，但请求观测等需要读取 Analytics Engine 的页面会没有数据，直到你在“设置 → 分析引擎”中手动填写 token。",
     "reauthorize": "重新授权",
     "note_AE_READER_NOT_AUTHORIZED": "已跳过：本次授权不包含 API 令牌管理权限",
+    "upToDateAeOff": "这个实例已经是最新的官方构建，但部署时没有开启 Analytics Engine。如果账号已经开启 Analytics Engine，执行一次更新即可开启。",
+    "planEnableAnalytics": "开启 Analytics Engine（账号已开启时）",
+    "aeStatusLabel": "Analytics Engine",
+    "aeStatus_configured": "已绑定，读取已配置",
+    "aeStatus_missing": "已绑定，读取未配置",
+    "aeStatus_switched_off": "部署时未开启",
+    "aeStatus_not_bound": "未绑定",
     "blockersTitle": "暂时无法继续",
     "blocker_WORKER_CONFLICT": "已经有一个名为 insightflare 的 Worker，但它不是 InsightFlare。请先重命名或删除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方构建还在发布中，请几分钟后再试。",
@@ -600,6 +621,13 @@ const zh_twMessages: AppMessages = {
     "readerScopeMissingBody": "Cloudflare 授權頁預設不勾選「API 權杖」權限，所以無法自動建立 Analytics Engine 唯讀 token。你可以重新授權並勾選它，也可以直接繼續：InsightFlare 照常收集資料，但請求觀測等需要讀取 Analytics Engine 的頁面會沒有資料，直到你在「設定 → 分析引擎」中手動填寫 token。",
     "reauthorize": "重新授權",
     "note_AE_READER_NOT_AUTHORIZED": "已略過：本次授權不包含 API 權杖管理權限",
+    "upToDateAeOff": "這個實例已經是最新的官方建置，但部署時沒有開啟 Analytics Engine。如果帳號已經開啟 Analytics Engine，執行一次更新即可開啟。",
+    "planEnableAnalytics": "開啟 Analytics Engine（帳號已開啟時）",
+    "aeStatusLabel": "Analytics Engine",
+    "aeStatus_configured": "已綁定，讀取已設定",
+    "aeStatus_missing": "已綁定，讀取未設定",
+    "aeStatus_switched_off": "部署時未開啟",
+    "aeStatus_not_bound": "未綁定",
     "blockersTitle": "暫時無法繼續",
     "blocker_WORKER_CONFLICT": "已經有一個名為 insightflare 的 Worker，但它不是 InsightFlare。請先重新命名或刪除它。",
     "blocker_NIGHTLY_PENDING": "最新的官方建置還在發布中，請幾分鐘後再試。",
@@ -771,6 +799,13 @@ const jaMessages: AppMessages = {
     "readerScopeMissingBody": "Cloudflare の同意画面では「API トークン」がデフォルトで未選択のため、Analytics Engine の読み取り専用トークンを自動作成できません。再認可してチェックを入れるか、このまま続行できます。続行した場合もデータ収集は行われますが、リクエスト観測など Analytics Engine を読み取る画面は、「設定 → Analytics Engine」でトークンを追加するまで空のままです。",
     "reauthorize": "再認可する",
     "note_AE_READER_NOT_AUTHORIZED": "スキップ：この認可には API トークン管理が含まれていません",
+    "upToDateAeOff": "このインスタンスは最新の公式ビルドですが、Analytics Engine なしでデプロイされています。アカウントで Analytics Engine を有効にしている場合は、更新を実行すると有効になります。",
+    "planEnableAnalytics": "Analytics Engine を有効化（アカウントで有効な場合）",
+    "aeStatusLabel": "Analytics Engine",
+    "aeStatus_configured": "バインド済み、読み取り設定済み",
+    "aeStatus_missing": "バインド済み、読み取り未設定",
+    "aeStatus_switched_off": "デプロイ時に無効化",
+    "aeStatus_not_bound": "未バインド",
     "blockersTitle": "まだ続行できません",
     "blocker_WORKER_CONFLICT": "insightflare という名前の Worker が既にありますが、InsightFlare ではありません。先に名前を変更するか削除してください。",
     "blocker_NIGHTLY_PENDING": "最新の公式ビルドを公開中です。数分後にもう一度お試しください。",

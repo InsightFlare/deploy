@@ -111,12 +111,13 @@ export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, st
   const install = overview.install;
   const update = overview.update;
   // Up to date installations can still run an update just to configure the AE reader.
-  const configureOnly = overview.upToDate && overview.analyticsReader === "missing";
+  const reader = overview.analyticsReader;
+  const configureOnly = overview.upToDate && (reader === "missing" || reader === "switched-off");
   // The run would set up the AE reader, but the grant cannot create the token.
-  const readerAffected = readerMissing && (configureOnly || overview.analyticsReader === "missing" ||
+  const readerAffected = readerMissing && (configureOnly || reader === "missing" || reader === "switched-off" ||
     Boolean(overview.install?.analyticsDatasets.length));
   const blocked = overview.blockers.length > 0 || !overview.release || (overview.upToDate && !configureOnly) ||
-    (configureOnly && readerMissing);
+    (configureOnly && readerMissing && reader === "missing");
   const needsAdoption = Boolean(update?.legacyAdoptionRequired);
   return <div className="space-y-6">
     {overview.source ? <div className="space-y-1.5">
@@ -135,7 +136,8 @@ export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, st
         <li key={blocker.code}>{tMaybe("blocker_" + blocker.code) ?? blocker.message}</li>)}</ul>
     </Notice> : null}
 
-    {overview.upToDate ? <Notice tone="success">{t(configureOnly ? "upToDateReaderMissing" : "upToDate")}</Notice> : null}
+    {overview.upToDate ? <Notice tone="success">{t(!configureOnly ? "upToDate" : reader === "switched-off" ? "upToDateAeOff" : "upToDateReaderMissing")}</Notice> : null}
+    {reader ? <p className="text-xs text-muted-foreground">{t("aeStatusLabel")} · <span className="text-foreground">{tMaybe("aeStatus_" + reader.replace("-", "_"))}</span></p> : null}
     {readerAffected ? <ReaderScopeNotice t={t} /> : null}
 
     {install ? <div className="space-y-3">
@@ -183,11 +185,12 @@ export function ReviewStep({ t, tMaybe, overview, accountName, readerMissing, st
 
     {update ? <div className="space-y-3">
       <Eyebrow>{t("updatePlanTitle")}</Eyebrow>
-      <PlanList items={configureOnly ? [t("planAnalyticsReader")] : [
+      <PlanList items={configureOnly ? [reader === "switched-off" ? t("planEnableAnalytics") : null, t("planAnalyticsReader")] : [
         t("updateFromTo", { from: shortSha(update.fromSha) || t("unknownVersion"), to: shortSha(overview.release?.sha) }),
         update.pendingMigrations ? t("updatePendingMigrations", { count: update.pendingMigrations }) : t("updateNoMigrations"),
         update.durableObjectMigration ? t("updateDoMigration") : null,
-        overview.analyticsReader === "missing" ? t("planAnalyticsReader") : null
+        reader === "switched-off" ? t("planEnableAnalytics") : null,
+        reader === "missing" || reader === "switched-off" ? t("planAnalyticsReader") : null
       ]} />
       {update.destructiveMigrations ? <Notice tone="warning">{t("updateDestructive")}</Notice> : null}
       <Notice>{t("updateSafety")}</Notice>

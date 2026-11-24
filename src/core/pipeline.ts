@@ -7,6 +7,7 @@ import { applyManualD1Migrations } from "./d1-manual";
 import { INSTALL_NAMES, planFreshInstall, generateRootSecret } from "./install-plan";
 import { previewVersionUpgrade, activateStagedUpgrade, findVerifiedStagedCandidates } from "./upgrade-versions";
 import { stageReviewedUpgrade, analyticsEngineSwitchedOff } from "./stage-artifact";
+import { activeVersionId } from "./version-safety";
 
 /**
  * One-click install / update, executed by the control plane one step at a
@@ -390,7 +391,10 @@ class StepContext {
     if (observed.kind === "legacy-candidate" && !this.run.legacyAdoptionApproved) {
       throw new DeployError("UNAVAILABLE", "Adopting the existing InsightFlare Worker must be approved first.", 409);
     }
-    if (observed.kind === "managed" && observed.deployedSha === this.run.sourceSha) {
+    // Same commit: nothing to upload, unless Analytics Engine was left off at install time
+    // and a new version with its bindings should be tried.
+    if (observed.kind === "managed" && observed.deployedSha === this.run.sourceSha &&
+        !analyticsEngineSwitchedOff(await this.client.settings(this.account, INSTALL_NAMES.worker))) {
       this.skipRemaining = true;
       return { status: "done", note: { code: "ALREADY_CURRENT" }, state: { previousSha: observed.deployedSha, workerUrl: await this.publicUrl() } };
     }
@@ -447,8 +451,10 @@ class StepContext {
     const release = await this.loadRelease();
     const observed = await discoverDeployment(this.client, this.account);
     // An earlier attempt may have activated it and lost the response.
-    if (observed.kind === "managed" && observed.deployedSha === this.run.sourceSha) {
-      return { status: "done", state: { workerUrl: await this.publicUrl() } };
+    // An earlier attempt may have activated it and lost the response: the staged version is live.
+    const live = activeVersionId((await this.client.workerDeployments(this.account, INSTALL_NAMES.worker))[0] ?? null);
+    if (this.state.stagedVersionId && live === this.state.stagedVersionId) {
+      return { status: "done", state: { activatedVersionId: live, workerUrl: await this.publicUrl() } };
     }
     const result = await activateStagedUpgrade(this.client, this.account, observed, release, {
       sourceSha: this.run.sourceSha, artifactDigest: this.run.artifactDigest,
