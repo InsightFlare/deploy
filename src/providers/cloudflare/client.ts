@@ -208,13 +208,13 @@ export class CloudflareClient {
       signal: AbortSignal.timeout(timeoutMs)
     });
     const payload = await result.json().catch(() => null) as CfPayload<T> | null;
-    if (!result.ok || payload?.success !== true || !payload || payload.result === undefined) {
+    if (!result.ok || payload?.success !== true || !payload || (payload.result === undefined && init.method !== "DELETE")) {
       const reason = payload?.errors?.[0]?.code;
       // Do not print upstream response bodies (they can contain confidential request data).
       throw new DeployError("UPSTREAM_UNAVAILABLE", `Cloudflare request failed (HTTP ${result.status}${reason ? `, code ${reason}` : ""}).`, result.status === 401 || result.status === 403 ? 403 : 502,
         typeof reason === "number" ? reason : undefined);
     }
-    return payload.result;
+    return payload.result as T;
   }
 
   private async sendJson<T>(method: "PUT" | "POST", path: string, body: unknown, timeoutMs = 30000): Promise<T> {
@@ -441,6 +441,43 @@ export class CloudflareClient {
     if (!Array.isArray(result) || !result.length || result.some(row => row?.success !== true)) {
       throw new DeployError("UPSTREAM_UNAVAILABLE", "D1 initialization returned an incomplete result.", 502);
     }
+  }
+
+  async deleteInsightFlareWorker(accountId: string, workerId: string): Promise<void> {
+    if (!ACCOUNT_ID.test(accountId) || !/^[a-f0-9]{32}$/i.test(workerId)) throw new DeployError("INVALID_ACCOUNT", "Invalid Worker identity.");
+    await this.requireAccount(accountId);
+    await this.request(`/accounts/${accountId}/workers/workers/${workerId}?force=false`, { method: "DELETE" });
+  }
+
+  async uninstallDomains(accountId: string): Promise<Array<{ id: string; hostname: string }>> {
+    await this.requireAccount(accountId);
+    const result = await this.get<Array<{ id?: unknown; hostname?: unknown; service?: unknown }>>(
+      `/accounts/${accountId}/workers/domains?service=insightflare`);
+    if (!Array.isArray(result)) throw new DeployError("UPSTREAM_UNAVAILABLE", "Invalid Worker domain inventory.");
+    const own = result.filter(item => item?.service === "insightflare");
+    if (own.some(item => typeof item.id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(item.id) ||
+      typeof item.hostname !== "string" || !isHostname(item.hostname))) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "Invalid Worker domain identity.");
+    }
+    return own.map(item => ({ id: String(item.id), hostname: String(item.hostname).toLowerCase() })).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  async detachUninstallDomain(accountId: string, domainId: string): Promise<void> {
+    if (!ACCOUNT_ID.test(accountId) || !/^[A-Za-z0-9_-]{1,128}$/.test(domainId)) throw new DeployError("INVALID_ACCOUNT", "Invalid domain identity.");
+    await this.requireAccount(accountId);
+    await this.request(`/accounts/${accountId}/workers/domains/${encodeURIComponent(domainId)}`, { method: "DELETE" });
+  }
+
+  async deleteD1Database(accountId: string, databaseId: string): Promise<void> {
+    if (!ACCOUNT_ID.test(accountId) || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId)) throw new DeployError("INVALID_ACCOUNT", "Invalid database identity.");
+    await this.requireAccount(accountId);
+    await this.request(`/accounts/${accountId}/d1/database/${databaseId}`, { method: "DELETE" });
+  }
+
+  async deleteKvNamespace(accountId: string, namespaceId: string): Promise<void> {
+    if (!ACCOUNT_ID.test(accountId) || !/^[a-f0-9]{32}$/i.test(namespaceId)) throw new DeployError("INVALID_ACCOUNT", "Invalid KV identity.");
+    await this.requireAccount(accountId);
+    await this.request(`/accounts/${accountId}/storage/kv/namespaces/${namespaceId}`, { method: "DELETE" });
   }
 
   async accounts(): Promise<CloudflareAccount[]> {

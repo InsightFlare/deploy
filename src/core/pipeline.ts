@@ -7,6 +7,7 @@ import { applyManualD1Migrations } from "./d1-manual";
 import { INSTALL_NAMES, planFreshInstall, generateRootSecret } from "./install-plan";
 import { previewVersionUpgrade, activateStagedUpgrade, findVerifiedStagedCandidates } from "./upgrade-versions";
 import { stageReviewedUpgrade, analyticsEngineSwitchedOff } from "./stage-artifact";
+import { executeUninstallStep, type UninstallPlan, type UninstallClient } from "./uninstall";
 import { activeVersionId } from "./version-safety";
 
 /**
@@ -16,13 +17,14 @@ import { activeVersionId } from "./version-safety";
  * resumed from the same place. Nothing here talks to the browser directly.
  */
 
-export type PipelineIntent = "install" | "update";
+export type PipelineIntent = "install" | "update" | "uninstall";
 export type InstallStepId = "verify" | "database" | "kv" | "migrate" | "worker" | "schedules" | "subdomain" | "domain" | "analytics" | "health";
 export type UpdateStepId = "verify" | "migrate" | "stage" | "activate" | "domain" | "analytics" | "health";
 
 /** A hostname of one of the account's zones to route to the Worker. */
 export interface CustomDomain { zoneId: string; zoneName: string; hostname: string }
-export type PipelineStepId = InstallStepId | UpdateStepId;
+export type UninstallStepId = "removeWorker" | "removeDomains" | "removeDatabase" | "removeKv" | "verifyRemoval";
+export type PipelineStepId = InstallStepId | UpdateStepId | UninstallStepId;
 export type StepStatus = "pending" | "done" | "skipped" | "warning" | "failed";
 export type PipelinePhase = "running" | "succeeded" | "failed";
 
@@ -63,6 +65,7 @@ export interface PipelineRun {
   intent: PipelineIntent;
   /** The installation already runs this release; the run only changes its configuration. */
   configurationOnly?: true;
+  uninstallPlan?: UninstallPlan;
   accountId: string;
   sourceSha: string;
   artifactDigest: string;
@@ -84,13 +87,14 @@ export interface PipelineRun {
 export const INSTALL_STEPS: InstallStepId[] = ["verify", "database", "kv", "migrate", "worker", "schedules", "subdomain", "domain", "analytics", "health"];
 export const UPDATE_STEPS: UpdateStepId[] = ["verify", "migrate", "stage", "activate", "domain", "analytics", "health"];
 export const HEALTH_ATTEMPTS = 8;
+export const UNINSTALL_STEPS: UninstallStepId[] = ["removeWorker", "removeDomains", "removeDatabase", "removeKv", "verifyRemoval"];
 
 export type PipelineClient = Pick<CloudflareClient,
   | "requireAccount" | "workerNames" | "settings" | "workerExists" | "analyticsEngineStatus" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1InitializeDatabase" | "d1TableHasRows"
   | "createD1Database" | "kvNamespaces" | "createKvNamespace" | "uploadWorkerAssets" | "uploadNewWorkerScript"
   | "putWorkerSchedules" | "workersSubdomain" | "enableWorkerSubdomain" | "putWorkerSecret"
   | "accountTokenPermissionGroups" | "createAccountToken" | "workerDomains" | "attachWorkerDomain" | "zones" | "workerInfo" | "workerDeployments"
-  | "workerVersionDetails" | "workerVersions" | "uploadWorkerVersion" | "createWorkerDeployment">;
+  | "workerVersionDetails" | "workerVersions" | "uploadWorkerVersion" | "createWorkerDeployment"> & Partial<UninstallClient>;
 
 export interface PipelineDeps {
   client: PipelineClient;
@@ -124,8 +128,15 @@ export async function installDatabaseReusable(
   return snapshot.tableNames.includes("users") && !(await client.d1TableHasRows(accountId, databaseId, "users"));
 }
 
+export function createUninstallRun(id: string, plan: UninstallPlan, now: number): PipelineRun {
+  return { id, intent: "uninstall", accountId: plan.accountId, sourceSha: plan.deployedSha ?? "",
+    artifactDigest: plan.digest, legacyAdoptionApproved: false, uninstallPlan: plan,
+    createdAt: now, updatedAt: now, phase: "running",
+    steps: UNINSTALL_STEPS.map(id => ({ id, status: "pending" })), state: {} };
+}
+
 export function createRun(input: {
-  id: string; intent: PipelineIntent; accountId: string; sourceSha: string;
+  id: string; intent: "install" | "update"; accountId: string; sourceSha: string;
   artifactDigest: string; legacyAdoptionApproved: boolean; now: number; customAdminPassword?: boolean;
   analyticsReaderAuthorized?: boolean;
   configurationOnly?: boolean;
@@ -225,6 +236,15 @@ class StepContext {
   }
 
   async execute(id: PipelineStepId): Promise<StepResult> {
+    if (this.run.intent === "uninstall") {
+      if (!this.run.uninstallPlan || !this.client.deleteInsightFlareWorker || !this.client.deleteD1Database || !this.client.deleteKvNamespace || !this.client.uninstallDomains || !this.client.detachUninstallDomain)
+        throw new DeployError("INVALID_SOURCE", "Missing uninstall plan or transport.");
+      const plan = this.run.uninstallPlan;
+      await executeUninstallStep(this.client as UninstallClient, plan, id);
+      const absent = (id === "removeWorker" && !plan.workerId) || (id === "removeDomains" && !plan.domains.length) ||
+        (id === "removeDatabase" && !plan.database) || (id === "removeKv" && !plan.kv);
+      return { status: absent ? "skipped" : "done" };
+    }
     if (this.run.intent === "install") {
       switch (id) {
         case "verify": return this.verifyInstall();

@@ -51,6 +51,27 @@ describe("Cloudflare read-only API client", () => {
   });
 });
 
+describe("Cloudflare uninstall API", () => {
+  it("uses exact resource IDs without force and accepts successful DELETE responses without result", async () => {
+    const calls: string[] = [];
+    const mock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/accounts?")) return Response.json({ success: true, result: [{ id: accountId, name: "Test" }] });
+      expect(init?.method).toBe("DELETE");
+      calls.push(url);
+      return Response.json({ success: true, errors: [], messages: [] });
+    });
+    const client = new CloudflareClient("short-lived-token", mock as typeof fetch);
+    await client.deleteInsightFlareWorker(accountId, workerId);
+    await client.deleteD1Database(accountId, versionId);
+    await client.deleteKvNamespace(accountId, workerId);
+    await client.detachUninstallDomain(accountId, "reviewed-domain");
+    expect(calls.map(url => url.split("/accounts/" + accountId)[1])).toEqual([
+      "/workers/workers/" + workerId + "?force=false", "/d1/database/" + versionId,
+      "/storage/kv/namespaces/" + workerId, "/workers/domains/reviewed-domain"
+    ]);
+  });
+});
+
 describe("Cloudflare Beta Worker Versions API", () => {
   it("uses the immutable Worker ID for version history and reads active deployment separately", async () => {
     const calls: string[] = [];

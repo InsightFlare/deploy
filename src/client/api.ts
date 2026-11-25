@@ -1,3 +1,4 @@
+import type { UninstallPlan } from "../core/uninstall";
 import type { PipelineRun } from "../core/pipeline";
 import type { AccountOverview } from "../core/overview";
 
@@ -60,6 +61,8 @@ export const api = {
   startRun: (id: string, body: { intent: "install" | "update"; sourceSha: string; artifactDigest: string; legacyAdoptionApproved: boolean; adminPassword?: string;
     customDomain?: { zoneId: string; subdomain: string } }) =>
     post<RunView>(account(id) + "/run", body),
+  uninstallPreview: (id: string) => request<{ plan: UninstallPlan }>(account(id) + "/uninstall"),
+  startUninstall: (id: string, digest: string, confirmation: string) => post<RunView>(account(id) + "/uninstall", { digest, confirmation }),
   advance: (id: string, runId: string) => post<AdvanceView>(account(id) + "/run/advance", { runId }),
   retry: (id: string, runId: string) => post<RunView>(account(id) + "/run/retry", { runId }),
   dismiss: (id: string, runId: string) => post<RunView>(account(id) + "/run/dismiss", { runId }),

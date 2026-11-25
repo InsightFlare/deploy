@@ -37,7 +37,7 @@ export function track(name: string, properties?: EventProperties) {
   else send(name, properties);
 }
 
-export function trackPlan(mode: "install" | "update" | "configure", accountId: string, artifactDigest: string) {
+export function trackPlan(mode: "install" | "update" | "configure" | "uninstall", accountId: string, artifactDigest: string) {
   if (window.location.hostname !== "deploy.insightflare.net") return;
   const key = `ifd:analytics:plan:${mode}:${accountId}:${artifactDigest}`;
   const now = Date.now();

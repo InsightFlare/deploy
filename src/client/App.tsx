@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RiCloudLine, RiServerLine, RiFileList3Line, RiRocketLine, RiFlagLine,
   RiShieldCheckLine, RiArrowLeftLine, RiArrowRightLine, RiGlobalLine, RiMoonLine, RiSunLine,
-  RiComputerLine, RiArrowDownSLine, RiCheckLine, RiLoader4Line, RiLogoutBoxRLine, RiRefreshLine
+  RiComputerLine, RiArrowDownSLine, RiCheckLine, RiLoader4Line, RiLogoutBoxRLine, RiRefreshLine, RiDeleteBinLine
 } from "@remixicon/react";
+import type { UninstallPlan } from "../core/uninstall";
 import { Button } from "@insightflare/ui/button";
 import { Badge } from "@insightflare/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@insightflare/ui/card";
@@ -19,7 +20,7 @@ import { track, trackOAuthCallback, trackOAuthStart, trackPlan } from "./analyti
 import { ConfirmOperation, Notice, errorText, useI18n } from "./ui";
 import { AutoResizer } from "@insightflare/ui/auto-resizer";
 import { AutoTransition } from "@insightflare/ui/auto-transition";
-import { AccountStep, ConnectStep, DeployStep, DoneStep, ReviewStep, reviewDecision, useReviewForm } from "./steps";
+import { AccountStep, ConnectStep, DeployStep, DoneStep, ReviewStep, UninstallReview, reviewDecision, useReviewForm } from "./steps";
 
 const STEP_COUNT = 5;
 const ACCOUNT_KEY = "ifd:wizard:account";
@@ -54,6 +55,9 @@ export function App() {
   const [working, setWorking] = useState(false);
   const [finishedHere, setFinishedHere] = useState(false);
   const reviewForm = useReviewForm();
+  const [uninstallPlan, setUninstallPlan] = useState<UninstallPlan | null>(null);
+  const [uninstallConfirm, setUninstallConfirm] = useState("");
+  const [uninstallLoading, setUninstallLoading] = useState(false);
   // Cloudflare does not pre-select API token management on the consent page.
   const readerMissing = session.connected && session.scopes !== null &&
     !ANALYTICS_READER_SCOPES.every(scope => session.scopes!.includes(scope));
@@ -89,13 +93,22 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.connected]);
 
+  const accountLoad = useRef(0);
+  const selectedAccount = useRef(accountId);
+  selectedAccount.current = accountId;
   const loadAccount = useCallback(async (id: string) => {
+    const generation = ++accountLoad.current;
+    setUninstallPlan(null); setUninstallConfirm("");
     setOverview(null); setRunView(null); setRunError(""); setOtherTab(false); setFinishedHere(false);
     if (!id) return;
     setOverviewLoading(true);
     try {
-      const [over, current] = await Promise.all([api.overview(id), api.run(id)]);
-      setOverview(over.overview);
+      const [over, saved] = await Promise.allSettled([api.overview(id), api.run(id)]);
+      if (generation !== accountLoad.current || selectedAccount.current !== id) return;
+      if (over.status === "fulfilled") setOverview(over.value.overview);
+      else setMessage(errorText(t, over.reason));
+      if (saved.status === "rejected") throw saved.reason;
+      const current = saved.value;
       setRunView(current);
       // A run in progress, failed, or with a password still to be saved takes over the
       // wizard; a finished one is history and the user starts from the review again.
@@ -105,7 +118,7 @@ export function App() {
     } catch (error) {
       setMessage(errorText(t, error));
     } finally {
-      setOverviewLoading(false);
+      if (generation === accountLoad.current) setOverviewLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -165,6 +178,30 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.id, run?.phase, step, reconnect, accountId]);
 
+  async function reviewUninstall() {
+    setUninstallLoading(true); setMessage(""); setUninstallConfirm("");
+    try {
+      const result = await api.uninstallPreview(accountId);
+      if (selectedAccount.current !== accountId) return;
+      setUninstallPlan(result.plan);
+      trackPlan("uninstall", accountId, result.plan.digest);
+      setStep(2);
+    } catch (error) { setMessage(errorText(t, error)); }
+    finally { setUninstallLoading(false); }
+  }
+
+  async function startUninstall() {
+    if (!uninstallPlan || uninstallPlan.accountId !== accountId || uninstallConfirm !== "insightflare") return;
+    setWorking(true); setMessage("");
+    try {
+      const view = await api.startUninstall(accountId, uninstallPlan.digest, uninstallConfirm);
+      if (view.run) track("deploy_uninstall_started", { kind: uninstallPlan.cleanupRunId ? "cleanup" : "installation" });
+      if (selectedAccount.current !== accountId) return;
+      setRunView(view); setUninstallPlan(null); setUninstallConfirm(""); setStep(3);
+    } catch (error) { setMessage(errorText(t, error)); }
+    finally { setWorking(false); }
+  }
+
   async function startRun(legacyAdoptionApproved: boolean, adminPassword?: string, customDomain?: { zoneId: string; subdomain: string }) {
     if (!overview?.release || !overview.intent) return;
     setWorking(true); setRunError("");
@@ -204,15 +241,15 @@ export function App() {
   const steps = [
     { title: t("stepConnect"), heading: t("connectTitle"), description: t("connectDesc"), icon: RiCloudLine },
     { title: t("stepAccount"), heading: t("accountTitle"), description: t("accountDesc"), icon: RiServerLine },
-    { title: t("stepReview"), heading: t("reviewTitle"), description: t("reviewDesc"), icon: RiFileList3Line },
-    { title: t("stepDeploy"), heading: t("deployTitle"), description: t("deployDesc"), icon: RiRocketLine },
-    { title: t("stepDone"), heading: run?.intent === "update" ? t("doneUpdateTitle") : t("doneInstallTitle"), description: "", icon: RiFlagLine }
+    { title: t("stepReview"), heading: t(uninstallPlan ? "uninstallTitle" : "reviewTitle"), description: t(uninstallPlan ? "uninstallReviewDesc" : "reviewDesc"), icon: RiFileList3Line },
+    { title: t(uninstallPlan || run?.intent === "uninstall" ? "uninstallButton" : "stepDeploy"), heading: t(run?.intent === "uninstall" ? "uninstallRunning" : "deployTitle"), description: t("deployDesc"), icon: RiRocketLine },
+    { title: t("stepDone"), heading: run?.intent === "uninstall" ? t("uninstallDoneTitle") : run?.intent === "update" ? t("doneUpdateTitle") : t("doneInstallTitle"), description: "", icon: RiFlagLine }
   ];
   // Finished runs only stay on screen right after they finish or while a password is pending.
   const liveRun = run && (run.phase !== "succeeded" || finishedHere || Boolean(runView?.admin?.password)) ? run : null;
   const completed = [
     session.connected,
-    Boolean(session.connected && accountId && overview),
+    Boolean(session.connected && accountId && (overview || liveRun)),
     Boolean(liveRun),
     liveRun?.phase === "succeeded",
     liveRun?.phase === "succeeded" && !runView?.admin?.password
@@ -220,6 +257,7 @@ export function App() {
   const reachable = (index: number) => {
     if (index === 0) return true;
     if (!session.connected) return false;
+    if (uninstallPlan && index === 2) return true;
     if (liveRun) return index === 1 || index === 3 || (index === 4 && liveRun.phase === "succeeded");
     return index <= 2 && (index < 2 || Boolean(overview));
   };
@@ -229,8 +267,8 @@ export function App() {
   const planMode = review && !review.blocked ? (review.configureOnly ? "configure" : review.mode) : null;
   const planArtifact = overview?.release?.artifactDigest;
   useEffect(() => {
-    if (step === 2 && planMode && planArtifact) trackPlan(planMode, accountId, planArtifact);
-  }, [step, planMode, accountId, planArtifact]);
+    if (step === 2 && !uninstallPlan && planMode && planArtifact) trackPlan(planMode, accountId, planArtifact);
+  }, [step, planMode, accountId, planArtifact, uninstallPlan]);
   const canContinue = step < 2 && completed[step] && reachable(nextStep);
   const finished = completed.filter(Boolean).length;
   const percent = Math.round((finished / STEP_COUNT) * 100);
@@ -327,6 +365,7 @@ export function App() {
               : step === 0 ? <ConnectStep t={t} session={session} locale={locale} readerMissing={readerMissing} />
               : step === 1 ? <AccountStep t={t} accounts={accounts} accountId={accountId} onSelect={setAccountId}
                   overview={overview} loading={overviewLoading} runView={liveRun ? runView : null} />
+              : step === 2 && uninstallPlan ? <UninstallReview t={t} plan={uninstallPlan} confirmation={uninstallConfirm} onConfirmation={setUninstallConfirm} />
               : step === 2 && overview ? <ReviewStep t={t} tMaybe={tMaybe} overview={overview} accountId={accountId}
                   readerMissing={readerMissing} form={reviewForm} onRecheck={() => void loadAccount(accountId)} />
               : step === 3 && run ? <DeployStep t={t} tMaybe={tMaybe} run={run} otherTab={otherTab} reconnect={reconnect} error={runError} />
@@ -340,9 +379,9 @@ export function App() {
             <div className="flex flex-wrap items-center gap-2">
               {step === 0 && session.connected ? <Button variant="outline" onClick={() => void disconnect()}>
                 <RiLogoutBoxRLine data-icon="inline-start" />{t("disconnect")}</Button> : null}
-              {step === 1 || step === 2 ? <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={working}>
+              {step === 1 || step === 2 ? <Button variant="outline" onClick={() => { if (uninstallPlan) { setUninstallPlan(null); setUninstallConfirm(""); if (run?.phase === "failed") setStep(3); } else setStep(s => s - 1); }} disabled={working || uninstallLoading}>
                 <RiArrowLeftLine data-icon="inline-start" />{t("back")}</Button> : null}
-              {step === 3 && run?.phase === "failed" ? <Button variant="outline" disabled={working}
+              {step === 3 && run?.phase === "failed" && run.intent !== "uninstall" ? <Button variant="outline" disabled={working}
                 onClick={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(2); void loadAccount(accountId); })}>
                 {t("startOver")}</Button> : null}
             </div>
@@ -354,7 +393,20 @@ export function App() {
               </Button> : null}
               {(step === 0 && session.connected) || step === 1 ? <Button onClick={() => setStep(nextStep)} disabled={!canContinue}>
                 {t("next")}<RiArrowRightLine data-icon="inline-end" /></Button> : null}
-              {step === 2 && review?.available ? <ConfirmOperation
+              {step === 2 && uninstallPlan ? <ConfirmOperation destructive
+                title={t("uninstallConfirmTitle")} description={t("uninstallWarning")}
+                confirmText={t("uninstallButton")} cancelText={t("cancel")} onConfirm={() => void startUninstall()}>
+                <Button variant="destructive" disabled={working || uninstallConfirm !== "insightflare"}>
+                  <RiDeleteBinLine data-icon="inline-start" />{t("uninstallButton")}
+                </Button>
+              </ConfirmOperation> : null}
+              {((step === 2 && !uninstallPlan && overview?.deployment.kind === "managed") ||
+                 (step === 3 && run?.phase === "failed" && run.intent === "install" && (run.state.databaseId || run.state.kvNamespaceId))) ? <Button variant="outline" className="text-destructive" disabled={working || uninstallLoading}
+                onClick={() => void reviewUninstall()}>
+                {uninstallLoading ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiDeleteBinLine data-icon="inline-start" />}
+                {t(step === 3 ? "uninstallCleanup" : "uninstallButton")}
+              </Button> : null}
+              {step === 2 && !uninstallPlan && review?.available ? <ConfirmOperation
                 title={t(review.mode === "install" ? "confirmInstallTitle" : review.mode === "configure" ? "confirmConfigureTitle" : "confirmUpdateTitle")}
                 description={review.mode === "install" ? t("confirmInstallDesc", { account: accountName })
                   : review.mode === "configure" ? t("confirmConfigureDesc")
@@ -369,7 +421,7 @@ export function App() {
               </ConfirmOperation> : null}
               {step === 3 && run?.phase === "running" ? <Button disabled>
                 <RiLoader4Line data-icon="inline-start" className="animate-spin" />{t("statusRunning")}</Button> : null}
-              {step === 3 && run?.phase === "failed" && !run.state.rolledBack && run.failure?.code !== "SOURCE_MOVED"
+              {step === 3 && run?.phase === "failed" && !run.state.rolledBack && (run.intent === "uninstall" || run.failure?.code !== "SOURCE_MOVED")
                 ? <Button onClick={() => void act(() => api.retry(accountId, run.id), view => {
                   if (view.run?.id === run.id) track("deploy_run_retried", { mode: runMode(view.run) });
                 })} disabled={working}>

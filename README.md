@@ -1,8 +1,8 @@
 # InsightFlare Deploy
 
-One-click installation and updates of [InsightFlare](https://github.com/RavelloH/InsightFlare) into a user's own Cloudflare account, authorized with Cloudflare OAuth.
+One-click installation, updates and uninstall of [InsightFlare](https://github.com/RavelloH/InsightFlare) into a user's own Cloudflare account, authorized with Cloudflare OAuth.
 
-Users never fork, compile or run Wrangler. They sign in with Cloudflare, pick an account, review a plan and press **Install** or **Update**. The control plane then provisions resources, applies D1 migrations, uploads the official build and verifies it — using only the user's short-lived OAuth authorization. It also covers what the Cloudflare "Deploy to Workers" button cannot: Analytics Engine bindings (with a fallback when the account has not enabled Analytics Engine) and an Analytics Engine read token for request observation.
+Users never fork, compile or run Wrangler. Managed installations can also be uninstalled after reviewing exact resource IDs and typing the instance name. They sign in with Cloudflare, pick an account, review a plan and press **Install** or **Update**. The control plane then provisions resources, applies D1 migrations, uploads the official build and verifies it — using only the user's short-lived OAuth authorization. It also covers what the Cloudflare "Deploy to Workers" button cannot: Analytics Engine bindings (with a fallback when the account has not enabled Analytics Engine) and an Analytics Engine read token for request observation.
 
 **Status:** install and update both completed end to end against a real Cloudflare account (official build, 43 migrations, Analytics Engine token, workers.dev, health check, administrator sign-in, staged update and activation), driven by an API token through the same client and pipeline. The one remaining check is signing in through the production OAuth client.
 
@@ -40,6 +40,8 @@ All account routes require a connected session and re-check that the user's own 
 | Route | Purpose |
 | --- | --- |
 | `GET /api/v1/providers/cloudflare/accounts/:id/overview` | Read-only plan: what exists, what would be created or updated, blockers |
+| `GET …/:id/uninstall` | Read-only uninstall preview, including the exact bound resource identities and plan digest |
+| `POST …/:id/uninstall` | Start the reviewed uninstall after typed confirmation; no Nightly artifact required |
 | `GET  …/:id/run` | Current run (the admin password is included only after a successful install) |
 | `POST …/:id/run` | Start a run for the reviewed `sourceSha` / `artifactDigest` |
 | `POST …/:id/run/advance` | Execute the next step once |
@@ -91,3 +93,27 @@ The main repository's `publish-nightly-artifact.yml` compiles every `main` commi
 `node scripts/pack-build.mjs <checkout> <sha>` verifies an independently built checkout the same way. An experimental isolated Docker builder (`builder/`, `scripts/isolated-builder.mjs`, manual workflow `isolated-builder-smoke.yml`) is kept for research; it is not used by the deploy flow.
 
 MIT license. Maintained by [InsightFlare](https://github.com/InsightFlare).
+
+### Uninstall
+
+Uninstall is independent of the Nightly release channel. The wizard reviews
+the managed Worker identity, bound D1 and KV, and custom domains, checks other
+listed Workers for shared storage bindings, requires the typed name
+`insightflare`, and rechecks the reviewed plan on the server. It deletes the
+Worker by ID without force, detaches reviewed residual custom domains, removes
+the reviewed storage resources, and verifies their absence. Each step uses the
+same account-scoped run lease and is resumable. Cleanup before a failed
+installation has created a Worker is restricted to resources recorded as newly
+created by that install. Legacy/unrecognized Workers are not removed.
+
+Uninstall is destructive: Worker secrets and Durable Object state may be lost.
+Analytics Engine history, API tokens, external resources, and unidentified
+orphan resources are not deleted. Check external integrations and back up data
+before confirming. Shared binding checks cover listed Workers, not arbitrary
+external API clients or all possible non-Worker integrations.
+
+The production tracker records `deploy_uninstall_plan_ready`,
+`deploy_uninstall_started`, and `deploy_uninstall_succeeded`; failures and
+retries use `deploy_run_failed` and `deploy_run_retried` with mode
+`uninstall`. Resource IDs, account IDs, domain names and confirmation text
+are not sent as event properties.

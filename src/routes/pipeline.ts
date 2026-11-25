@@ -10,6 +10,8 @@ import {
 } from "../core/public-release";
 import { accountOverview } from "../core/overview";
 import { advanceRun, createRun, retryRun, type PipelineRun, type PipelineIntent, type CustomDomain } from "../core/pipeline";
+import { createUninstallRun } from "../core/pipeline";
+import { previewUninstall } from "../core/uninstall";
 import { generatePassword } from "../core/install-plan";
 import { runStore, RUN_RETENTION_MS, type StoredRun } from "../session/runs";
 import { assertSameOrigin, userToken, grantedScopes, ANALYTICS_READER_SCOPES } from "../security/oauth";
@@ -135,6 +137,34 @@ pipelineRoutes.get("/:accountId/run", async c => {
   const accountId = accountParam(c.req.param("accountId"));
   await authorizedClient(c, accountId);
   return c.json(await publicRun(c.env, await runStore.read(c.env, accountId)), 200, NO_STORE);
+});
+
+pipelineRoutes.get("/:accountId/uninstall", async c => {
+  const accountId = accountParam(c.req.param("accountId"));
+  const client = await authorizedClient(c, accountId);
+  const stored = await runStore.read(c.env, accountId);
+  if (stored.busy || stored.run?.phase === "running") throw new DeployError("UNAVAILABLE", "Finish the active run first.", 409);
+  return c.json({ plan: await previewUninstall(client, accountId, stored.run) }, 200, NO_STORE);
+});
+
+pipelineRoutes.post("/:accountId/uninstall", async c => {
+  assertSameOrigin(c);
+  const accountId = accountParam(c.req.param("accountId"));
+  const body = await c.req.json().catch(() => null) as { digest?: string; confirmation?: string } | null;
+  if (body?.confirmation !== "insightflare") throw new DeployError("INVALID_SOURCE", "Type insightflare to confirm deletion.");
+  const client = await authorizedClient(c, accountId);
+  const stored = await runStore.read(c.env, accountId);
+  if (stored.busy || stored.run?.phase === "running") throw new DeployError("UNAVAILABLE", "Finish the active run first.", 409);
+  const plan = await previewUninstall(client, accountId, stored.run);
+  if (body.digest !== plan.digest) throw new DeployError("SOURCE_MOVED", "Uninstall plan changed. Review again.", 409);
+  const scopes = await grantedScopes(c);
+  const required = [...(plan.workerId || plan.domains.length ? ["workers-scripts.write"] : []),
+    ...(plan.database ? ["d1.write"] : []), ...(plan.kv ? ["workers-kv-storage.write"] : [])];
+  if (scopes && required.some(scope => !scopes.includes(scope))) {
+    throw new DeployError("UNAVAILABLE", "Re-authorize Cloudflare with the required write permissions before uninstalling.", 403);
+  }
+  const run = createUninstallRun(crypto.randomUUID(), plan, Date.now());
+  return c.json(await publicRun(c.env, await runStore.create(c.env, accountId, run)), 200, NO_STORE);
 });
 
 pipelineRoutes.post("/:accountId/run", async c => {

@@ -206,6 +206,24 @@ export interface AppMessages {
     "followDomain": string;
     "domainNoZones": string;
     "domainZonesError": string;
+    "uninstallTitle": string;
+    "uninstallReviewDesc": string;
+    "uninstallButton": string;
+    "uninstallCleanup": string;
+    "uninstallConfirmTitle": string;
+    "uninstallWarning": string;
+    "uninstallResources": string;
+    "uninstallResidual": string;
+    "uninstallTypeName": string;
+    "uninstallRunning": string;
+    "uninstallDoneTitle": string;
+    "uninstallDoneDesc": string;
+    "uninstallFailedDesc": string;
+    "runStep_removeWorker": string;
+    "runStep_removeDatabase": string;
+    "runStep_removeKv": string;
+    "runStep_verifyRemoval": string;
+    "runStep_removeDomains": string;
   };
 };
 const enMessages: AppMessages = {
@@ -412,7 +430,25 @@ const enMessages: AppMessages = {
     "note_DOMAIN_FAILED": "Could not attach {host}",
     "followDomain": "{host} could not be attached, usually because the hostname already has a DNS record. Remove or change that record, then run an update here, or add the domain to the insightflare Worker in the Cloudflare dashboard.",
     "domainNoZones": "This Cloudflare account has no active domain yet. Add a domain to the account, then come back here to route it to InsightFlare; until then the workers.dev address is used.",
-    "domainZonesError": "The domains of this account could not be read ({error}). Re-authorize, or add the domain later; until then the workers.dev address is used."
+    "domainZonesError": "The domains of this account could not be read ({error}). Re-authorize, or add the domain later; until then the workers.dev address is used.",
+    "uninstallTitle": "Uninstall InsightFlare",
+    "uninstallReviewDesc": "Review the exact resources to be removed.",
+    "uninstallButton": "Uninstall",
+    "uninstallCleanup": "Clean up failed installation",
+    "uninstallConfirmTitle": "Permanently remove InsightFlare?",
+    "uninstallWarning": "This permanently removes the listed Worker, D1 data and KV settings, including users and analytics. Durable Object state and Worker secrets may be lost. Back up anything you need first.",
+    "uninstallResources": "Resources to remove",
+    "uninstallResidual": "Analytics Engine history, API tokens and other unverified or external resources are not removed. Review those separately in Cloudflare.",
+    "uninstallTypeName": "Type insightflare to confirm",
+    "uninstallRunning": "Uninstalling",
+    "uninstallDoneTitle": "InsightFlare is uninstalled",
+    "uninstallDoneDesc": "The reviewed Worker and storage resources are no longer present.",
+    "uninstallFailedDesc": "Uninstall stopped. Completed deletions are permanent; retry to continue from the failed step.",
+    "runStep_removeWorker": "Remove the Worker and its associated resources",
+    "runStep_removeDatabase": "Delete the reviewed D1 database",
+    "runStep_removeKv": "Delete the reviewed KV namespace",
+    "runStep_verifyRemoval": "Verify resource removal",
+    "runStep_removeDomains": "Detach remaining reviewed custom domains"
   }
 };
 const zhMessages: AppMessages = {
@@ -619,7 +655,25 @@ const zhMessages: AppMessages = {
     "note_DOMAIN_FAILED": "无法绑定 {host}",
     "followDomain": "无法绑定 {host}，通常是因为这个地址已有 DNS 记录。删除或修改那条记录后，回到这里执行一次更新；也可以在 Cloudflare 控制台为 insightflare Worker 添加该域名。",
     "domainNoZones": "这个 Cloudflare 账号里还没有已激活的域名。把域名添加到这个账号后，回到这里即可绑定到 InsightFlare；在此之前会使用 workers.dev 地址。",
-    "domainZonesError": "无法读取这个账号的域名（{error}）。可以重新授权，或者之后再绑定；在此之前会使用 workers.dev 地址。"
+    "domainZonesError": "无法读取这个账号的域名（{error}）。可以重新授权，或者之后再绑定；在此之前会使用 workers.dev 地址。",
+    "uninstallTitle": "卸载 InsightFlare",
+    "uninstallReviewDesc": "检查即将删除的资源。",
+    "uninstallButton": "卸载",
+    "uninstallCleanup": "清理失败的安装",
+    "uninstallConfirmTitle": "永久卸载 InsightFlare？",
+    "uninstallWarning": "此操作将永久移除列出的 Worker、D1 数据及 KV 设置，包括用户和分析数据。Durable Objects 状态与 Worker 密钥可能丢失。请先备份需要的数据。",
+    "uninstallResources": "待删除资源",
+    "uninstallResidual": "Analytics Engine 历史数据、API Token 以及其他无法确认归属或外部资源将保留，请在 Cloudflare 中单独检查。",
+    "uninstallTypeName": "输入 insightflare 以确认",
+    "uninstallRunning": "正在卸载",
+    "uninstallDoneTitle": "InsightFlare 已卸载",
+    "uninstallDoneDesc": "已确认审核清单中的 Worker 和存储资源不再存在。",
+    "uninstallFailedDesc": "卸载已停止。已完成的删除不可撤销；重试可从失败步骤继续。",
+    "runStep_removeWorker": "移除 Worker 及其关联资源",
+    "runStep_removeDatabase": "删除已审核的 D1 数据库",
+    "runStep_removeKv": "删除已审核的 KV 命名空间",
+    "runStep_verifyRemoval": "验证资源已移除",
+    "runStep_removeDomains": "解除仍存在的已审核自定义域名绑定"
   }
 };
 const zh_twMessages: AppMessages = {
@@ -826,7 +880,25 @@ const zh_twMessages: AppMessages = {
     "note_DOMAIN_FAILED": "無法綁定 {host}",
     "followDomain": "無法綁定 {host}，通常是因為這個網址已有 DNS 記錄。刪除或修改那條記錄後，回到這裡執行一次更新；也可以在 Cloudflare 控制台為 insightflare Worker 新增該網域。",
     "domainNoZones": "這個 Cloudflare 帳號裡還沒有已啟用的網域。把網域新增到這個帳號後，回到這裡即可綁定到 InsightFlare；在此之前會使用 workers.dev 網址。",
-    "domainZonesError": "無法讀取這個帳號的網域（{error}）。可以重新授權，或者之後再綁定；在此之前會使用 workers.dev 網址。"
+    "domainZonesError": "無法讀取這個帳號的網域（{error}）。可以重新授權，或者之後再綁定；在此之前會使用 workers.dev 網址。",
+    "uninstallTitle": "解除安裝 InsightFlare",
+    "uninstallReviewDesc": "檢查即將刪除的資源。",
+    "uninstallButton": "解除安裝",
+    "uninstallCleanup": "清理失敗的安裝",
+    "uninstallConfirmTitle": "永久解除安裝 InsightFlare？",
+    "uninstallWarning": "此操作將永久移除列出的 Worker、D1 資料及 KV 設定，包括使用者和分析資料。Durable Objects 狀態與 Worker 密鑰可能遺失。請先備份所需資料。",
+    "uninstallResources": "待刪除資源",
+    "uninstallResidual": "Analytics Engine 歷史資料、API Token 及其他無法確認歸屬或外部資源將保留，請在 Cloudflare 中另行檢查。",
+    "uninstallTypeName": "輸入 insightflare 以確認",
+    "uninstallRunning": "正在解除安裝",
+    "uninstallDoneTitle": "InsightFlare 已解除安裝",
+    "uninstallDoneDesc": "已確認審核清單中的 Worker 和儲存資源不再存在。",
+    "uninstallFailedDesc": "解除安裝已停止。已完成的刪除無法復原；重試可從失敗步驟繼續。",
+    "runStep_removeWorker": "移除 Worker 及其關聯資源",
+    "runStep_removeDatabase": "刪除已審核的 D1 資料庫",
+    "runStep_removeKv": "刪除已審核的 KV 命名空間",
+    "runStep_verifyRemoval": "驗證資源已移除",
+    "runStep_removeDomains": "解除仍存在的已審核自訂網域綁定"
   }
 };
 const jaMessages: AppMessages = {
@@ -1033,7 +1105,25 @@ const jaMessages: AppMessages = {
     "note_DOMAIN_FAILED": "{host} を割り当てられませんでした",
     "followDomain": "{host} を割り当てられませんでした。多くの場合、そのホスト名に既に DNS レコードがあることが原因です。そのレコードを削除・変更してからここで更新を実行するか、Cloudflare ダッシュボードで insightflare Worker にドメインを追加してください。",
     "domainNoZones": "この Cloudflare アカウントにはまだ有効なドメインがありません。ドメインをアカウントに追加してからここで InsightFlare に割り当ててください。それまでは workers.dev のアドレスを使用します。",
-    "domainZonesError": "このアカウントのドメインを読み取れませんでした（{error}）。再認可するか、後で割り当ててください。それまでは workers.dev のアドレスを使用します。"
+    "domainZonesError": "このアカウントのドメインを読み取れませんでした（{error}）。再認可するか、後で割り当ててください。それまでは workers.dev のアドレスを使用します。",
+    "uninstallTitle": "InsightFlare をアンインストール",
+    "uninstallReviewDesc": "削除対象のリソースを確認してください。",
+    "uninstallButton": "アンインストール",
+    "uninstallCleanup": "失敗したインストールをクリーンアップ",
+    "uninstallConfirmTitle": "InsightFlare を完全に削除しますか？",
+    "uninstallWarning": "一覧の Worker、D1 データ、KV 設定（ユーザーと分析データを含む）を完全に削除します。Durable Objects の状態や Worker シークレットが失われる場合があります。必要なデータは事前にバックアップしてください。",
+    "uninstallResources": "削除対象リソース",
+    "uninstallResidual": "Analytics Engine の履歴、API トークン、および所有を確認できないリソースや外部リソースは保持されます。Cloudflare で個別に確認してください。",
+    "uninstallTypeName": "確認のため insightflare と入力",
+    "uninstallRunning": "アンインストール中",
+    "uninstallDoneTitle": "InsightFlare をアンインストールしました",
+    "uninstallDoneDesc": "確認対象の Worker とストレージが存在しないことを確認しました。",
+    "uninstallFailedDesc": "アンインストールが停止しました。完了した削除は元に戻せません。再試行すると失敗した手順から再開します。",
+    "runStep_removeWorker": "Worker と関連リソースを削除",
+    "runStep_removeDatabase": "確認済みの D1 データベースを削除",
+    "runStep_removeKv": "確認済みの KV 名前空間を削除",
+    "runStep_verifyRemoval": "リソースの削除を確認",
+    "runStep_removeDomains": "残っている確認済みカスタムドメインを解除"
   }
 };
 const DICTIONARIES: Record<Locale,AppMessages> = {

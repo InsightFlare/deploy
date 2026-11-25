@@ -1,3 +1,4 @@
+import type { UninstallPlan } from "../core/uninstall";
 import { useState } from "react";
 import {
   RiCloudLine, RiLogoutBoxRLine, RiExternalLinkLine, RiCheckLine, RiCloseLine, RiLoader4Line,
@@ -363,10 +364,34 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
     {reconnect ? <Notice tone="warning" action={<Button asChild><a href={CONNECT_URL} onClick={trackOAuthStart}>{t("connectButton")}</a></Button>}>{t("reconnectNeeded")}</Notice> : null}
     {error && !reconnect ? <Notice tone="error">{error}</Notice> : null}
     {run.phase === "failed" ? <Notice tone="error" title={t("runFailedTitle")}>
-      {run.state.rolledBack ? t("rolledBackDesc") : run.failure?.code === "SOURCE_MOVED" ? t("runSourceMovedDesc") : t("runFailedDesc")}
+      {run.state.rolledBack ? t("rolledBackDesc") : run.intent === "uninstall" ? t("uninstallFailedDesc") : run.failure?.code === "SOURCE_MOVED" ? t("runSourceMovedDesc") : t("runFailedDesc")}
     </Notice> : null}
     </div>
     </AutoTransition>
+  </div>;
+}
+
+export function UninstallReview({ t, plan, confirmation, onConfirmation }: {
+  t: Translate; plan: UninstallPlan; confirmation: string; onConfirmation(value: string): void;
+}) {
+  return <div className="space-y-5">
+    <Notice tone="error" title={t("uninstallConfirmTitle")}>{t("uninstallWarning")}</Notice>
+    <div className="space-y-3 border border-border p-4">
+      <Eyebrow>{t("uninstallResources")}</Eyebrow>
+      {[
+        plan.workerId ? { name: "Worker · insightflare", id: plan.workerId } : null,
+        plan.database ? { name: "D1 · " + plan.database.name, id: plan.database.id } : null,
+        plan.kv ? { name: "KV · " + plan.kv.name, id: plan.kv.id } : null,
+        ...plan.domains.map(host => ({ name: host, id: t("runStep_domain") }))
+      ].filter(item => item !== null).map(item => <div key={item.id + item.name} className="space-y-1 border-b border-border/70 pb-2 last:border-0 last:pb-0">
+        <p className="text-sm font-medium">{item.name}</p><p className="break-all text-xs text-muted-foreground">{item.id}</p>
+      </div>)}
+    </div>
+    <Notice tone="warning">{t("uninstallResidual")}</Notice>
+    <div className="space-y-2">
+      <Label htmlFor="uninstall-confirm">{t("uninstallTypeName")}</Label>
+      <Input id="uninstall-confirm" value={confirmation} onChange={event => onConfirmation(event.target.value)} placeholder="insightflare" autoComplete="off" spellCheck={false} />
+    </div>
   </div>;
 }
 
@@ -375,6 +400,7 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
 export function DoneStep({ t, run, admin, accountId }: {
   t: Translate; run: PipelineRun; admin: RunView["admin"]; accountId: string;
 }) {
+  if (run.intent === "uninstall") return <div className="space-y-5"><Notice tone="success">{t("uninstallDoneDesc")}</Notice><Notice tone="warning">{t("uninstallResidual")}</Notice></div>;
   // A custom domain is the address users will keep; workers.dev stays as a fallback.
   const url = run.state.customUrl ?? run.state.workerUrl ?? null;
   const step = (id: string) => run.steps.find(item => item.id === id);
