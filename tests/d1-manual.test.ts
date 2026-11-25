@@ -66,6 +66,7 @@ function harness(options: {
     applied = [...(applied??[]),file.name];
   });
   const transport: ManualD1Transport = {
+    d1InitializeDatabase: vi.fn(async () => { applied = sources.map(x => x.name); }),
     d1MigrationSnapshot:snapshot,d1ApplyVerifiedMigration:applyOne
   };
   return { transport, events, applyOne, snapshot, applied:()=>applied };
@@ -78,6 +79,51 @@ async function request(release:ReleaseArtifact, transport:ManualD1Transport) {
 }
 
 describe("Wrangler-equivalent D1 migrations (no maintenance mode or extra DO)", () => {
+  it("initializes a new empty database once and preserves incremental migration semantics", async () => {
+    const release = await fixture(), h = harness();
+    const sql = "CREATE TABLE users (id TEXT);";
+    const sha256 = await digest(sql);
+    release.databaseSchema = { sql, sha256 };
+    release.manifest.files.push({ path: "database/schema.sql", size: new TextEncoder().encode(sql).length, sha256 });
+    const req = await request(release, h.transport);
+    const result = await applyManualD1Migrations(h.transport, release, { ...req, allowInitialization: true });
+    expect(result).toMatchObject({ completed: true, remaining: 0, applied: sources.map(x => x.name) });
+    expect(h.transport.d1InitializeDatabase).toHaveBeenCalledTimes(1);
+    expect(h.applyOne).not.toHaveBeenCalled();
+    const again = await applyManualD1Migrations(h.transport, release, { ...req, reviewedPlanDigest: result.nextReviewedPlanDigest, allowInitialization: true });
+    expect(again.applied).toEqual([]);
+    expect(h.transport.d1InitializeDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an initialization with an invalid manifest hash before writing", async () => {
+    const release = await fixture(), h = harness();
+    release.databaseSchema = { sql: "CREATE TABLE users (id TEXT);", sha256: "0".repeat(64) };
+    const req = await request(release, h.transport);
+    await expect(applyManualD1Migrations(h.transport, release, { ...req, allowInitialization: true })).rejects.toThrow("no longer matches");
+    expect(h.transport.d1InitializeDatabase).not.toHaveBeenCalled();
+    expect(h.applyOne).not.toHaveBeenCalled();
+  });
+
+  it("refuses to claim success if the initialization does not populate the ledger", async () => {
+    const release = await fixture(), h = harness();
+    const sql = "CREATE TABLE users (id TEXT);";
+    const sha256 = await digest(sql);
+    release.databaseSchema = { sql, sha256 };
+    release.manifest.files.push({ path: "database/schema.sql", size: new TextEncoder().encode(sql).length, sha256 });
+    h.transport.d1InitializeDatabase = vi.fn(async () => {});
+    const req = await request(release, h.transport);
+    await expect(applyManualD1Migrations(h.transport, release, { ...req, allowInitialization: true })).rejects.toThrow("ledger could not be verified");
+    expect(h.applyOne).not.toHaveBeenCalled();
+  });
+
+  it("keeps existing databases on incremental migrations even with a schema", async () => {
+    const release = await fixture(), h = harness({ initiallyApplied: [sources[0]!.name], existingTables: true });
+    release.databaseSchema = { sql: "unused", sha256: "0".repeat(64) };
+    const req = await request(release, h.transport);
+    expect((await applyManualD1Migrations(h.transport, release, { ...req, allowInitialization: true })).completed).toBe(true);
+    expect(h.transport.d1InitializeDatabase).not.toHaveBeenCalled();
+    expect(h.applyOne).toHaveBeenCalledTimes(2);
+  });
   it("applies pending source files sequentially and records their names", async () => {
     const release=await fixture(), h=harness();
     const req=await request(release,h.transport);

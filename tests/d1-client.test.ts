@@ -49,7 +49,7 @@ describe("Cloudflare D1 user-account migration preflight (read-only)", () => {
     });
     expect(seen.filter(item => item.method === "POST")).toEqual([
       { method: "POST", url: BASE + "/d1/database/" + databaseId + "/query",
-        sql: "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name" },
+        sql: "SELECT name FROM sqlite_master WHERE type IN ('table', 'view', 'trigger', 'index') ORDER BY name" },
       { method: "POST", url: BASE + "/d1/database/" + databaseId + "/query",
         sql: "SELECT name FROM d1_migrations ORDER BY id ASC" }
     ]);

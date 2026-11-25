@@ -15,7 +15,7 @@ Every run is pinned to one official build: the latest `main` commit published to
 1. `verify` — download and verify the pinned build; refuse if a D1 database named `insightflare` already holds data.
 2. `database` — create D1 `insightflare` (or adopt an existing *empty* one).
 3. `kv` — create KV namespace `insightflare-site-settings` (or reuse it).
-4. `migrate` — apply the official SQL migrations, up to four per request, with the same `d1_migrations` ledger as `wrangler d1 migrations apply`.
+4. `migrate` — initialize an empty D1 from the verified release schema in one batch when available; otherwise apply the official SQL migrations, up to four per request, with the same `d1_migrations` ledger as `wrangler d1 migrations apply`.
 5. `worker` — upload Worker `insightflare` with all bindings from the release manifest, Durable Object migrations, static assets, a deployment marker, and freshly generated `MAIN_SECRET` and `BOOTSTRAP_ADMIN_PASSWORD`. If Cloudflare answers `10089` (Analytics Engine not enabled on the account), it re-uploads without Analytics Engine bindings and sets `INSIGHTFLARE_ANALYTICS_ENGINE_DISABLED=1`, exactly like the main repository's deploy script.
 6. `schedules` — set the release's Cron triggers.
 7. `subdomain` — enable `insightflare.<account>.workers.dev` (warns if the account never registered a workers.dev subdomain).
@@ -84,7 +84,7 @@ Translations live in `src/i18n/{en,zh,zh-tw,ja}.yaml` under `deploy`; `pnpm i18n
 
 ## Official build artifacts
 
-The main repository's `publish-nightly-artifact.yml` compiles every `main` commit with `--skip-prebuild` (no credentials, no remote database access) and publishes one SHA-addressed `insightflare-deploy-<sha>.tar.gz` to the rolling `nightly` prerelease. The archive contains Worker modules, static assets, the ordered D1 migration SQL and a `manifest.json` with per-file SHA256 hashes, bindings, variables, Cron triggers and Durable Object migrations. The prerelease notes carry the current SHA and aggregate digest.
+The main repository's `publish-nightly-artifact.yml` compiles every `main` commit with `--skip-prebuild` (no credentials, no remote database access) and publishes one SHA-addressed `insightflare-deploy-<sha>.tar.gz` to the rolling `nightly` prerelease. The archive contains Worker modules, static assets, the ordered D1 migration SQL, a complete database initialization schema (when available), and a `manifest.json` with per-file SHA256 hashes, bindings, variables, Cron triggers and Durable Object migrations. The prerelease notes carry the current SHA and aggregate digest.
 
 `src/core/public-release.ts` resolves `main`, requires `nightly` to advertise exactly that SHA (never falling back to an older build), checks GitHub's asset digest, parses the archive strictly and recomputes the complete artifact digest before anything is uploaded.
 

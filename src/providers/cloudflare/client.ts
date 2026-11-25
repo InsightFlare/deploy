@@ -283,7 +283,7 @@ export class CloudflareClient {
 
   /**
    * Inspect the user's D1 migration readiness without reading application data.
-   * Only sqlite_master table names and Wrangler's d1_migrations ledger are read.
+   * Only sqlite_master object names and Wrangler's d1_migrations ledger are read.
    * All statements are constant strings, not arbitrary client-supplied SQL.
    */
   async d1MigrationSnapshot(accountId: string, databaseId: string): Promise<{
@@ -310,7 +310,7 @@ export class CloudflareClient {
       }
       return results[0].results;
     };
-    const tables = await query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name");
+    const tables = await query("SELECT name FROM sqlite_master WHERE type IN ('table', 'view', 'trigger', 'index') ORDER BY name");
     const tableNames = tables.map(row => row.name);
     if (tableNames.some(name => typeof name !== "string") ||
         new Set(tableNames).size !== tableNames.length) {
@@ -413,6 +413,33 @@ export class CloudflareClient {
         result.some(row => row?.success !== true)) {
       throw new DeployError("UPSTREAM_UNAVAILABLE",
         "D1 migration batch returned an incomplete result. Do not retry until the ledger is inspected.", 502);
+    }
+  }
+
+  /** Apply the verified, self-contained schema as one REST batch. */
+  async d1InitializeDatabase(
+    accountId: string, databaseId: string,
+    schema: { sql: string; sha256: string }
+  ): Promise<void> {
+    if (!/^[a-f0-9]{32}$/i.test(accountId) ||
+        !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId) ||
+        typeof schema?.sql !== "string" ||
+        !/^[a-f0-9]{64}$/.test(schema.sha256)) {
+      throw new DeployError("INVALID_SOURCE", "Invalid D1 initialization input.");
+    }
+    const bytes = new TextEncoder().encode(schema.sql);
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      byte => byte.toString(16).padStart(2, "0")).join("");
+    if (!bytes.length || bytes.length > 90_000 || hash !== schema.sha256) {
+      throw new DeployError("SOURCE_MOVED", "D1 initialization SQL differs from the verified manifest.", 409);
+    }
+    await this.requireAccount(accountId);
+    const result = await this.postJson<Array<{ success?: boolean }>>(
+      `/accounts/${accountId}/d1/database/${databaseId}/query`,
+      { batch: [{ sql: schema.sql }] }, 120000
+    );
+    if (!Array.isArray(result) || !result.length || result.some(row => row?.success !== true)) {
+      throw new DeployError("UPSTREAM_UNAVAILABLE", "D1 initialization returned an incomplete result.", 502);
     }
   }
 

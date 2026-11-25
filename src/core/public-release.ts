@@ -41,6 +41,7 @@ export interface PublicDeployRelease {
 export interface ReleaseArtifact {
   artifact: PinnedArtifact;
   migrations: Array<{ name: string; sql: string; sha256: string }>;
+  databaseSchema?: { sql: string; sha256: string };
   manifest: ReleaseManifest;
   release: PublicDeployRelease;
 }
@@ -66,6 +67,7 @@ function reject(message: string, status = 502): never {
   throw new DeployError("INVALID_SOURCE", "Public Deploy artifact rejected: " + message, status);
 }
 function safeFileName(name: string): boolean {
+  if (name === "database/schema.sql") return true;
   return /^(worker|asset|migrations)\/[A-Za-z0-9_.\/-]+$/.test(name) &&
     name.split("/").every(part => part !== ".." && part !== "." && part !== "");
 }
@@ -341,6 +343,7 @@ export async function downloadVerifiedPublicRelease(
   const modules: PinnedArtifact["modules"] = [];
   const assets: PinnedArtifact["assets"] = [];
   const migrations: ReleaseArtifact["migrations"] = [];
+  let databaseSchema: ReleaseArtifact["databaseSchema"];
   let totalBytes = 0;
   const encountered = new Set<string>();
   for (const file of external.files) {
@@ -362,6 +365,9 @@ export async function downloadVerifiedPublicRelease(
       const mime = MIME[getExt(name)];
       if (!mime) return reject("unknown static asset MIME type");
       assets.push({ path: name, contentType: mime, content: bytes });
+    } else if (file.path === "database/schema.sql") {
+      if (bytes.byteLength < 1 || bytes.byteLength > 90_000) return reject("invalid database schema size");
+      databaseSchema = { sql: new TextDecoder("utf-8", { fatal: true }).decode(bytes), sha256: file.sha256 };
     } else {
       if (!name.endsWith(".sql")) return reject("unexpected database migration filename");
       migrations.push({ name, sql: new TextDecoder("utf-8", { fatal: true }).decode(bytes), sha256: file.sha256 });
@@ -400,5 +406,5 @@ export async function downloadVerifiedPublicRelease(
   if (await hashArtifactContents(artifact) !== external.artifactDigest) {
     return reject("complete artifact digest differs from the official release manifest");
   }
-  return { release, artifact, manifest: external, migrations };
+  return { release, artifact, manifest: external, migrations, ...(databaseSchema ? { databaseSchema } : {}) };
 }

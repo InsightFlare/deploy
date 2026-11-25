@@ -117,12 +117,13 @@ function tarFile(name: string, data: Uint8Array): Buffer {
 function sha256(data: Uint8Array): string {
   return createHash("sha256").update(data).digest("hex");
 }
-function fixture() {
+function fixture(withSchema = false) {
   const files = new Map<string, Uint8Array>([
     ["worker/index.js", new TextEncoder().encode("export default { fetch(){return new Response('ok')} }")],
     ["asset/index.html", new TextEncoder().encode("<!doctype html>")],
     ["migrations/0001.sql", new TextEncoder().encode("CREATE TABLE hello (id INTEGER);")]
   ]);
+  if (withSchema) files.set("database/schema.sql", new TextEncoder().encode("CREATE TABLE hello (id INTEGER);"));
   const artifactHash = createHash("sha256");
   for (const [name, bytes] of [...files].filter(([name]) => name.startsWith("worker/") || name.startsWith("asset/"))
     .sort((a, b) => a[0].localeCompare(b[0], "en"))) {
@@ -168,10 +169,21 @@ describe("nightly asset binary verification", () => {
     const release = await resolvePublicDeployRelease(sha, f.fetcher);
     const verified = await downloadVerifiedPublicRelease(release, f.fetcher);
     expect(verified.migrations).toHaveLength(1);
+    expect(verified.databaseSchema).toBeUndefined();
     expect(verified.artifact.modules).toHaveLength(1);
     expect(verified.artifact.assets).toHaveLength(1);
     expect(verified.artifact.summary.digest).toBe(f.manifest.artifactDigest);
     expect(verified.artifact.pinnedSha).toBe(sha);
+  });
+
+  it("loads and verifies the optional database schema independently of the historical migration list", async () => {
+    const f = fixture(true);
+    const release = await resolvePublicDeployRelease(sha, f.fetcher);
+    const verified = await downloadVerifiedPublicRelease(release, f.fetcher);
+    const bytes = f.files.get("database/schema.sql")!;
+    expect(verified.databaseSchema).toEqual({ sql: new TextDecoder().decode(bytes), sha256: sha256(bytes) });
+    expect(verified.migrations).toHaveLength(1);
+    expect(verified.artifact.summary.digest).toBe(f.manifest.artifactDigest);
   });
 
   it("refuses a tampered asset even when the filename and SHA pointer are correct", async () => {

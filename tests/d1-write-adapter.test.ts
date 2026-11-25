@@ -47,6 +47,22 @@ describe("private, mocked Cloudflare SQL batch transport (NOT production enabled
     ] });
   });
 
+  it("submits the complete verified initialization SQL in one REST batch", async () => {
+    const { client, calls } = clientForBatch();
+    const source = await migration();
+    await client.d1InitializeDatabase(accountId, databaseId, source);
+    expect(calls.filter(call => call.method === "POST").map(call => call.body))
+      .toEqual([{ batch: [{ sql }] }]);
+  });
+
+  it("rejects changed initialization SQL and failed batch responses", async () => {
+    const { client, http } = clientForBatch();
+    await expect(client.d1InitializeDatabase(accountId, databaseId, { ...await migration(), sql: sql + "DROP TABLE users;" })).rejects.toThrow("differs");
+    expect(http).not.toHaveBeenCalled();
+    const failed = clientForBatch(true);
+    await expect(failed.client.d1InitializeDatabase(accountId, databaseId, await migration())).rejects.toThrow("incomplete result");
+  });
+
   it("does not recreate the ledger for an existing database", async () => {
     const { client, calls } = clientForBatch();
     await client.d1ApplyVerifiedMigration(accountId, databaseId, await migration(), false);

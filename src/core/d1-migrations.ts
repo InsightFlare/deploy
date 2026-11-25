@@ -21,7 +21,7 @@ async function hashBytes(value: string): Promise<string> {
 export interface D1MigrationSnapshot {
   accountId: string;
   databaseId: string;
-  /** Names obtained from sqlite_master, including the migration ledger if it exists. */
+  /** Schema object names obtained from sqlite_master, including the migration ledger if it exists. */
   tableNames: string[];
   /** null means that the standard d1_migrations table is absent. */
   appliedNames: string[] | null;
@@ -130,7 +130,8 @@ export async function planD1Migrations(
     databaseId: snapshot.databaseId.toLowerCase(),
     applied: [...applied].sort(),
     pending: pending.map(step => [step.name, step.sha256]),
-    initialInstall
+    initialInstall,
+    ...(release.databaseSchema ? { databaseSchemaSha256: release.databaseSchema.sha256 } : {})
   }));
 
   return {

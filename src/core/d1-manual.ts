@@ -15,6 +15,7 @@ import type { D1MigrationSnapshot } from "./d1-migrations";
  * gate, quiescence receipt, or Time Travel bookmark requirement is involved.
  */
 export interface ManualD1Transport {
+  d1InitializeDatabase(accountId: string, databaseId: string, schema: { sql: string; sha256: string }): Promise<void>;
   d1MigrationSnapshot(accountId: string, databaseId: string): Promise<D1MigrationSnapshot>;
   d1ApplyVerifiedMigration(
     accountId: string, databaseId: string,
@@ -29,6 +30,7 @@ export interface ManualD1ApplyRequest {
   sourceSha: string;
   reviewedPlanDigest: string;
   maxFiles?: number;
+  allowInitialization?: boolean;
 }
 
 export interface ManualD1ApplyResult {
@@ -78,6 +80,29 @@ export async function applyManualD1Migrations(
       nextDigest = plan.reviewedPlanDigest;
       remaining = 0;
       break;
+    }
+    if (i === 0 && request.allowInitialization && release.databaseSchema && plan.initialInstall) {
+      const schema = release.databaseSchema;
+      const bytes = new TextEncoder().encode(schema.sql);
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+        byte => byte.toString(16).padStart(2, "0")).join("");
+      if (!bytes.length || bytes.length > 90_000 || hash !== schema.sha256 ||
+          !release.manifest.files.some(file => file.path === "database/schema.sql" &&
+            file.sha256 === hash && file.size === bytes.length)) {
+        refuse("database initialization SQL no longer matches the official archive", "INVALID_SOURCE");
+      }
+      await transport.d1InitializeDatabase(plan.accountId, plan.databaseId, schema);
+      const after = await transport.d1MigrationSnapshot(plan.accountId, plan.databaseId);
+      const names = release.migrations.map(file => file.name);
+      if (after.accountId !== plan.accountId || after.databaseId !== plan.databaseId ||
+          !after.appliedNames || after.appliedNames.length !== names.length ||
+          after.appliedNames.some((name, index) => name !== names[index])) {
+        refuse("D1 initialization ledger could not be verified; inspect database before retrying");
+      }
+      const refreshed = await planD1Migrations(release, after);
+      return { sourceSha: request.sourceSha, databaseId: plan.databaseId, applied: names,
+        remaining: refreshed.pending.length, nextReviewedPlanDigest: refreshed.reviewedPlanDigest,
+        completed: refreshed.pending.length === 0 };
     }
     const next = plan.pending[0]!;
     const file = release.migrations.find(item => item.name === next.name);

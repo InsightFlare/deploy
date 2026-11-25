@@ -86,7 +86,7 @@ export const UPDATE_STEPS: UpdateStepId[] = ["verify", "migrate", "stage", "acti
 export const HEALTH_ATTEMPTS = 8;
 
 export type PipelineClient = Pick<CloudflareClient,
-  | "requireAccount" | "workerNames" | "settings" | "workerExists" | "analyticsEngineStatus" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1TableHasRows"
+  | "requireAccount" | "workerNames" | "settings" | "workerExists" | "analyticsEngineStatus" | "d1Databases" | "d1MigrationSnapshot" | "d1ApplyVerifiedMigration" | "d1InitializeDatabase" | "d1TableHasRows"
   | "createD1Database" | "kvNamespaces" | "createKvNamespace" | "uploadWorkerAssets" | "uploadNewWorkerScript"
   | "putWorkerSchedules" | "workersSubdomain" | "enableWorkerSubdomain" | "putWorkerSecret"
   | "accountTokenPermissionGroups" | "createAccountToken" | "workerDomains" | "attachWorkerDomain" | "zones" | "workerInfo" | "workerDeployments"
@@ -518,6 +518,9 @@ class StepContext {
     const databaseId = this.state.databaseId;
     if (!databaseId) throw new DeployError("UNAVAILABLE", "No D1 database is selected for migrations.", 409);
     const plan = await planD1Migrations(release, await this.client.d1MigrationSnapshot(this.account, databaseId));
+    if (this.run.intent === "install" && release.databaseSchema && !plan.initialInstall && !plan.appliedNames.length) {
+      throw new DeployError("UNAVAILABLE", "Non-empty D1 database has no migration history; initialization is unsafe.", 409);
+    }
     const total = this.run.intent === "install" ? release.migrations.length : (this.state.migrationsTotal ?? plan.pending.length);
     if (!plan.pending.length) {
       return { status: total === 0 ? "skipped" : "done", note: { code: "MIGRATIONS", params: { applied: total, total } },
@@ -525,7 +528,7 @@ class StepContext {
     }
     const progress = await applyManualD1Migrations(this.client, release, {
       accountId: this.account, databaseId, sourceSha: this.run.sourceSha,
-      reviewedPlanDigest: plan.reviewedPlanDigest, maxFiles: 4
+      reviewedPlanDigest: plan.reviewedPlanDigest, maxFiles: 4, allowInitialization: this.run.intent === "install"
     });
     const applied = Math.max(0, total - progress.remaining);
     const state = { migrationsApplied: applied, migrationsTotal: total };

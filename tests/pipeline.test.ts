@@ -87,6 +87,7 @@ function fakeAccount(options: { domainConflict?: boolean; analyticsEngineEnabled
         tableNames: [...(db.applied ? ["d1_migrations"] : []), ...db.extraTables], appliedNames: db.applied ? [...db.applied] : null };
     }),
     d1TableHasRows: vi.fn(async (_a: string, id: string) => Boolean(databases.find(item => item.uuid === id)?.hasUsers)),
+    d1InitializeDatabase: vi.fn(async () => { throw new Error("Unexpected database initialization"); }),
     d1ApplyVerifiedMigration: vi.fn(async (_a: string, id: string, migration: { name: string }) => {
       const db = databases.find(item => item.uuid === id)!;
       db.applied = [...(db.applied ?? []), migration.name];
