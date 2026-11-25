@@ -53,7 +53,7 @@ export class DeploymentRun {
     if (request.method === "GET" && pathname === "/pipeline") return json(await this.read());
     if (request.method !== "POST") return new Response(null, { status: 405 });
     const body = await request.json().catch(() => ({})) as {
-      run?: PipelineRun; runId?: string; leaseId?: string; adminPassword?: SealedToken;
+      run?: PipelineRun; runId?: string; leaseId?: string; adminPassword?: SealedToken; expectedUpdatedAt?: number;
     };
     const now = Date.now();
 
@@ -111,7 +111,8 @@ export class DeploymentRun {
       const ok = await this.state.storage.transaction(async txn => {
         const lease = await txn.get<Lease>(LEASE_KEY);
         const current = await txn.get<PipelineRun>(RUN_KEY);
-        if ((lease && lease.until > now) || current?.id !== next.id) return false;
+        if ((lease && lease.until > now) || current?.id !== next.id ||
+            current.phase !== "failed" || current.updatedAt !== body.expectedUpdatedAt) return false;
         await txn.put(RUN_KEY, next);
         return true;
       });
@@ -182,8 +183,8 @@ export const runStore = {
     call<{ run: PipelineRun; leaseId: string }>(env, accountId, "/pipeline/lease", { runId }),
   commit: (env: Env, accountId: string, leaseId: string, run: PipelineRun) =>
     call<StoredRun>(env, accountId, "/pipeline/commit", { leaseId, run }),
-  replace: (env: Env, accountId: string, run: PipelineRun) =>
-    call<StoredRun>(env, accountId, "/pipeline/replace", { run }),
+  replace: (env: Env, accountId: string, run: PipelineRun, expectedUpdatedAt: number) =>
+    call<StoredRun>(env, accountId, "/pipeline/replace", { run, expectedUpdatedAt }),
   forgetPassword: (env: Env, accountId: string, runId: string) =>
     call<StoredRun>(env, accountId, "/pipeline/forget-password", { runId }),
   dismiss: (env: Env, accountId: string, runId: string) =>

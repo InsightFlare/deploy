@@ -16,6 +16,10 @@ export interface RunView {
   admin: { username: string; password: string | null } | null;
 }
 
+interface AdvanceView extends RunView {
+  settled: boolean;
+}
+
 export class ApiError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
     super(message);
@@ -56,7 +60,7 @@ export const api = {
   startRun: (id: string, body: { intent: "install" | "update"; sourceSha: string; artifactDigest: string; legacyAdoptionApproved: boolean; adminPassword?: string;
     customDomain?: { zoneId: string; subdomain: string } }) =>
     post<RunView>(account(id) + "/run", body),
-  advance: (id: string, runId: string) => post<RunView>(account(id) + "/run/advance", { runId }),
+  advance: (id: string, runId: string) => post<AdvanceView>(account(id) + "/run/advance", { runId }),
   retry: (id: string, runId: string) => post<RunView>(account(id) + "/run/retry", { runId }),
   dismiss: (id: string, runId: string) => post<RunView>(account(id) + "/run/dismiss", { runId }),
   passwordSaved: (id: string, runId: string) => post<RunView>(account(id) + "/run/password-saved", { runId })

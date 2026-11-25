@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DeploymentRun } from "../src/session/runs";
-import { createRun, type PipelineRun } from "../src/core/pipeline";
+import { createRun, retryRun, type PipelineRun } from "../src/core/pipeline";
 
 function memoryState() {
   const data = new Map<string, unknown>();
@@ -61,6 +61,17 @@ describe("deployment run storage", () => {
     await post(object, "/pipeline/commit", { leaseId: failedLease.body.leaseId, run: { ...halfDone, phase: "failed" } });
     expect((await post(object, "/pipeline/dismiss", { runId: "run-1" })).status).toBe(200);
     expect((await post(object, "/pipeline/create", { run: run("run-2") })).status).toBe(200);
+  });
+
+  it("accepts a retry only against the failure that was reviewed", async () => {
+    const object = new DeploymentRun(memoryState().state);
+    const failed: PipelineRun = { ...run(), phase: "failed" };
+    await post(object, "/pipeline/create", { run: failed });
+    const retry = { run: retryRun(failed, failed.updatedAt + 1), expectedUpdatedAt: failed.updatedAt };
+
+    expect((await post(object, "/pipeline/replace", { ...retry, expectedUpdatedAt: failed.updatedAt - 1 })).status).toBe(409);
+    expect((await post(object, "/pipeline/replace", retry)).status).toBe(200);
+    expect((await post(object, "/pipeline/replace", retry)).status).toBe(409);
   });
 
   it("forgets the administrator password on request", async () => {

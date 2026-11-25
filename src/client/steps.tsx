@@ -17,6 +17,7 @@ import type { Account, AccountOverview, PipelineRun, PipelineStep, RunView, Sess
 import { isHostname } from "../lib/hostname";
 import { ANALYTICS_ENGINE_URL, CLOUDFLARE_WORKER_URL, CONNECT_URL } from "./api";
 import { ConfirmOperation, CopyValue, Eyebrow, Notice, shortSha, type Translate } from "./ui";
+import { trackOAuthStart } from "./analytics";
 
 type TMaybe = (key: string, params?: Record<string, string | number>) => string | null;
 
@@ -25,7 +26,7 @@ type TMaybe = (key: string, params?: Record<string, string | number>) => string 
 /** Shown when the grant lacks API token management: re-authorize, or go on and set the reader up by hand. */
 function ReaderScopeNotice({ t }: { t: Translate }) {
   return <Notice tone="warning" title={t("readerScopeMissingTitle")}
-    action={<Button variant="outline" asChild><a href={CONNECT_URL}><RiRefreshLine data-icon="inline-start" />{t("reauthorize")}</a></Button>}>
+    action={<Button variant="outline" asChild><a href={CONNECT_URL} onClick={trackOAuthStart}><RiRefreshLine data-icon="inline-start" />{t("reauthorize")}</a></Button>}>
     {t("readerScopeMissingBody")}
   </Notice>;
 }
@@ -359,7 +360,7 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
     <div className="space-y-5">
     {run.phase === "running" ? <Notice>{t("deployDesc")}</Notice> : null}
     {otherTab ? <Notice>{t("otherTab")}</Notice> : null}
-    {reconnect ? <Notice tone="warning" action={<Button asChild><a href={CONNECT_URL}>{t("connectButton")}</a></Button>}>{t("reconnectNeeded")}</Notice> : null}
+    {reconnect ? <Notice tone="warning" action={<Button asChild><a href={CONNECT_URL} onClick={trackOAuthStart}>{t("connectButton")}</a></Button>}>{t("reconnectNeeded")}</Notice> : null}
     {error && !reconnect ? <Notice tone="error">{error}</Notice> : null}
     {run.phase === "failed" ? <Notice tone="error" title={t("runFailedTitle")}>
       {run.state.rolledBack ? t("rolledBackDesc") : run.failure?.code === "SOURCE_MOVED" ? t("runSourceMovedDesc") : t("runFailedDesc")}

@@ -4,6 +4,7 @@ import { App } from "./App";
 import { LayerManagerProvider } from "@insightflare/ui/layer-manager";
 import { TooltipProvider } from "@insightflare/ui/tooltip";
 import { ThemeProvider } from "./theme-provider";
+import { initAnalytics } from "./analytics";
 import "./app.css";
 
 const root = document.getElementById("root");
@@ -19,3 +20,4 @@ createRoot(root).render(
     </LayerManagerProvider>
   </React.StrictMode>
 );
+initAnalytics();

@@ -14,7 +14,8 @@ import {
 import { SUPPORTED_LOCALES } from "../lib/i18n/config";
 import { nativeLocaleName } from "../lib/i18n/native-locale-names";
 import { useTheme } from "./theme-provider";
-import { api, ApiError, ANALYTICS_READER_SCOPES, CONNECT_URL, type Account, type AccountOverview, type RunView, type Session } from "./api";
+import { api, ApiError, ANALYTICS_READER_SCOPES, CONNECT_URL, type Account, type AccountOverview, type PipelineRun, type RunView, type Session } from "./api";
+import { track, trackOAuthCallback, trackOAuthStart, trackPlan } from "./analytics";
 import { ConfirmOperation, Notice, errorText, useI18n } from "./ui";
 import { AutoResizer } from "@insightflare/ui/auto-resizer";
 import { AutoTransition } from "@insightflare/ui/auto-transition";
@@ -27,6 +28,11 @@ const HEALTH_WAIT_MS = 4000;
 const FOLLOW_POLL_MS = 3000;
 
 const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+function runMode(run: PipelineRun) {
+  return run.intent === "update" && (run.configurationOnly || run.state.previousSha === run.sourceSha)
+    ? "configure" : run.intent;
+}
 
 export function App() {
   const { locale, t, tMaybe, hrefForLocale } = useI18n();
@@ -62,6 +68,7 @@ export function App() {
     const code = new URLSearchParams(window.location.search).get("error");
     if (code) setMessage(t("authFailed", { error: code }));
     void api.session().then(value => {
+      trackOAuthCallback(value.connected);
       setSession(value);
       setSessionLoaded(true);
       if (value.connected) setStep(current => Math.max(current, 1));
@@ -119,7 +126,15 @@ export function App() {
         while (!cancelled && current.phase === "running") {
           let next: RunView;
           try {
-            next = await api.advance(accountId, current.id);
+            const advanced = await api.advance(accountId, current.id);
+            next = advanced;
+            if (advanced.settled && advanced.run?.id === current.id) {
+              const result = advanced.run;
+              if (result.phase === "succeeded") track(`deploy_${runMode(result)}_succeeded`);
+              if (result.failure) track("deploy_run_failed", {
+                mode: runMode(result), step: result.failure.step, code: result.failure.code
+              });
+            }
             setOtherTab(false);
           } catch (error) {
             if (error instanceof ApiError && error.status === 401) { setReconnect(true); return; }
@@ -160,6 +175,7 @@ export function App() {
         ...(adminPassword ? { adminPassword } : {}),
         ...(customDomain ? { customDomain } : {})
       });
+      if (view.run) track(`deploy_${runMode(view.run)}_started`);
       setRunView(view);
       setStep(3);
     } catch (error) {
@@ -210,6 +226,11 @@ export function App() {
   // With a run in progress the account step continues straight to it.
   const nextStep = step === 1 && liveRun ? (liveRun.phase === "succeeded" ? 4 : 3) : step + 1;
   const review = overview ? reviewDecision(overview, readerMissing, reviewForm) : null;
+  const planMode = review && !review.blocked ? (review.configureOnly ? "configure" : review.mode) : null;
+  const planArtifact = overview?.release?.artifactDigest;
+  useEffect(() => {
+    if (step === 2 && planMode && planArtifact) trackPlan(planMode, accountId, planArtifact);
+  }, [step, planMode, accountId, planArtifact]);
   const canContinue = step < 2 && completed[step] && reachable(nextStep);
   const finished = completed.filter(Boolean).length;
   const percent = Math.round((finished / STEP_COUNT) * 100);
@@ -328,7 +349,7 @@ export function App() {
             <div className="flex flex-wrap items-center gap-2">
               {step === 0 && !session.connected ? <Button asChild={session.oauthConfigured} disabled={!session.oauthConfigured}>
                 {session.oauthConfigured
-                  ? <a href={CONNECT_URL}><RiCloudLine data-icon="inline-start" />{t("connectButton")}</a>
+                  ? <a href={CONNECT_URL} onClick={trackOAuthStart}><RiCloudLine data-icon="inline-start" />{t("connectButton")}</a>
                   : <span><RiCloudLine data-icon="inline-start" />{t("connectButton")}</span>}
               </Button> : null}
               {(step === 0 && session.connected) || step === 1 ? <Button onClick={() => setStep(nextStep)} disabled={!canContinue}>
@@ -349,7 +370,9 @@ export function App() {
               {step === 3 && run?.phase === "running" ? <Button disabled>
                 <RiLoader4Line data-icon="inline-start" className="animate-spin" />{t("statusRunning")}</Button> : null}
               {step === 3 && run?.phase === "failed" && !run.state.rolledBack && run.failure?.code !== "SOURCE_MOVED"
-                ? <Button onClick={() => void act(() => api.retry(accountId, run.id))} disabled={working}>
+                ? <Button onClick={() => void act(() => api.retry(accountId, run.id), view => {
+                  if (view.run?.id === run.id) track("deploy_run_retried", { mode: runMode(view.run) });
+                })} disabled={working}>
                   <RiRefreshLine data-icon="inline-start" />{t("retry")}</Button> : null}
               {step === 4 && run && runView?.admin?.password ? <Button onClick={() => void act(() => api.passwordSaved(accountId, run.id))} disabled={working}>
                 <RiCheckLine data-icon="inline-start" />{t("passwordSaved")}</Button> : null}

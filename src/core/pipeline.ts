@@ -61,6 +61,8 @@ export interface PipelineState {
 export interface PipelineRun {
   id: string;
   intent: PipelineIntent;
+  /** The installation already runs this release; the run only changes its configuration. */
+  configurationOnly?: true;
   accountId: string;
   sourceSha: string;
   artifactDigest: string;
@@ -126,6 +128,7 @@ export function createRun(input: {
   id: string; intent: PipelineIntent; accountId: string; sourceSha: string;
   artifactDigest: string; legacyAdoptionApproved: boolean; now: number; customAdminPassword?: boolean;
   analyticsReaderAuthorized?: boolean;
+  configurationOnly?: boolean;
   customDomain?: CustomDomain;
 }): PipelineRun {
   if (!/^[a-f0-9]{32}$/.test(input.accountId) || !/^[a-f0-9]{40}$/.test(input.sourceSha) ||
@@ -135,6 +138,7 @@ export function createRun(input: {
   const ids: PipelineStepId[] = input.intent === "install" ? INSTALL_STEPS : UPDATE_STEPS;
   return {
     id: input.id, intent: input.intent, accountId: input.accountId,
+    ...(input.intent === "update" && input.configurationOnly ? { configurationOnly: true } : {}),
     sourceSha: input.sourceSha, artifactDigest: input.artifactDigest,
     legacyAdoptionApproved: input.legacyAdoptionApproved,
     ...(input.intent === "install" && input.customAdminPassword ? { customAdminPassword: true } : {}),

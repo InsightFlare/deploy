@@ -167,6 +167,7 @@ pipelineRoutes.post("/:accountId/run", async c => {
   const run = createRun({
     id: crypto.randomUUID(), intent: body.intent, accountId,
     sourceSha: pointer.sha, artifactDigest: pointer.artifactDigest,
+    configurationOnly: observed.kind === "managed" && observed.deployedSha === pointer.sha,
     legacyAdoptionApproved: body.legacyAdoptionApproved === true, now,
     customAdminPassword: chosenPassword !== null,
     analyticsReaderAuthorized: await readerAuthorized(c),
@@ -213,7 +214,9 @@ pipelineRoutes.post("/:accountId/run/advance", async c => {
   if (next.phase === "succeeded" && next.customAdminPassword && stored.adminPassword) {
     stored = await runStore.forgetPassword(c.env, accountId, next.id);
   }
-  return c.json(await publicRun(c.env, stored), 200, NO_STORE);
+  const settled = run.phase === "running" && next.phase !== "running" &&
+    stored.run?.id === next.id && stored.run.phase === next.phase && stored.run.updatedAt === next.updatedAt;
+  return c.json({ ...await publicRun(c.env, stored), settled }, 200, NO_STORE);
 });
 
 pipelineRoutes.post("/:accountId/run/retry", async c => {
@@ -223,7 +226,8 @@ pipelineRoutes.post("/:accountId/run/retry", async c => {
   await authorizedClient(c, accountId);
   const stored = await runStore.read(c.env, accountId);
   if (!stored.run || stored.run.id !== runId) throw new DeployError("SOURCE_MOVED", "This deployment run no longer exists.", 409);
-  return c.json(await publicRun(c.env, await runStore.replace(c.env, accountId, retryRun(stored.run, Date.now()))), 200, NO_STORE);
+  const retry = retryRun(stored.run, Date.now());
+  return c.json(await publicRun(c.env, await runStore.replace(c.env, accountId, retry, stored.run.updatedAt)), 200, NO_STORE);
 });
 
 pipelineRoutes.post("/:accountId/run/dismiss", async c => {
