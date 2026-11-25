@@ -273,6 +273,13 @@ export function App() {
   const finished = completed.filter(Boolean).length;
   const percent = Math.round((finished / STEP_COUNT) * 100);
   const current = steps[step]!;
+  // Entering/leaving uninstall review does not change the numeric wizard step.
+  // Key the animated content by both stage and operation, not changing inputs.
+  const isUninstallReview = step === 2 && Boolean(uninstallPlan);
+  const pageKey = step === 2 ? (isUninstallReview ? "review:uninstall" : "review:deploy")
+    : step >= 3 ? step + ":" + (run?.intent ?? "none") : String(step);
+  const showReviewAction = step === 2 && !uninstallPlan &&
+    Boolean(review?.mode || overview?.deployment.kind === "managed");
 
   return <div className="min-h-screen bg-background font-mono text-foreground antialiased">
     <main className="mx-auto flex min-h-svh w-full max-w-4xl flex-col justify-center gap-6 px-4 py-10 sm:px-6">
@@ -342,7 +349,7 @@ export function App() {
                     <span className="deploy-step-circle flex h-9 w-full items-center justify-center rounded-none border">
                       {completed[i] && i !== step ? <RiShieldCheckLine className="size-4" /> : <Icon className="size-4" />}
                     </span>
-                    <span className="max-w-full truncate">{item.title}</span>
+                    <AutoTransition as="span" className="block max-w-full truncate" initial={false} transitionKey={item.title} type="fade" duration={0.16}>{item.title}</AutoTransition>
                   </button>
                 </li>;
               })}
@@ -351,7 +358,7 @@ export function App() {
 
           <AutoResizer duration={0.24}>
           <CardContent className="px-4 py-6 sm:px-6" role="region" aria-labelledby="wizard-step-title">
-            <AutoTransition transitionKey={step} type="fade" duration={0.18}>
+            <AutoTransition transitionKey={pageKey} type="fade" duration={0.18}>
             <div className="mb-6 space-y-2">
               <CardTitle><h2 id="wizard-step-title" className="text-lg font-semibold tracking-tight">{current.heading}</h2></CardTitle>
               {current.description && step !== 3 ? <CardDescription>{current.description}</CardDescription> : null}
@@ -375,7 +382,9 @@ export function App() {
           </CardContent>
 
           {/* Every step's primary action sits where "Continue" is; secondary ones go left. */}
-          <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 px-4 py-4 sm:px-6">
+          <CardFooter className="block border-t border-border/70 px-4 py-4 sm:px-6">
+            <AutoTransition transitionKey={pageKey} type="fade" duration={0.18} initial={false}
+              className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {step === 0 && session.connected ? <Button variant="outline" onClick={() => void disconnect()}>
                 <RiLogoutBoxRLine data-icon="inline-start" />{t("disconnect")}</Button> : null}
@@ -406,17 +415,20 @@ export function App() {
                 {uninstallLoading ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiDeleteBinLine data-icon="inline-start" />}
                 {t(step === 3 ? "uninstallCleanup" : "uninstallButton")}
               </Button> : null}
-              {step === 2 && !uninstallPlan && review?.available ? <ConfirmOperation
-                title={t(review.mode === "install" ? "confirmInstallTitle" : review.mode === "configure" ? "confirmConfigureTitle" : "confirmUpdateTitle")}
-                description={review.mode === "install" ? t("confirmInstallDesc", { account: accountName })
-                  : review.mode === "configure" ? t("confirmConfigureDesc")
-                  : t(review.hasMigrations ? "confirmUpdateDesc" : "confirmUpdateNoMigrationDesc")}
+              {showReviewAction ? <ConfirmOperation
+                title={t(review?.mode === "install" ? "confirmInstallTitle" : review?.mode === "configure" ? "confirmConfigureTitle" : "confirmUpdateTitle")}
+                description={review?.mode === "install" ? t("confirmInstallDesc", { account: accountName })
+                  : review?.mode === "configure" ? t("confirmConfigureDesc")
+                  : t(review?.hasMigrations ? "confirmUpdateDesc" : "confirmUpdateNoMigrationDesc")}
                 confirmText={t("confirm")} cancelText={t("cancel")}
-                onConfirm={() => void startRun(reviewForm.adopt, review.install && review.custom ? reviewForm.password : undefined,
-                  review.domainNew ? { zoneId: reviewForm.zoneId, subdomain: reviewForm.subdomain.trim().toLowerCase() } : undefined)}>
-                <Button disabled={review.blocked || working}>
+                onConfirm={() => {
+                  if (!review?.available || review.blocked || working || uninstallLoading) return;
+                  void startRun(reviewForm.adopt, review.install && review.custom ? reviewForm.password : undefined,
+                    review.domainNew ? { zoneId: reviewForm.zoneId, subdomain: reviewForm.subdomain.trim().toLowerCase() } : undefined);
+                }}>
+                <Button disabled={!review?.available || review.blocked || working || uninstallLoading}>
                   {working ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiArrowRightLine data-icon="inline-start" />}
-                  {t(review.mode === "install" ? "installButton" : review.mode === "configure" ? "configureButton" : "updateButton")}
+                  {t(review?.mode === "install" ? "installButton" : review?.mode === "configure" ? "configureButton" : "updateButton")}
                 </Button>
               </ConfirmOperation> : null}
               {step === 3 && run?.phase === "running" ? <Button disabled>
@@ -432,6 +444,7 @@ export function App() {
                 onClick={() => void act(() => api.dismiss(accountId, run.id), () => { setStep(1); void loadAccount(accountId); })}>
                 {t("finish")}<RiArrowRightLine data-icon="inline-end" /></Button> : null}
             </div>
+            </AutoTransition>
           </CardFooter>
           </AutoResizer>
         </Card>

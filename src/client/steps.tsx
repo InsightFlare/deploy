@@ -337,6 +337,7 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
       {run.steps.map((step, i) => {
         const active = i === activeIndex;
         const note = noteText(tMaybe, step);
+        const failureDetail = step.status === "failed" ? step.note?.message : undefined;
         return <li key={step.id} className="flex items-start gap-3 px-4 py-3" data-active={active}>
           <span className="flex size-5 shrink-0 items-center justify-center">{<StepIcon step={step} active={active} />}</span>
           <div className="min-w-0 flex-1">
@@ -348,10 +349,13 @@ export function DeployStep({ t, tMaybe, run, otherTab, reconnect, error }: {
                 <span className="text-[11px] text-muted-foreground">{t(active ? "statusRunning" : STATUS[step.status])}</span>
               </AutoTransition>
             </div>
-            <AutoTransition type="fade" duration={0.16} transitionKey={note ?? ""}>
-              {note ? <p className="deploy-mono mt-0.5 text-xs text-muted-foreground">{note}</p> : null}
-            </AutoTransition>
-            {step.status === "failed" && step.note?.message ? <p className="deploy-mono mt-1 text-xs text-destructive">{step.note.message}</p> : null}
+            <AutoResizer duration={0.24}>
+              <AutoTransition type="fade" duration={0.16} initial={false}
+                transitionKey={JSON.stringify([note, failureDetail])}>
+                {note ? <p className="deploy-mono pt-0.5 text-xs text-muted-foreground">{note}</p> : null}
+                {failureDetail ? <p className="deploy-mono pt-1 text-xs text-destructive">{failureDetail}</p> : null}
+              </AutoTransition>
+            </AutoResizer>
           </div>
         </li>;
       })}
