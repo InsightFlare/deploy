@@ -114,11 +114,11 @@ export function parseNightlyPointer(body: unknown): {
   };
 }
 
-/** Resolve exact main SHA; a still-building nightly MUST NOT fall back to a formal release. */
-export async function resolvePublicDeployRelease(
-  sha: string, fetcher: typeof fetch = fetch
+/** Resolve the published Nightly pointer, optionally requiring a reviewed SHA. */
+async function resolveNightly(
+  fetcher: typeof fetch, expectedSha?: string
 ): Promise<PublicDeployRelease> {
-  const sourceSha = validateSha(sha);
+  const sourceSha = expectedSha === undefined ? undefined : validateSha(expectedSha);
   const res = await fetcher(`${GITHUB_API}/releases/tags/${NIGHTLY_TAG}`, {
     headers: { Accept: "application/vnd.github+json", "User-Agent": "InsightFlare-Deploy/0.1" },
     signal: AbortSignal.timeout(12000)
@@ -135,9 +135,9 @@ export async function resolvePublicDeployRelease(
     return reject("nightly release must be a published prerelease with valid assets");
   }
   const pointer = parseNightlyPointer(data.body);
-  if (pointer.sha !== sourceSha) {
+  if (sourceSha !== undefined && pointer.sha !== sourceSha) {
     throw new DeployError("UNAVAILABLE",
-      "The latest upstream commit has not been published to nightly yet; the build may still be running.", 409);
+      "The reviewed commit is no longer the current official nightly build.", 409);
   }
   // The channel's actual Git tag never needs to move. The vetted notes pointer
   // changes only after the single new SHA-addressed tar.gz is uploaded.
@@ -165,24 +165,24 @@ export async function resolvePublicDeployRelease(
     }
   }
   return {
-    sha: sourceSha, tag: NIGHTLY_TAG,
+    sha: pointer.sha, tag: NIGHTLY_TAG,
     artifactDigest: pointer.artifactDigest,
     archiveAsset: verifiedAsset(found(pointer.archive), NIGHTLY_TAG, pointer.archive)
   };
 }
 
-/** Fetch official main's HEAD, then require nightly to contain THAT SHA. */
-export async function resolveLatestPublicNightly(
+/** A running deployment must keep using the exact reviewed SHA. */
+export function resolvePublicDeployRelease(
+  sha: string, fetcher: typeof fetch = fetch
+): Promise<PublicDeployRelease> {
+  return resolveNightly(fetcher, sha);
+}
+
+/** The published Nightly pointer is authoritative, even while main is ahead. */
+export function resolveLatestPublicNightly(
   fetcher: typeof fetch = fetch
 ): Promise<PublicDeployRelease> {
-  const res = await fetcher(`${GITHUB_API}/commits/main`, {
-    headers: { Accept: "application/vnd.github+json", "User-Agent": "InsightFlare-Deploy/0.1" },
-    signal: AbortSignal.timeout(12000)
-  });
-  if (!res.ok) throw new DeployError("UPSTREAM_UNAVAILABLE", "Unable to resolve the latest official main commit.", 503);
-  const data = await res.json() as { sha?: unknown };
-  if (typeof data.sha !== "string") return reject("upstream main HEAD is invalid");
-  return resolvePublicDeployRelease(validateSha(data.sha), fetcher);
+  return resolveNightly(fetcher);
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {

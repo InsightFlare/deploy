@@ -8,7 +8,7 @@ Users never fork, compile or run Wrangler. Managed installations can also be uni
 
 ## How a deployment works
 
-Every run is pinned to one official build: the latest `main` commit published to the rolling `nightly` prerelease of `RavelloH/InsightFlare` (see *Official build artifacts* below). The browser starts a run, then calls `advance` repeatedly; each call executes exactly one idempotent step on the server and checkpoints its result in the account's `RUNS` Durable Object. Closing the tab, an expired authorization or a failed request never loses progress: reconnect and the run continues where it stopped. A short lease stops two tabs from advancing the same run.
+Every run is pinned to one official build: the current verified build published to the rolling `nightly` prerelease of `RavelloH/InsightFlare` (see *Official build artifacts* below). The browser starts a run, then calls `advance` repeatedly; each call executes exactly one idempotent step on the server and checkpoints its result in the account's `RUNS` Durable Object. Closing the tab, an expired authorization or a failed request never loses progress: reconnect and the run continues where it stopped. A short lease stops two tabs from advancing the same run.
 
 **Install** (account has no `insightflare` Worker):
 
@@ -86,9 +86,9 @@ Translations live in `src/i18n/{en,zh,zh-tw,ja}.yaml` under `deploy`; `pnpm i18n
 
 ## Official build artifacts
 
-The main repository's `publish-nightly-artifact.yml` compiles every `main` commit with `--skip-prebuild` (no credentials, no remote database access) and publishes one SHA-addressed `insightflare-deploy-<sha>.tar.gz` to the rolling `nightly` prerelease. The archive contains Worker modules, static assets, the ordered D1 migration SQL, a complete database initialization schema (when available), and a `manifest.json` with per-file SHA256 hashes, bindings, variables, Cron triggers and Durable Object migrations. The prerelease notes carry the current SHA and aggregate digest.
+The main repository builds and validates each `main` commit in CI with `--skip-prebuild` (no credentials, no remote database access). After the CI gate succeeds, `publish-nightly-artifact.yml` publishes one SHA-addressed `insightflare-deploy-<sha>.tar.gz` to the rolling `nightly` prerelease. The archive contains Worker modules, static assets, the ordered D1 migration SQL, a complete database initialization schema (when available), and a `manifest.json` with per-file SHA256 hashes, bindings, variables, Cron triggers and Durable Object migrations. The prerelease notes carry the current SHA and aggregate digest.
 
-`src/core/public-release.ts` resolves `main`, requires `nightly` to advertise exactly that SHA (never falling back to an older build), checks GitHub's asset digest, parses the archive strictly and recomputes the complete artifact digest before anything is uploaded.
+`src/core/public-release.ts` uses the official `nightly` pointer as the sole deployment version source, even when `main` is ahead. It checks GitHub's asset digest, parses the archive strictly and recomputes the complete artifact digest before anything is uploaded. Review and execution pin the same SHA and digest; if the Nightly pointer changes before the run finishes, affected steps require a fresh review rather than mixing builds.
 
 `node scripts/pack-build.mjs <checkout> <sha>` verifies an independently built checkout the same way. An experimental isolated Docker builder (`builder/`, `scripts/isolated-builder.mjs`, manual workflow `isolated-builder-smoke.yml`) is kept for research; it is not used by the deploy flow.
 

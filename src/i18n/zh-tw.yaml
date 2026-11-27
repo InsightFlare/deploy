@@ -97,7 +97,7 @@ deploy:
   recheck: "重新檢測"
   blockersTitle: "暫時無法繼續"
   blocker_WORKER_CONFLICT: "已經有一個名為 insightflare 的 Worker，但它不是 InsightFlare。請先重新命名或刪除它。"
-  blocker_NIGHTLY_PENDING: "最新的官方建置還在發布中，請幾分鐘後再試。"
+  blocker_NIGHTLY_PENDING: "目前沒有可用的官方 Nightly 建置，請稍後再試。"
   blocker_RELEASE_UNAVAILABLE: "無法下載或驗證官方建置。"
   blocker_DATABASE_TAKEN: "已經有一個名為 insightflare 且包含資料的 D1 資料庫。請先刪除或重新命名它再安裝。"
   blocker_UPDATE_BLOCKED: "這個實例無法自動更新。"

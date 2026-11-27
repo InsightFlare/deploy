@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseMainCommit, resolveLatestMain, validateSha } from "../src/core/source";
+import { parseMainCommit, resolveLatestMain, resolvePublishedSource, validateSha } from "../src/core/source";
 
 const sha = "a".repeat(40);
 describe("upstream main source", () => {
@@ -25,6 +25,18 @@ describe("upstream main source", () => {
     expect(commit.sha).toBe(sha);
     expect(mock.mock.calls).toHaveLength(1);
     expect(String(mock.mock.calls[0]?.[0])).toMatch(/\/commits\/main$/);
+  });
+  it("fetches metadata for the published SHA, not main", async () => {
+    const mock = vi.fn(async (_url: string) => Response.json({ sha, commit: { message: "Published build" } }));
+    const commit = await resolvePublishedSource(sha, mock as typeof fetch);
+    expect(commit).toMatchObject({ sha, message: "Published build" });
+    expect(mock.mock.calls[0]?.[0]).toMatch(new RegExp("/commits/" + sha + "$"));
+  });
+  it("keeps the published SHA when metadata is missing or mismatched", async () => {
+    for (const response of [new Response(null, { status: 503 }), Response.json({ sha: "b".repeat(40) })]) {
+      const mock = vi.fn(async () => response);
+      await expect(resolvePublishedSource(sha, mock as typeof fetch)).resolves.toMatchObject({ sha, message: "", url: "https://github.com/RavelloH/InsightFlare/commit/" + sha });
+    }
   });
   it("fails closed on failed Github fetch", async () => {
     const mock = vi.fn(async () => new Response("not found", { status: 404 }));

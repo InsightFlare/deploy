@@ -3,7 +3,7 @@ import type { Env } from "../types";
 import { DeployError } from "../types";
 import { CloudflareClient, isHostname } from "../providers/cloudflare/client";
 import { discoverDeployment } from "../providers/cloudflare/discovery";
-import { resolveLatestMain } from "../core/source";
+import { resolvePublishedSource, type MainCommit } from "../core/source";
 import { githubFetcher } from "../core/github";
 import {
   resolveLatestPublicNightly, resolvePublicDeployRelease, downloadVerifiedPublicRelease, type ReleaseArtifact
@@ -42,7 +42,7 @@ async function loadPinnedRelease(github: typeof fetch, sha: string, artifactDige
   try {
     pointer = await resolvePublicDeployRelease(sha, github);
   } catch (error) {
-    // Nightly keeps only the newest build: once main moves on, the pinned one is gone for good.
+    // Nightly keeps only the newest build: once its pointer moves, the pinned one is unavailable.
     if (error instanceof DeployError && error.code === "UNAVAILABLE" && error.status === 409) {
       throw new DeployError("SOURCE_MOVED", "A newer official build replaced the reviewed one. Start the deployment again.", 409);
     }
@@ -116,17 +116,18 @@ async function publicRun(env: Env, stored: StoredRun) {
 pipelineRoutes.get("/:accountId/overview", async c => {
   const accountId = accountParam(c.req.param("accountId"));
   const client = await authorizedClient(c, accountId);
-  const [observed, source] = await Promise.all([
-    discoverDeployment(client, accountId),
-    resolveLatestMain(githubFetcher(c.env.GITHUB_TOKEN)).catch(() => null)
-  ]);
+  const observed = await discoverDeployment(client, accountId);
+  const github = githubFetcher(c.env.GITHUB_TOKEN);
+  let sourceMetadata: Promise<MainCommit> | undefined;
   const overview = await accountOverview({
-    client, accountId, observed, source,
+    client, accountId, observed, source: null,
     loadLatestRelease: async () => {
-      const github = githubFetcher(c.env.GITHUB_TOKEN);
-      return downloadVerifiedPublicRelease(await resolveLatestPublicNightly(github), github);
+      const pointer = await resolveLatestPublicNightly(github);
+      sourceMetadata = resolvePublishedSource(pointer.sha, github);
+      return downloadVerifiedPublicRelease(pointer, github);
     }
   });
+  if (overview.release && sourceMetadata) overview.source = await sourceMetadata;
   // The Analytics Engine probe is a heuristic; keep its outcome visible in Workers Logs.
   console.log(JSON.stringify({ event: "overview", kind: overview.deployment.kind, analyticsEngine: overview.analyticsEngine ?? null, analyticsReader: overview.analyticsReader ?? null,
     zones: overview.zones?.length ?? null, zonesError: overview.zonesError ?? null, customDomains: overview.customDomains?.length ?? null }));

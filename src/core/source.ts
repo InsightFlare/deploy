@@ -28,6 +28,23 @@ export function parseMainCommit(input: unknown): MainCommit {
   return { repository: UPSTREAM, ref: "main", sha, shortSha: sha.slice(0, 8), message, committedAt, url: `https://github.com/${UPSTREAM}/commit/${sha}` };
 }
 
+/** Metadata is optional: a verified Nightly SHA remains deployable if GitHub metadata is unavailable. */
+export async function resolvePublishedSource(sha: string, fetcher: typeof fetch = fetch): Promise<MainCommit> {
+  const pinned = validateSha(sha);
+  const fallback = parseMainCommit({ sha: pinned });
+  try {
+    const res = await fetcher(`https://api.github.com/repos/${UPSTREAM}/commits/${pinned}`, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "InsightFlare-Deploy/0.1" },
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!res.ok) return fallback;
+    const commit = parseMainCommit(await res.json());
+    return commit.sha === pinned ? commit : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function resolveLatestMain(fetcher: typeof fetch = fetch): Promise<MainCommit> {
   const res = await fetcher(`https://api.github.com/repos/${UPSTREAM}/commits/main`, {
     headers: { Accept: "application/vnd.github+json", "User-Agent": "InsightFlare-Deploy/0.1" },

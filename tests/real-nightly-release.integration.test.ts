@@ -31,7 +31,6 @@ describe.skipIf(!archivePath)("offline complete official build through one-file 
       }]
     };
     const fetcher = vi.fn(async (url: string) => {
-      if (url.endsWith("/commits/main")) return Response.json({ sha });
       if (url.endsWith("/releases/tags/nightly")) return Response.json(release);
       if (url.endsWith("/" + base + ".tar.gz")) return new Response(archive);
       throw Error("Unexpected Nightly request " + url);
@@ -75,6 +74,6 @@ describe.skipIf(!archivePath)("offline complete official build through one-file 
       bookmark: "mock-recovery-bookmark"
     });
     expect(current.pending).toHaveLength(0);
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   }, 120000);
 });

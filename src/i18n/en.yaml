@@ -97,7 +97,7 @@ deploy:
   recheck: "Check again"
   blockersTitle: "This cannot continue yet"
   blocker_WORKER_CONFLICT: "A Worker named insightflare already exists but is not an InsightFlare installation. Rename or remove it first."
-  blocker_NIGHTLY_PENDING: "The newest official build is still being published. Try again in a few minutes."
+  blocker_NIGHTLY_PENDING: "No official Nightly build is currently available. Try again in a few minutes."
   blocker_RELEASE_UNAVAILABLE: "The official build could not be downloaded or verified."
   blocker_DATABASE_TAKEN: "A D1 database named insightflare already contains data. Delete or rename it before installing."
   blocker_UPDATE_BLOCKED: "This installation cannot be updated automatically."

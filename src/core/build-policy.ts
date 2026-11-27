@@ -126,7 +126,7 @@ export const BUILD_PROCESS_CONTRACT: Readonly<BuildProcessContract> = {
   productionReady: false,
   caveats: [
     "Official GitHub CI can publish a verified build for each upstream main commit to the rolling nightly prerelease; no user fork or external object storage is required.",
-    "The official nightly publisher is active on upstream main. Never substitute a formal Release or an older nightly build when the exact latest commit is pending.",
+    "The official Nightly pointer selects the latest published verified build, even while main advances. Never substitute a formal Release or an unverified attachment.",
     "The single downloaded nightly tar.gz must match GitHub SHA256 and its complete internal manifest, including every D1 migration SQL hash.",
     "Public build artifacts are shared official CI outputs; the old isolated per-user compiler is an optional experiment.",
     "A private Linux Docker builder prototype remains optional and is not needed by Deploy users; production readiness is unverified.",

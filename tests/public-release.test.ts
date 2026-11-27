@@ -45,7 +45,7 @@ describe("rolling nightly channel resolution", () => {
     expect(() => parseNightlyPointer(null)).toThrow("missing");
   });
 
-  it("resolves latest main SHA from the official commit API, not a formal release or moving tag", async () => {
+  it("resolves the published Nightly SHA without querying main or a formal release", async () => {
     const fetcher = mockApi(release());
     const resolved = await resolveLatestPublicNightly(fetcher);
     expect(resolved).toMatchObject({
@@ -54,15 +54,20 @@ describe("rolling nightly channel resolution", () => {
     });
     const urls = (fetcher as ReturnType<typeof vi.fn>).mock.calls.map(x => String(x[0]));
     expect(urls).toEqual([
-      "https://api.github.com/repos/RavelloH/InsightFlare/commits/main",
       "https://api.github.com/repos/RavelloH/InsightFlare/releases/tags/nightly"
     ]);
     expect(urls.every((url: string) => !url.includes("/releases/latest") && !url.includes("/releases/tags/v"))).toBe(true);
   });
 
-  it("refuses a nightly pointer that has not caught up with official main", async () => {
+  it("keeps the published build deployable while main is ahead", async () => {
     const fetcher = mockApi(release(), otherSha);
-    await expect(resolveLatestPublicNightly(fetcher)).rejects.toThrow("build may still be running");
+    await expect(resolveLatestPublicNightly(fetcher)).resolves.toMatchObject({ sha });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a pinned run if the published pointer moved to another SHA", async () => {
+    const fetcher = mockApi(release({ body: notes(otherSha), assets: [asset("insightflare-deploy-" + otherSha + ".tar.gz")] }));
+    await expect(resolvePublicDeployRelease(sha, fetcher)).rejects.toMatchObject({ code: "UNAVAILABLE", status: 409 });
   });
 
   it("chooses the exact active SHA archive even during old-archive cleanup", async () => {
